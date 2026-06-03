@@ -1,7 +1,11 @@
 """robotdance core CLI.
 
-雛形段階のサブコマンドは `validate` のみ。RD-Manifest / RD-MIR / RD-Embodiment の
-JSON を対応する specs/ の JSON Schema で検証する。pose 抽出・retarget 等は後続フェーズで追加する。
+サブコマンド:
+  validate  RD-Manifest / RD-MIR / RD-Embodiment の JSON を specs/ の JSON Schema で検証
+  synth     合成ダンスモーション RD-MIR を生成（pose モデル不要のデモ種データ）
+  view      RD-MIR の 3D スケルトンを GIF に描画
+
+pose 抽出・retarget・sim は後続フェーズで追加する。
 """
 
 from __future__ import annotations
@@ -42,6 +46,26 @@ def _validate(spec: str, path: Path) -> int:
     return 0
 
 
+def _synth(out: Path, duration: float, fps: float) -> int:
+    from .synthetic import generate_dance
+
+    mir = generate_dance(duration=duration, fps=fps)
+    mir.save(out)
+    print(f"✓ 合成 RD-MIR を書き出しました: {out} "
+          f"({mir.num_frames} frames, {mir.fps:g} fps, {mir.duration:g}s)")
+    return 0
+
+
+def _view(path: Path, out: Path, stride: int) -> int:
+    from .rd_mir import RdMir
+    from robotdance_viewer.skeleton_view import render_gif
+
+    mir = RdMir.load(path)
+    render_gif(mir, out, stride=stride)
+    print(f"✓ スケルトン GIF を書き出しました: {out}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="robotdance", description="RobotDance core CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -50,9 +74,23 @@ def main(argv: list[str] | None = None) -> int:
     p_validate.add_argument("spec", choices=sorted(_SCHEMAS), help="検証する spec")
     p_validate.add_argument("path", type=Path, help="検証対象 JSON ファイル")
 
+    p_synth = sub.add_parser("synth", help="合成ダンスモーション RD-MIR を生成する")
+    p_synth.add_argument("-o", "--out", type=Path, default=Path("synthetic_dance.rdmir.json"))
+    p_synth.add_argument("--duration", type=float, default=4.0)
+    p_synth.add_argument("--fps", type=float, default=30.0)
+
+    p_view = sub.add_parser("view", help="RD-MIR を 3D スケルトン GIF に描画する")
+    p_view.add_argument("path", type=Path, help="RD-MIR JSON")
+    p_view.add_argument("-o", "--out", type=Path, default=Path("skeleton.gif"))
+    p_view.add_argument("--stride", type=int, default=2, help="何フレームおきに描画するか")
+
     args = parser.parse_args(argv)
     if args.command == "validate":
         return _validate(args.spec, args.path)
+    if args.command == "synth":
+        return _synth(args.out, args.duration, args.fps)
+    if args.command == "view":
+        return _view(args.path, args.out, args.stride)
     parser.error(f"unknown command: {args.command}")
     return 2
 

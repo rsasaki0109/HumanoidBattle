@@ -34,12 +34,21 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# 合成モーション生成（FK）+ スケルトン GIF ビューア。pose モデル不要のデモ経路。
+demo = [
+    "scipy>=1.10",
+    "matplotlib>=3.7",
+    "imageio>=2.30",
+]
 perception = []  # TODO(v0.1): pose / HMR adapter 依存
 sim = []         # TODO(v0.2): Isaac Lab / MuJoCo backend
 ros2 = []        # ROS2 は colcon / ament 管理のため別ワークスペース想定
 dev = [
     "pytest>=8.0",
     "ruff>=0.4",
+    "scipy>=1.10",
+    "matplotlib>=3.7",
+    "imageio>=2.30",
 ]
 
 [project.scripts]

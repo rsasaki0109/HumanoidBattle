@@ -6,8 +6,9 @@
 
 *RobotDance は、権利管理された人間動画を、ヒューマノイドロボットの運動データ・運動埋め込み・学習 policy・実行可能モーションへ変換する OSS モーションコンパイラです。*
 
-<!-- TODO(v0.1): assets/readme/ に 10 秒 side-by-side GIF を配置して下に埋め込む -->
-<!-- ![RobotDance demo](assets/readme/shorts_to_g1.gif) -->
+![RobotDance synthetic dance demo](assets/readme/synthetic_dance.gif)
+
+<sub>↑ 合成モーション → RD-MIR → 3D スケルトン再生（pose モデル不要の動作確認用。原動画 / G1 sim を並べる side-by-side は v0.1 で追加）</sub>
 
 </div>
 
@@ -68,6 +69,25 @@ Output: Unitree G1 simulation motion + RD-MIR dataset + motion embedding
 
 中核となる内部標準は **RD-MIR (RobotDance Motion Intermediate Representation)** です。詳細は [`specs/`](specs/) を参照。
 
+## Quick start
+
+外部モデルや権利付き動画なしで、合成モーション → RD-MIR → 3D スケルトン GIF を end-to-end で試せます。
+
+```bash
+pip install -e ".[demo]"
+
+# 1. 合成ダンスモーションを生成（RD-MIR を書き出す）
+robotdance synth -o dance.rdmir.json --duration 4 --fps 30
+
+# 2. RD-MIR を v0 schema で検証
+robotdance validate mir dance.rdmir.json
+
+# 3. 3D スケルトンを GIF に描画
+robotdance view dance.rdmir.json -o dance.gif
+```
+
+> これは pose 推定・retarget・sim を**まだ含まない**動作確認用の経路です。実動画からの 3D 復元（`local video → RD-MIR`）は v0.1 で追加します。
+
 ## リポジトリ構成
 
 ```
@@ -126,7 +146,8 @@ robotdance_viewer/      side-by-side video/motion/robot visualization
 
 ## ステータス
 
-🚧 **Pre-v0.1 / scaffold。** 現在はリポジトリ雛形と仕様の初版（v0 schema）を整備中です。
+🚧 **Pre-v0.1。** specs v0、RD-MIR の Python データモデル、合成モーション生成、3D スケルトンビューア（`synth` / `validate` / `view`）まで動作。
+次は実動画からの 3D 復元（pose/HMR adapter）と G1 retarget。詳細は [`docs/ROADMAP.md`](docs/ROADMAP.md)。
 
 ## License
 
