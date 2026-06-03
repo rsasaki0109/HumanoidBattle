@@ -104,6 +104,25 @@ robotdance overlay my_clip.mp4 clip.rdmir.json -o overlay.gif
 > 検証は landmark→canonical マッピングの単体テストと、公有 `astronaut` 実写での検出テストで行っています
 > （[`robotdance_perception`](robotdance_perception/) / [`robotdance_motion`](robotdance_motion/)）。
 
+## Dataset factory — manifest 駆動 + license firewall
+
+RobotDance は「運動データの OS」を目指します。**AMASS 等の mocap を skeleton-first で RD-MIR 化**し、
+**RD-Manifest** で権利を管理します。raw データは再配布せず、`license_declared=unknown` や
+`derived_motion_allowed=false` の clip は **license firewall** が派生 motion の書き出しを止めます。
+
+```bash
+robotdance build-dataset manifests.json --data-root /path/to/amass -o build/
+```
+```
+✅ amass-cc-walk-001     [trainable]  derived_motion_allowed=true, license=creativeCommon
+⛔ internet-clip-xyz     [unknown]    license_declared=unknown → 派生 motion 非公開
+→ build/DATA_CARD.md（Data Bill of Materials: どの source が・どの権利で・公開されたか）
+```
+
+- **skeleton-first**: SMPL pose を FK して canonical 19-joint へ。**SMPL body model file は不要 / 同梱しない**（license friction 回避）。
+- AMASS の RD-MIR はそのまま retarget・物理検証パイプラインに流れる。
+- 実 AMASS は登録制のため同梱しません（[`robotdance_data`](robotdance_data/)）。
+
 ## Demo 4 — Unsafe motion rejected
 
 > RobotDance は「動画を入れたら即ロボットが踊る」危険ツールではありません。retarget した運動を
@@ -204,11 +223,12 @@ robotdance_viewer/      side-by-side video/motion/robot visualization
 ## ステータス
 
 🚧 **Pre-v0.1。** specs v0、RD-MIR/RD-Motion の Python モデル、合成モーション生成、
-**local 動画 → RD-MIR（MediaPipe Pose）+ temporal smoothing + 2D overlay**、
+**local 動画 → RD-MIR（MediaPipe Pose）+ smoothing + 2D overlay**、
+**AMASS ローダ + RD-Manifest license firewall（Data Bill of Materials）**、
 **G1/H1 への kinematic retarget（multi-embodiment）**、**MuJoCo 物理検証（sim_certificate / PASS・REJECT）**、
 3D & multi-panel ビューアまで動作
-（`extract`/`video-to-robot`/`overlay`/`smooth`/`synth`/`validate`/`view`/`retarget`/`view-pair`/`validate-sim`/`demo-*`）。
-次は HMR adapter（4DHumans/GVHMR）と実 URDF・Isaac Lab backend、dataset ローダ。詳細は [`docs/ROADMAP.md`](docs/ROADMAP.md)。
+（`extract`/`video-to-robot`/`build-dataset`/`overlay`/`smooth`/`retarget`/`validate-sim`/`demo-*` 他）。
+次は HMR adapter（4DHumans/GVHMR）・実 URDF・Isaac Lab backend・motion embeddings。詳細は [`docs/ROADMAP.md`](docs/ROADMAP.md)。
 
 ## License
 

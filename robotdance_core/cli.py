@@ -164,6 +164,19 @@ def _video_to_robot(video: Path, robot: str, out: Path, stride: int) -> int:
     return 0
 
 
+def _build_dataset(manifest_file: Path, data_root: Path, out_dir: Path) -> int:
+    from robotdance_data.dataset import build_from_file
+
+    report = build_from_file(manifest_file, data_root=data_root, out_dir=out_dir)
+    print(f"✓ dataset build: exported {report['exported']} / withheld {report['withheld']} "
+          f"(total {report['total']})")
+    print(f"  Data Bill of Materials: {out_dir / 'DATA_CARD.md'}")
+    for r in report["bill_of_materials"]:
+        mark = "✅" if r["exported"] else "⛔"
+        print(f"  {mark} {r['clip_id']:16s} [{r['license_state']}] {r['reason']}")
+    return 0
+
+
 def _smooth(path: Path, out: Path, window: int) -> int:
     from .rd_mir import RdMir
     from robotdance_motion.smoothing import smooth_rdmir
@@ -317,6 +330,11 @@ def main(argv: list[str] | None = None) -> int:
     p_multi.add_argument("--robots", nargs="+", default=["unitree_g1", "unitree_h1"])
     p_multi.add_argument("--stride", type=int, default=2)
 
+    p_build = sub.add_parser("build-dataset", help="RD-Manifest から RD-MIR を構築（license firewall）")
+    p_build.add_argument("manifest", type=Path, help="manifest JSON（配列 or 単体）")
+    p_build.add_argument("--data-root", type=Path, default=Path("."), help="ローカル source の基準ディレクトリ")
+    p_build.add_argument("-o", "--out", type=Path, default=Path("build"))
+
     p_smooth = sub.add_parser("smooth", help="RD-MIR を Savitzky-Golay で平滑化する")
     p_smooth.add_argument("path", type=Path, help="RD-MIR JSON")
     p_smooth.add_argument("-o", "--out", type=Path, default=Path("smoothed.rdmir.json"))
@@ -372,6 +390,8 @@ def main(argv: list[str] | None = None) -> int:
         return _validate_sim(args.path, args.robot, args.out)
     if args.command == "demo-safety":
         return _demo_safety(args.out, args.robot, args.stride)
+    if args.command == "build-dataset":
+        return _build_dataset(args.manifest, args.data_root, args.out)
     if args.command == "smooth":
         return _smooth(args.path, args.out, args.window)
     if args.command == "demo-smoothing":

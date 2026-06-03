@@ -1,0 +1,25 @@
+[
+  {
+    "manifest_version": "0",
+    "clip_id": "amass-accad-walk-001",
+    "source_type": "dataset",
+    "source_uri": "dataset://amass/ACCAD/Female1Walking_c3d/B1 - stand to walk_poses.npz",
+    "license_declared": "custom",
+    "derived_motion_allowed": true,
+    "training_allowed": true,
+    "commercial_allowed": false,
+    "rebuild_method": "manual_download",
+    "api_terms": "AMASS dataset terms（研究用途・sub-dataset ごとに要確認）",
+    "status": "active"
+  },
+  {
+    "manifest_version": "0",
+    "clip_id": "internet-clip-unknown-001",
+    "source_type": "youtube",
+    "source_uri": "https://www.youtube.com/watch?v=EXAMPLE",
+    "license_declared": "unknown",
+    "derived_motion_allowed": true,
+    "rebuild_method": "official_api",
+    "status": "active"
+  }
+]
