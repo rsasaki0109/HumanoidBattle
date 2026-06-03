@@ -5,6 +5,16 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **HMR betas（shape conditioning）+ native loader（§4.1）**（`robotdance_perception.hmr`,
+  `robotdance_data.smpl`）: HMR/Motion-X が回帰した **SMPL betas** で rest offset を shape-conditioning
+  し、骨格の個体差（身長 β0 / 体幅 β1）を first-order で反映する（`smpl.py` の `fk_smpl_body` /
+  `smpl_poses_to_canonical` が betas 引数を受理）。**真の SMPL blend shapes ではなく粗い線形プロキシ**
+  （model file 不要 = license-safe）。`from_gvhmr` / `from_4dhumans` / `load_hmr_npz` / Motion-X(322 次元の
+  betas)が betas を自動利用。あわせて **native loader** `load_hmr_file(path)` を追加し、
+  `.npz/.npy/.pkl/.pt` を読んで dict 構造から GVHMR/4DHumans/汎用を自動判別（`from_dict`）。
+  `import-hmr` が native 形式を受理。numpy/scipy のみで **CI 検証**。
+
 ## [0.20.0] - 2026-06-04
 
 全体価値を一望できる節目リリース（pre-alpha）。RobotDance の主要スタックを **1 コマンド**で繋ぐ

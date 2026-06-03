@@ -39,7 +39,7 @@ Output: Unitree G1 simulation motion + RD-MIR dataset + motion embedding
 | 実動画 → 3D motion（MediaPipe） | `extract` / `video-to-robot` | bring your own video |
 | mocap → motion（AMASS, skeleton-first） | `build-dataset` | + license firewall / Data BOM |
 | text-motion（HumanML3D / BABEL / Motion-X, §4.1） | `import-humanml3d` / `import-babel` / `import-motionx` | 記述・行動ラベルを semantics に |
-| HMR 動画→3D（4DHumans/GVHMR SMPL→RD-MIR, §4.1） | `import-hmr` | skeleton-first・world trajectory |
+| HMR 動画→3D（4DHumans/GVHMR SMPL→RD-MIR, §4.1） | `import-hmr` | betas shape-cond・native .pkl/.pt・world trajectory |
 | G1 / H1 への retarget（multi-embodiment） | `retarget` / `demo-multi` | many humanoids ↑ |
 | MuJoCo 物理検証（安全な運動だけ通す） | `validate-sim` / `demo-safety` | Demo 4: unsafe rejected |
 | sim backend 抽象（pluggable, §4.3） | `sim-backends` / `validate-sim --backend` | MuJoCo 参照 + Isaac Lab scaffold |

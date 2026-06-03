@@ -30,26 +30,30 @@ from .smpl import smpl_poses_to_canonical
 _ROOT_ORIENT = slice(0, 3)
 _POSE_BODY = slice(3, 66)
 _TRANS = slice(309, 312)
+_BETAS = slice(312, 322)
 _FULL_DIM = 322
 
 
-def _extract_body(motion: np.ndarray) -> tuple[np.ndarray, Optional[np.ndarray]]:
-    """Motion-X モーション配列から body の axis-angle poses [T,22,3] と trans [T,3] を取り出す。
+def _extract_body(
+    motion: np.ndarray,
+) -> tuple[np.ndarray, Optional[np.ndarray], Optional[np.ndarray]]:
+    """Motion-X モーション配列から body poses [T,22,3] / trans [T,3] / betas [10] を取り出す。
 
     受理: 322 次元（標準）/ 66 次元（body のみ）/ [T,22,3]（既に整形済み）。
     """
     motion = np.asarray(motion, dtype=np.float64)
     if motion.ndim == 3 and motion.shape[1:] == (22, 3):
-        return motion, None
+        return motion, None, None
     if motion.ndim != 2:
         raise ValueError(f"Motion-X motion は [T, D] か [T,22,3] が必要: {motion.shape}")
     d = motion.shape[1]
     if d >= _FULL_DIM:
         pose = np.concatenate([motion[:, _ROOT_ORIENT], motion[:, _POSE_BODY]], axis=1)
         trans = motion[:, _TRANS]
-        return pose.reshape(motion.shape[0], 22, 3), trans
+        betas = motion[:, _BETAS].mean(axis=0)   # 静的 shape として時間平均
+        return pose.reshape(motion.shape[0], 22, 3), trans, betas
     if d >= 66:
-        return motion[:, :66].reshape(motion.shape[0], 22, 3), None
+        return motion[:, :66].reshape(motion.shape[0], 22, 3), None, None
     raise ValueError(f"Motion-X motion の次元が不足（>=66 が必要）: {d}")
 
 
@@ -63,8 +67,8 @@ def motionx_to_mir(
     ground_align: bool = True,
 ) -> RdMir:
     """Motion-X のモーション配列（322 次元等）と記述文から canonical RD-MIR を生成する。"""
-    pose, trans = _extract_body(motion)
-    kps = smpl_poses_to_canonical(pose, trans)  # [T, 19, 3]
+    pose, trans, betas = _extract_body(motion)
+    kps = smpl_poses_to_canonical(pose, trans, betas)  # [T, 19, 3]（betas で shape-conditioning）
     if ground_align:
         kps[:, :, 2] -= kps[:, [index_of("left_ankle"), index_of("right_ankle")], 2].min()
 

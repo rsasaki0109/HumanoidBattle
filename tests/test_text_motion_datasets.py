@@ -121,9 +121,10 @@ def test_motionx_322dim_extracts_body() -> None:
     t = 40
     m = rng.normal(0, 0.1, size=(t, 322))
     m[:, 309:312] = np.cumsum(0.01 * np.ones((t, 3)), axis=0)
-    pose, trans = _extract_body(m)
+    pose, trans, betas = _extract_body(m)
     assert pose.shape == (t, 22, 3)
     assert trans is not None and trans.shape == (t, 3)
+    assert betas is not None and betas.shape == (10,)
     # root_orient(0:3) + pose_body(3:66) を使っている。
     assert np.allclose(pose.reshape(t, 66)[:, :66], m[:, :66])
     assert np.allclose(trans, m[:, 309:312])

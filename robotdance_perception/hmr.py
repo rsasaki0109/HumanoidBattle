@@ -53,6 +53,7 @@ def hmr_smpl_to_mir(
     body_pose: np.ndarray,
     transl: Optional[np.ndarray] = None,
     *,
+    betas: Optional[np.ndarray] = None,
     fps: float = 30.0,
     source: str = "hmr",
     license_state: LicenseState = "unknown",
@@ -66,6 +67,7 @@ def hmr_smpl_to_mir(
     body_pose:     [T,21,3] / [T,23,3] / [T,63] / [T,69]（axis-angle）または対応する rotmat。
                    先頭 21 body joint（SMPL joint 1..21）だけを使う。
     transl:        [T,3] root 並進（あれば world trajectory として反映）。
+    betas:         SMPL shape（あれば rest offset を shape-conditioning, v0 近似）。
     """
     go = _to_axis_angle(global_orient).reshape(-1, 3)        # [T,3]
     bp = _to_axis_angle(body_pose)
@@ -75,11 +77,13 @@ def hmr_smpl_to_mir(
     poses = np.concatenate([go[:, None, :], bp], axis=1)     # [T,22,3]
     trans = np.asarray(transl, dtype=np.float64) if transl is not None else None
 
-    kps = smpl_poses_to_canonical(poses, trans)              # [T,19,3]（z-up canonical）
+    betas_v = _mean_betas(betas)
+    kps = smpl_poses_to_canonical(poses, trans, betas_v)     # [T,19,3]（z-up canonical）
     # 接地: 足の最下点を z=0 へ。
     kps[:, :, 2] -= kps[:, [index_of("left_ankle"), index_of("right_ankle")], 2].min()
 
-    quality: dict[str, Any] = {"extractor": "hmr_smpl_fk", "shape_conditioned": False}
+    quality: dict[str, Any] = {"extractor": "hmr_smpl_fk",
+                               "shape_conditioned": betas_v is not None}
     if smooth and kps.shape[0] >= 7:
         from robotdance_motion.smoothing import jitter, savgol_smooth
 
@@ -120,7 +124,8 @@ def from_gvhmr(
     go = _as_np(params["global_orient"])
     bp = _as_np(params["body_pose"])
     transl = _as_np(params["transl"]) if "transl" in params else None
-    return hmr_smpl_to_mir(go, bp, transl, fps=fps, source="gvhmr",
+    betas = _as_np(params["betas"]) if "betas" in params else None
+    return hmr_smpl_to_mir(go, bp, transl, betas=betas, fps=fps, source="gvhmr",
                            source_ref={"extractor": "gvhmr", "frame": "global" if world else "incam"},
                            **kw)
 
@@ -136,7 +141,8 @@ def from_4dhumans(result: dict[str, Any], *, fps: float = 30.0, **kw: Any) -> Rd
     go = _as_np(smpl["global_orient"])
     bp = _as_np(smpl["body_pose"])
     transl = _as_np(result["pred_cam_t"]) if "pred_cam_t" in result else None
-    return hmr_smpl_to_mir(go, bp, transl, fps=fps, source="4dhumans",
+    betas = _as_np(smpl["betas"]) if "betas" in smpl else None
+    return hmr_smpl_to_mir(go, bp, transl, betas=betas, fps=fps, source="4dhumans",
                            source_ref={"extractor": "4dhumans_hmr2", "camera": "weak_perspective"},
                            **kw)
 
@@ -153,12 +159,79 @@ def load_hmr_npz(path: str | Path, *, source: str = "hmr", fps: Optional[float] 
     if "global_orient" not in data or "body_pose" not in data:
         raise ValueError(f"HMR npz に global_orient/body_pose がありません: {path}")
     transl = np.asarray(data["transl"]) if "transl" in data else None
+    betas = np.asarray(data["betas"]) if "betas" in data else None
     src = str(data["source"]) if "source" in data else source
     f = fps if fps is not None else (float(np.asarray(data["fps"]).item()) if "fps" in data else 30.0)
     return hmr_smpl_to_mir(
-        np.asarray(data["global_orient"]), np.asarray(data["body_pose"]), transl,
+        np.asarray(data["global_orient"]), np.asarray(data["body_pose"]), transl, betas=betas,
         fps=f, source=src, source_ref={"extractor": f"hmr_{src}", "local_path": str(path)}, **kw,
     )
+
+
+def from_dict(result: dict[str, Any], **kw: Any) -> RdMir:
+    """構造から HMR ツールを判別して RD-MIR 化する（GVHMR / 4DHumans / 汎用）。"""
+    if "smpl_params_global" in result or "smpl_params_incam" in result:
+        kw.pop("source", None)  # GVHMR は source を自前設定
+        return from_gvhmr(result, **kw)
+    if "smpl" in result or "pred_smpl_params" in result:
+        kw.pop("source", None)  # 4DHumans は source を自前設定
+        return from_4dhumans(result, **kw)
+    if "global_orient" in result and "body_pose" in result:
+        transl = _as_np(result["transl"]) if "transl" in result else None
+        betas = _as_np(result["betas"]) if "betas" in result else None
+        return hmr_smpl_to_mir(_as_np(result["global_orient"]), _as_np(result["body_pose"]),
+                               transl, betas=betas, source=kw.pop("source", "hmr"), **kw)
+    raise ValueError("HMR dict から SMPL パラメータを判別できません "
+                     "（smpl_params_global / smpl / global_orient+body_pose のいずれかが必要）")
+
+
+def load_hmr_file(path: str | Path, **kw: Any) -> RdMir:
+    """HMR ツールの native 出力（.npz / .npy / .pkl / .pt）→ RD-MIR（構造を自動判別）。
+
+    .pkl は pickle、.pt は torch でロードし、dict なら `from_dict` で GVHMR/4DHumans/汎用を判別する。
+    .npz は `load_hmr_npz`、.npy は [T,D]/dict を試す。**weights/モデルは不要**（出力のみ読む）。
+    """
+    path = Path(path)
+    ext = path.suffix.lower()
+    if ext == ".npz":
+        return load_hmr_npz(path, **kw)
+    if ext == ".pkl":
+        import pickle
+
+        with open(path, "rb") as f:
+            obj = pickle.load(f)
+        return from_dict(obj, **kw) if isinstance(obj, dict) else _from_array(obj, path, **kw)
+    if ext == ".pt":
+        import torch
+
+        obj = torch.load(str(path), map_location="cpu", weights_only=False)
+        return from_dict(obj, **kw) if isinstance(obj, dict) else _from_array(_as_np(obj), path, **kw)
+    if ext == ".npy":
+        obj = np.load(path, allow_pickle=True)
+        if obj.dtype == object and obj.shape == ():
+            return from_dict(obj.item(), **kw)
+        return _from_array(obj, path, **kw)
+    raise ValueError(f"未対応の HMR ファイル形式: {ext}（.npz/.npy/.pkl/.pt）")
+
+
+def _from_array(arr: Any, path: "Path", **kw: Any) -> RdMir:
+    """[T, D] 配列（>=66 次元: root_orient+body_pose を連結）→ RD-MIR。"""
+    a = _as_np(arr)
+    if a.ndim != 2 or a.shape[1] < 66:
+        raise ValueError(f"HMR 配列は [T, >=66] が必要: {a.shape}")
+    return hmr_smpl_to_mir(a[:, :3], a[:, 3:66],
+                           source=kw.pop("source", "hmr"),
+                           source_ref={"extractor": "hmr_array", "local_path": str(path)}, **kw)
+
+
+def _mean_betas(betas: Optional[np.ndarray]) -> Optional[np.ndarray]:
+    """betas が per-frame [T,B] でも [B] でも、shape 用に時間平均した [B] を返す。"""
+    if betas is None:
+        return None
+    b = np.asarray(betas, dtype=np.float64)
+    if b.ndim >= 2:
+        b = b.reshape(-1, b.shape[-1]).mean(axis=0)
+    return b.ravel()
 
 
 def _as_np(x: Any) -> np.ndarray:

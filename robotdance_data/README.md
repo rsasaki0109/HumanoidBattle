@@ -6,7 +6,7 @@ manifests, source adapters, dataset builder, dedupe, license firewall — URL/ma
 
 | module | 役割 |
 | --- | --- |
-| `smpl.py` | SMPL/SMPL-H body skeleton の FK（**SMPL model file 不要**の skeleton-first）+ canonical 19 へのマップ |
+| `smpl.py` | SMPL/SMPL-H body skeleton の FK（**SMPL model file 不要**の skeleton-first）+ canonical 19 へのマップ。**betas で rest offset を shape-conditioning**（身長/体幅の粗い線形プロキシ, v0） |
 | `amass.py` | `load_amass_npz(path) -> RdMir`。AMASS の SMPL pose を canonical RD-MIR 化 |
 | `aist.py` | `load_aist_pkl(path) -> RdMir`。AIST++（ダンス, 60fps）の SMPL pose を canonical RD-MIR 化 |
 | `humanml3d.py` | **HumanML3D**（text-motion）。`load_humanml3d(npy, txt)`: 前処理済み SMPL joint 位置 [T,22,3] を canonical 化し、**記述文を `semantics` に格納** |

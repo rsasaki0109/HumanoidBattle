@@ -241,17 +241,20 @@ def _import_motionx(motion: Path, text: Path | None, fps: float, out: Path) -> i
 
 
 def _import_hmr(path: Path, source: str, fps: float | None, out: Path) -> int:
-    """HMR（4DHumans/GVHMR）の SMPL 出力（.npz 交換フォーマット）を RD-MIR 化する（§4.1）。"""
-    from robotdance_perception.hmr import load_hmr_npz
+    """HMR（4DHumans/GVHMR）の SMPL 出力（.npz/.npy/.pkl/.pt）を RD-MIR 化する（§4.1）。"""
+    from robotdance_perception.hmr import load_hmr_file, load_hmr_npz
 
-    mir = load_hmr_npz(path, source=source, fps=fps)
+    if path.suffix.lower() == ".npz":
+        mir = load_hmr_npz(path, source=source, fps=fps)
+    else:
+        mir = load_hmr_file(path, fps=fps) if fps else load_hmr_file(path)
     mir.save(out)
     q = mir.quality_metrics or {}
-    print(f"✓ HMR({source}) {path.name} → RD-MIR: {out}")
+    print(f"✓ HMR {path.name} → RD-MIR: {out}")
     print(f"  frames={mir.num_frames} fps={mir.fps:g} extractor={q.get('extractor')} "
-          f"jitter={q.get('jitter_after')} license_state={mir.license_state}")
-    print("  ⚠️ skeleton-first（近似 rest offset・betas 未使用）。HMR 推論はツール側、本 adapter は"
-          " SMPL→canonical 変換。in-the-wild 由来は license_state=unknown（公開前に権利確認）。")
+          f"shape_conditioned={q.get('shape_conditioned')} license_state={mir.license_state}")
+    print("  ⚠️ skeleton-first（betas は身長/体幅の粗いプロキシ・真の blend shapes ではない）。"
+          "HMR 推論はツール側、本 adapter は SMPL→canonical 変換。in-the-wild 由来は unknown。")
     return 0
 
 
@@ -1262,8 +1265,9 @@ def main(argv: list[str] | None = None) -> int:
     p_mx.add_argument("-o", "--out", type=Path, default=Path("motionx.rdmir.json"))
 
     p_hmr = sub.add_parser("import-hmr",
-                           help="HMR(4DHumans/GVHMR)の SMPL 出力(.npz)を RD-MIR 化（§4.1）")
-    p_hmr.add_argument("path", type=Path, help="HMR 出力 .npz（global_orient/body_pose[/transl/fps]）")
+                           help="HMR(4DHumans/GVHMR)の SMPL 出力(.npz/.npy/.pkl/.pt)を RD-MIR 化（§4.1）")
+    p_hmr.add_argument("path", type=Path,
+                       help="HMR 出力（.npz/.npy/.pkl/.pt。native dict は構造を自動判別）")
     p_hmr.add_argument("--source", default="hmr", help="4dhumans / gvhmr / hmr（メタ表示用）")
     p_hmr.add_argument("--fps", type=float, default=None, help="フレームレート（npz に無ければ指定）")
     p_hmr.add_argument("-o", "--out", type=Path, default=Path("hmr.rdmir.json"))

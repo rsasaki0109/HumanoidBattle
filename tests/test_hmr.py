@@ -15,8 +15,10 @@ from scipy.spatial.transform import Rotation as Rot
 from robotdance_core.rd_mir import RdMir
 from robotdance_perception.hmr import (
     from_4dhumans,
+    from_dict,
     from_gvhmr,
     hmr_smpl_to_mir,
+    load_hmr_file,
     load_hmr_npz,
 )
 
@@ -108,3 +110,68 @@ def test_hmr_output_retargets() -> None:
     motion = retarget(mir, get_morphology("unitree_g1"))
     assert motion.keypoints_3d is not None
     assert len(motion.keypoints_3d) == len(go)
+
+
+# --- betas (shape conditioning) ---
+
+def _rest_pose():
+    t = 20
+    return np.zeros((t, 3)), np.zeros((t, 63))
+
+
+def test_betas_scale_skeleton_height() -> None:
+    """betas[0]>0 で骨格が高くなる（shape-conditioning, v0 近似）。"""
+    go, bp = _rest_pose()
+    kp0 = np.array(hmr_smpl_to_mir(go, bp).keypoints_3d)
+    kp_tall = np.array(hmr_smpl_to_mir(go, bp, betas=np.array([3.0] + [0] * 9)).keypoints_3d)
+    h0 = kp0[:, :, 2].max() - kp0[:, :, 2].min()
+    ht = kp_tall[:, :, 2].max() - kp_tall[:, :, 2].min()
+    assert ht > h0
+    # betas が付くと quality に記録される。
+    assert hmr_smpl_to_mir(go, bp, betas=np.array([1.0])).quality_metrics["shape_conditioned"] is True
+    assert hmr_smpl_to_mir(go, bp).quality_metrics["shape_conditioned"] is False
+
+
+def test_per_frame_betas_averaged() -> None:
+    go, bp = _rest_pose()
+    mir = hmr_smpl_to_mir(go, bp, betas=np.tile([2.0] + [0] * 9, (len(go), 1)))  # [T,10]
+    assert mir.num_frames == len(go)
+    _valid(mir)
+
+
+# --- native loaders (.pkl/.npz/dict) ---
+
+def test_from_dict_dispatches_gvhmr() -> None:
+    go, bp = _rest_pose()
+    t = len(go)
+    result = {"smpl_params_global": {"global_orient": go, "body_pose": bp,
+                                     "transl": np.zeros((t, 3)), "betas": np.full((t, 10), 1.5)}}
+    mir = from_dict(result, source="ignored")  # source は gvhmr 分岐で無視される
+    assert mir.extractor_versions["hmr"] == "gvhmr"
+    assert mir.quality_metrics["shape_conditioned"] is True
+
+
+def test_load_hmr_file_pickle(tmp_path: Path) -> None:
+    import pickle
+
+    go, bp = _rest_pose()
+    t = len(go)
+    result = {"smpl_params_global": {"global_orient": go, "body_pose": bp,
+                                     "betas": np.full((t, 10), 2.0)}}
+    p = tmp_path / "gvhmr.pkl"
+    with open(p, "wb") as f:
+        pickle.dump(result, f)
+    mir = load_hmr_file(p)
+    assert mir.extractor_versions["hmr"] == "gvhmr"
+    assert mir.quality_metrics["shape_conditioned"] is True
+    _valid(mir)
+
+
+def test_load_hmr_file_npz_with_betas(tmp_path: Path) -> None:
+    go, bp = _rest_pose()
+    t = len(go)
+    p = tmp_path / "h.npz"
+    np.savez(p, global_orient=go, body_pose=bp, betas=np.full((t, 10), 2.0), source="gvhmr")
+    mir = load_hmr_file(p)
+    assert mir.quality_metrics["shape_conditioned"] is True
+    _valid(mir)

@@ -70,9 +70,34 @@ def _smpl_to_canonical_frame(pos: np.ndarray) -> np.ndarray:
     return pos[..., [2, 0, 1]]
 
 
-def fk_smpl_body(poses: np.ndarray, trans: np.ndarray | None = None) -> np.ndarray:
-    """SMPL body axis-angle poses [T, 22, 3]（+ root trans [T,3]）→ joint 位置 [T, 22, 3]（SMPL frame）。"""
+def _shape_scaled_offsets(betas: np.ndarray | None) -> np.ndarray:
+    """betas で rest offset を shape-conditioning する（v0 近似）。
+
+    ⚠️ 真の SMPL blend shapes（model file が必要）ではない。betas[0] を身長、betas[1] を体幹/四肢の
+    左右幅の **粗い線形プロキシ**として offset をスケールするだけ（個体差を first-order で反映）。
+    """
+    offs = _SMPL_OFFSETS.copy()
+    if betas is None:
+        return offs
+    b = np.asarray(betas, dtype=np.float64).ravel()
+    if b.size == 0:
+        return offs
+    height = 1.0 + 0.03 * float(b[0])                      # β0 ≈ 身長
+    width = 1.0 + 0.02 * float(b[1]) if b.size >= 2 else 1.0  # β1 ≈ 体幅
+    offs = offs * height
+    offs[:, 0] = _SMPL_OFFSETS[:, 0] * height * width      # x（SMPL 左右軸）に体幅を追加
+    return offs
+
+
+def fk_smpl_body(
+    poses: np.ndarray, trans: np.ndarray | None = None, betas: np.ndarray | None = None
+) -> np.ndarray:
+    """SMPL body axis-angle poses [T, 22, 3]（+ root trans [T,3], + betas）→ joint 位置 [T, 22, 3]。
+
+    betas を渡すと rest offset を shape-conditioning する（v0 近似, `_shape_scaled_offsets` 参照）。
+    """
     n = poses.shape[0]
+    offsets = _shape_scaled_offsets(betas)
     out = np.zeros((n, 22, 3))
     for f in range(n):
         world_rot: list[Rot] = [Rot.identity()] * 22
@@ -84,14 +109,16 @@ def fk_smpl_body(poses: np.ndarray, trans: np.ndarray | None = None) -> np.ndarr
                 pos[j] = trans[f] if trans is not None else np.zeros(3)
             else:
                 world_rot[j] = world_rot[parent] * local
-                pos[j] = pos[parent] + world_rot[parent].apply(_SMPL_OFFSETS[j])
+                pos[j] = pos[parent] + world_rot[parent].apply(offsets[j])
         out[f] = pos
     return out
 
 
-def smpl_poses_to_canonical(poses: np.ndarray, trans: np.ndarray | None = None) -> np.ndarray:
-    """SMPL body poses [T, 22, 3] → canonical 19-joint keypoints [T, 19, 3]（z-up）。"""
-    smpl_pos = _smpl_to_canonical_frame(fk_smpl_body(poses, trans))  # [T,22,3] canonical frame
+def smpl_poses_to_canonical(
+    poses: np.ndarray, trans: np.ndarray | None = None, betas: np.ndarray | None = None
+) -> np.ndarray:
+    """SMPL body poses [T, 22, 3]（+ betas）→ canonical 19-joint keypoints [T, 19, 3]（z-up）。"""
+    smpl_pos = _smpl_to_canonical_frame(fk_smpl_body(poses, trans, betas))  # [T,22,3] canonical frame
     return _reindex_smpl_to_canonical(smpl_pos)
 
 
