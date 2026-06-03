@@ -97,9 +97,9 @@ def test_clamp_joint_trajectory_bounds_position_and_velocity() -> None:
     raw = np.zeros((40, 4))
     raw[:, 0] = np.linspace(0.0, 5.0, 40)  # 緩やかに位置 limit(±2)超過 → 位置クランプ
     raw[20, 1] = 9.0                        # 単発スパイク → 速度クランプ
-    # 加速度を実質無制限にし、速度クランプを主役にする（位置 vs 速度を分離して検査）。
+    # 加速度・トルクを実質無制限にし、速度クランプを主役にする（位置 vs 速度を分離して検査）。
     limits = SafetyLimits(
-        max_joint_speed=10.0, max_joint_accel=1e9,
+        max_joint_speed=10.0, max_joint_accel=1e9, enforce_torque_limit=False,
         joint_position_limits={f"j{i}": (-2.0, 2.0) for i in range(4)},
     )
     safe, rep = clamp_joint_trajectory(raw, dt, limits, [f"j{i}" for i in range(4)])
@@ -113,14 +113,53 @@ def test_clamp_joint_trajectory_bounds_position_and_velocity() -> None:
     assert rep["velocity_clamp_frames"] > 0
 
 
+def test_clamp_joint_trajectory_bounds_torque() -> None:
+    """トルク上限が推定必要トルク（I_eff·θ̈）を bound する。"""
+    dt = 1.0 / 30.0
+    t = np.arange(60) / 30.0
+    raw = np.zeros((60, 2))
+    raw[:, 0] = 0.8 * np.sin(2 * np.pi * 2.5 * t)  # 高周波 → 高加速度 → 高トルク
+    # 速度/加速度は実質無制限にして、トルクを binding にする。
+    limits = SafetyLimits(
+        max_joint_speed=1e3, max_joint_accel=1e6,
+        enforce_torque_limit=True, max_joint_torque=40.0,
+        joint_inertia={"j0": 2.0}, default_joint_inertia=0.5, default_joint_range=100.0,
+    )
+    safe, rep = clamp_joint_trajectory(raw, dt, limits, ["j0", "j1"])
+    assert rep["raw_est_max_torque_nm"] > 40.0
+    assert rep["safe_est_max_torque_nm"] <= 40.0 + 1e-3
+    assert rep["torque_violation_frames"] > 0
+    # j0 の実現トルク（I=2.0）が 40 N·m 以内。
+    acc0 = np.diff(safe[:, 0], n=2) / (dt * dt)
+    assert float((2.0 * np.abs(acc0)).max()) <= 40.0 + 1e-2
+
+
+def test_torque_limit_off_leaves_high_torque() -> None:
+    """enforce_torque_limit=False ならトルク由来のクランプは効かない。"""
+    dt = 1.0 / 30.0
+    t = np.arange(60) / 30.0
+    raw = np.zeros((60, 1))
+    raw[:, 0] = 0.8 * np.sin(2 * np.pi * 2.5 * t)
+    on = SafetyLimits(max_joint_speed=1e3, max_joint_accel=1e6, enforce_torque_limit=True,
+                      max_joint_torque=40.0, default_joint_inertia=2.0, default_joint_range=100.0)
+    off = SafetyLimits(max_joint_speed=1e3, max_joint_accel=1e6, enforce_torque_limit=False,
+                       default_joint_inertia=2.0, default_joint_range=100.0)
+    _, rep_on = clamp_joint_trajectory(raw, dt, on, ["j0"])
+    _, rep_off = clamp_joint_trajectory(raw, dt, off, ["j0"])
+    assert rep_on["safe_est_max_torque_nm"] <= 40.0 + 1e-3
+    assert rep_off["safe_est_max_torque_nm"] > 40.0
+
+
 def test_clamp_joint_trajectory_bounds_acceleration() -> None:
     """加速度 limit が往復ジャークの加速度を下げる（best-effort）。"""
     dt = 1.0 / 30.0
     raw = np.zeros((30, 2))
     raw[15, 0] = 2.0
     raw[16, 0] = -2.0  # 大きなジャーク
-    soft = SafetyLimits(max_joint_speed=1e9, max_joint_accel=50.0, default_joint_range=100.0)
-    hard = SafetyLimits(max_joint_speed=1e9, max_joint_accel=1e12, default_joint_range=100.0)
+    soft = SafetyLimits(max_joint_speed=1e9, max_joint_accel=50.0, default_joint_range=100.0,
+                        enforce_torque_limit=False)
+    hard = SafetyLimits(max_joint_speed=1e9, max_joint_accel=1e12, default_joint_range=100.0,
+                        enforce_torque_limit=False)
     _, rep_soft = clamp_joint_trajectory(raw, dt, soft)
     _, rep_hard = clamp_joint_trajectory(raw, dt, hard)
     assert rep_soft["accel_clamp_frames"] > 0

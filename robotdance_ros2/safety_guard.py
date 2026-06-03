@@ -4,12 +4,16 @@
 過大な速度/加速度をクランプし、転倒を検知し、E-stop / speed scaling を提供する。
 
 Cartesian（link 位置）空間に加え、**joint（actuator）空間の limit enforcement** を行う:
-actuator-space IK / tracking policy が出す関節角列を、実機に送る直前に **位置 limit・速度・
-加速度** へクランプする（§5.6）。これは sim_certificate（物理的妥当性, robotdance_sim）の
+actuator-space IK / tracking policy が出す関節角列を、実機に送る直前に **位置・速度・加速度・
+トルク** へクランプする（§5.6）。これは sim_certificate（物理的妥当性, robotdance_sim）の
 **先**にある最終 gate で、コマンド自体を機構的に安全な範囲へ整形する。
 
+トルク limit は **必要トルク ≈ I_eff·θ̈ + 重力負荷** を見積もり、actuator のトルク上限から
+加速度上限 (τ_max−grav)/I_eff を導いて加速度クランプに織り込む（過大加速度＝過大トルクを抑える）。
+
 ⚠️ v0: 位置/速度は厳密に bound する。加速度は best-effort 平滑化（位置 clamp との相互作用で
-減速側に残りうる）。トルク/電流 limit は実機モデルが入る Phase 4+ で追加する。
+減速側に残りうる）。トルクは **粗い per-joint 実効慣性モデル**の計画段階 guard であり、完全な
+剛体動力学でもモータ電流飽和の代替でもない。電流 limit は τ/Kt の比例関係で別途モータ制御器が担う。
 """
 
 from __future__ import annotations
@@ -43,6 +47,17 @@ class SafetyLimits:
     # actuator 名 → (lower, upper) rad。未指定なら ±default_joint_range。
     joint_position_limits: Optional[dict[str, tuple[float, float]]] = field(default=None)
 
+    # --- アクチュエータ トルク limit（§5.6, 実機モデル）---
+    # 必要トルク ≈ I_eff·θ̈ + 重力負荷 を見積もり、トルク上限から加速度上限を導いてクランプする。
+    # 慣性は粗い per-joint 実効定数（完全な剛体動力学ではない）= 計画段階の保守的 guard で、
+    # モータ制御器の電流飽和の代替ではない。
+    enforce_torque_limit: bool = True
+    max_joint_torque: float = 60.0     # N·m（actuator トルク上限, generic）
+    default_joint_inertia: float = 0.5  # kg·m^2（粗い per-joint 実効慣性）
+    joint_torque_limits: Optional[dict[str, float]] = field(default=None)   # 名 → N·m
+    joint_inertia: Optional[dict[str, float]] = field(default=None)         # 名 → kg·m^2
+    joint_gravity_load: Optional[dict[str, float]] = field(default=None)    # 名 → N·m（重力保持）
+
 
 def _limit_arrays(
     limits: SafetyLimits, joint_names: Optional[list[str]], n: int
@@ -59,9 +74,37 @@ def _limit_arrays(
     return lo, hi
 
 
+def _torque_arrays(
+    limits: SafetyLimits, joint_names: Optional[list[str]], n: int
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """関節順の (torque_max[n], inertia[n], gravity_load[n]) を返す。"""
+    tau = np.full(n, limits.max_joint_torque, dtype=np.float64)
+    inertia = np.full(n, limits.default_joint_inertia, dtype=np.float64)
+    grav = np.zeros(n, dtype=np.float64)
+    if joint_names:
+        for i, name in enumerate(joint_names[:n]):
+            if limits.joint_torque_limits and name in limits.joint_torque_limits:
+                tau[i] = limits.joint_torque_limits[name]
+            if limits.joint_inertia and name in limits.joint_inertia:
+                inertia[i] = limits.joint_inertia[name]
+            if limits.joint_gravity_load and name in limits.joint_gravity_load:
+                grav[i] = limits.joint_gravity_load[name]
+    return tau, inertia, grav
+
+
+def _accel_cap(limits: SafetyLimits, joint_names: Optional[list[str]], n: int) -> np.ndarray:
+    """加速度上限 [n]: グローバル max_joint_accel と トルク由来上限 (τ_max-grav)/I の min。"""
+    a_cap = np.full(n, limits.max_joint_accel, dtype=np.float64)
+    if limits.enforce_torque_limit:
+        tau, inertia, grav = _torque_arrays(limits, joint_names, n)
+        torque_accel = np.maximum(tau - np.abs(grav), 0.0) / np.maximum(inertia, 1e-6)
+        a_cap = np.minimum(a_cap, torque_accel)
+    return a_cap
+
+
 def _limit_step(
     prev_ang: np.ndarray, prev_vel: np.ndarray, target: np.ndarray,
-    pos_lo: np.ndarray, pos_hi: np.ndarray, v_max: float, a_max: float, dt: float,
+    pos_lo: np.ndarray, pos_hi: np.ndarray, v_max: float, a_max: "float | np.ndarray", dt: float,
 ) -> tuple[np.ndarray, np.ndarray, bool, bool, bool]:
     """1 ステップの関節 limit 整形: 加速度 → 速度 → 積分 → 位置 limit の順にクランプ。
 
@@ -98,6 +141,8 @@ def clamp_joint_trajectory(
         raise ValueError(f"angles は [T, n] が必要: {angles.shape}")
     t_len, n = angles.shape
     pos_lo, pos_hi = _limit_arrays(limits, joint_names, n)
+    a_cap = _accel_cap(limits, joint_names, n)              # トルク由来も織り込んだ per-joint 上限
+    tau_max, inertia, grav = _torque_arrays(limits, joint_names, n)
 
     out = np.empty_like(angles)
     out[0] = np.clip(angles[0], pos_lo, pos_hi)
@@ -107,7 +152,7 @@ def clamp_joint_trajectory(
     for t in range(1, t_len):
         ang, vel, ph, vc, ac = _limit_step(
             prev_ang, prev_vel, angles[t], pos_lo, pos_hi,
-            limits.max_joint_speed, limits.max_joint_accel, dt,
+            limits.max_joint_speed, a_cap, dt,
         )
         out[t] = ang
         prev_ang, prev_vel = ang, vel
@@ -120,6 +165,19 @@ def clamp_joint_trajectory(
 
     def _max_accel(a: np.ndarray) -> float:
         return float(np.abs(np.diff(a, axis=0, n=2) / (dt * dt)).max()) if t_len > 2 else 0.0
+
+    def _est_torque(a: np.ndarray) -> np.ndarray:
+        """推定必要トルク [T-2, n] = I_eff·|θ̈| + |重力負荷|。"""
+        if t_len <= 2:
+            return np.zeros((0, n))
+        acc = np.diff(a, axis=0, n=2) / (dt * dt)  # [T-2, n]
+        return inertia[None, :] * np.abs(acc) + np.abs(grav)[None, :]
+
+    raw_tq = _est_torque(angles)
+    safe_tq = _est_torque(out)
+    # トルク上限を超えていた（クランプ対象）フレーム数。
+    torque_violation_frames = int(np.any(raw_tq > tau_max[None, :] + 1e-6, axis=1).sum()) \
+        if raw_tq.size else 0
 
     report = {
         "frames": t_len,
@@ -134,7 +192,13 @@ def clamp_joint_trajectory(
         "accel_clamp_frames": acc_clamps,
         "max_joint_speed": limits.max_joint_speed,
         "max_joint_accel": limits.max_joint_accel,
-        "note": "位置/速度は厳密 bound、加速度は best-effort（位置 clamp の減速で残りうる）。",
+        "enforce_torque_limit": limits.enforce_torque_limit,
+        "max_joint_torque_nm": limits.max_joint_torque,
+        "raw_est_max_torque_nm": round(float(raw_tq.max()), 2) if raw_tq.size else 0.0,
+        "safe_est_max_torque_nm": round(float(safe_tq.max()), 2) if safe_tq.size else 0.0,
+        "torque_violation_frames": torque_violation_frames,
+        "note": ("位置/速度は厳密 bound、加速度はトルク上限(I_eff·θ̈+重力)由来の cap も込みで制限。"
+                 "トルクは粗い実効慣性モデルの計画段階 guard で、モータ電流飽和の代替ではない。"),
     }
     return out, report
 
@@ -235,9 +299,10 @@ class SafetyGuard:
         self, angles: np.ndarray, names: list[str], dt: float,
         reasons: list[str], status: SafetyStatus,
     ) -> tuple[np.ndarray, SafetyStatus]:
-        """1 フレームの関節角を位置/速度/加速度 limit へクランプ（stateful）。"""
+        """1 フレームの関節角を位置/速度/加速度/トルク limit へクランプ（stateful）。"""
         n = angles.shape[0]
         pos_lo, pos_hi = _limit_arrays(self.limits, names, n)
+        a_cap = _accel_cap(self.limits, names, n)  # トルク上限由来も込みの加速度 cap
         if self._prev_joint_ang is None or self._prev_joint_ang.shape[0] != n:
             ang = np.clip(angles, pos_lo, pos_hi)
             if bool(np.any(ang != angles)):
@@ -247,9 +312,12 @@ class SafetyGuard:
             self._prev_joint_vel = np.zeros(n)
             return ang, status
 
+        # トルク制約が加速度 cap を縛っているか（報告の区別用）。
+        torque_binds = bool(self.limits.enforce_torque_limit
+                            and np.any(a_cap < self.limits.max_joint_accel - 1e-9))
         ang, vel, ph, vc, ac = _limit_step(
             self._prev_joint_ang, self._prev_joint_vel, angles, pos_lo, pos_hi,
-            self.limits.max_joint_speed, self.limits.max_joint_accel, dt,
+            self.limits.max_joint_speed, a_cap, dt,
         )
         if ph:
             reasons.append("関節 位置 limit クランプ")
@@ -258,7 +326,10 @@ class SafetyGuard:
             reasons.append(f"関節 速度クランプ ≤{self.limits.max_joint_speed:.0f} rad/s")
             status = SafetyStatus.WARNING
         if ac:
-            reasons.append(f"関節 加速度クランプ ≤{self.limits.max_joint_accel:.0f} rad/s²")
+            label = ("トルク" if torque_binds else "加速度")
+            reasons.append(f"関節 {label}クランプ（≤{self.limits.max_joint_torque:.0f} N·m 相当）"
+                           if torque_binds else
+                           f"関節 加速度クランプ ≤{self.limits.max_joint_accel:.0f} rad/s²")
             status = SafetyStatus.WARNING
         # 速度のみ（clamp なし）の警告。
         peak_v = float(np.abs((angles - self._prev_joint_ang) / dt).max())

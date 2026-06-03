@@ -572,11 +572,12 @@ def _demo_joint_safety() -> int:
     raw[40, 7] += 3.0
     raw[41, 7] -= 3.0                            # 往復ジャーク → 加速度クランプ
 
-    # 実機の関節 limit に見立てた位置範囲（±2.0 rad）。
+    # 実機の関節 limit に見立てた値（位置 ±2.0 rad / トルク 40 N·m / 実効慣性 0.8 kg·m²）。
     names = [f"joint_{i}" for i in range(n)]
     limits = SafetyLimits(
-        max_joint_speed=12.0, max_joint_accel=200.0,
+        max_joint_speed=12.0, max_joint_accel=400.0,
         joint_position_limits={nm: (-2.0, 2.0) for nm in names},
+        enforce_torque_limit=True, max_joint_torque=40.0, default_joint_inertia=0.8,
     )
     safe, rep = clamp_joint_trajectory(raw, dt, limits, names)
 
@@ -588,12 +589,18 @@ def _demo_joint_safety() -> int:
     print("  ── 加速度（rad/s²）──")
     print(f"    raw  max {rep['raw_max_joint_accel_rad_s2']:8.1f}  →  "
           f"safe max {rep['safe_max_joint_accel_rad_s2']:8.1f}  (limit {rep['max_joint_accel']:.0f})")
+    print("  ── 推定トルク（N·m, I_eff·θ̈+重力）──")
+    print(f"    raw  max {rep['raw_est_max_torque_nm']:8.1f}  →  "
+          f"safe max {rep['safe_est_max_torque_nm']:8.1f}  (limit {rep['max_joint_torque_nm']:.0f})")
     print(f"  クランプ発生: 位置 {rep['position_limit_frames']} / 速度 "
-          f"{rep['velocity_clamp_frames']} / 加速度 {rep['accel_clamp_frames']} frames")
+          f"{rep['velocity_clamp_frames']} / 加速度 {rep['accel_clamp_frames']} / "
+          f"トルク超過 {rep['torque_violation_frames']} frames")
     ok = (rep["safe_max_joint_speed_rad_s"] <= rep["max_joint_speed"] + 1e-6
+          and rep["safe_est_max_torque_nm"] <= rep["max_joint_torque_nm"] + 1e-3
           and float(np.abs(safe).max()) <= 2.0 + 1e-6)
-    print(f"  ✓ 位置・速度を limit 内に整形: {ok}")
-    print("  ⚠️ v0: 位置/速度は厳密 bound、加速度は best-effort。トルク/電流 limit は実機モデルで今後。")
+    print(f"  ✓ 位置・速度・トルクを limit 内に整形: {ok}")
+    print("  ⚠️ v0: 位置/速度/トルクを bound（加速度は best-effort）。トルクは粗い実効慣性モデルの"
+          "計画段階 guard で、モータ電流飽和の代替ではない。")
     return 0
 
 

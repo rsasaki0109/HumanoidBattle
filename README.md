@@ -52,7 +52,7 @@ Output: Unitree G1 simulation motion + RD-MIR dataset + motion embedding
 | benchmark（motion × robot leaderboard） | `benchmark` | CSV + leaderboard |
 | Model Card（lineage/license/failure/safety, §7） | `model-card` | 責任ある公開・利用の説明責任 |
 | ROS2 安全再生（Jazzy, safety guard） | `serve --ros2` / `demo-runtime` | RViz 可視化 |
-| 関節空間 safety guard（位置/速度/加速度クランプ, §5.6） | `demo-joint-safety` | 実機コマンド直前の最終 gate |
+| 関節空間 safety guard（位置/速度/加速度/トルククランプ, §5.6） | `demo-joint-safety` | 実機コマンド直前の最終 gate |
 
 > 入力は **合成 / 実動画(MediaPipe) / mocap(AMASS)** の 3 系統、すべて同じ canonical **RD-MIR** に合流し、
 > retarget → 物理検証 → embedding → 安全再生のパイプラインを流れます。
@@ -381,7 +381,7 @@ robotdance_viewer/      side-by-side video/motion/robot visualization
 **motion embeddings + 類似検索 + Motion Map + 重複除去（+ 学習 encoder option）**、
 **テキスト → モーション意味検索（contrastive text-motion）**、**モーション → 離散トークン（VQ-VAE）+ 生成・補完（token prior）+ テキスト条件付き生成（text2motion）**、
 **G1/H1 への kinematic retarget（multi-embodiment）+ アクチュエータ空間 IK（実 G1 関節角）**、
-**MuJoCo 物理検証（sim_certificate / PASS・REJECT）+ RL tracking policy baseline（物理上で参照を追従, PPO, base 非駆動, 1 方策で複数運動を汎化）**、
+**MuJoCo 物理検証（sim_certificate / PASS・REJECT）+ RL tracking policy baseline（物理上で参照を追従, PPO, base 非駆動, 1 方策で複数運動を汎化）+ joint-space safety guard（位置/速度/加速度/トルク）**、
 **motion × robot benchmark + leaderboard**、**Model Card 生成（lineage/license/failure/safety, §7）**、**ROS2 runtime（safety guard: Cartesian + 関節空間 位置/速度/加速度クランプ + motion server + /joint_states, Jazzy）**、
 3D & multi-panel ビューアまで動作
 （`extract`/`import-hmr`/`model-card`/`video-to-robot`/`build-dataset`/`benchmark`/`serve`/`demo-motion-map`/`train-text-motion`/`search-text`/`train-tokenizer`/`demo-tokenizer`/`train-prior`/`demo-generate`/`train-text2motion`/`generate-text`/`train-tracking`/`demo-track`/`demo-track-multi`/`demo-joint-safety`/`retarget-ik`/`demo-runtime`/`overlay`/`smooth`/`demo-*` 他）。

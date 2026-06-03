@@ -5,6 +5,18 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Joint-space safety guard にトルク limit を追加（§5.6）**（`robotdance_ros2.safety_guard`）:
+  v0.9 の位置/速度/加速度クランプに加え、**アクチュエータのトルク上限**を強制する。**必要トルク
+  ≈ I_eff·θ̈ + 重力負荷** を per-joint 実効慣性モデルで見積もり、トルク上限から加速度上限
+  (τ_max−grav)/I_eff を導いて加速度クランプに織り込む（過大加速度＝過大トルクを抑制）。
+  `SafetyLimits` に `enforce_torque_limit` / `max_joint_torque` / `joint_torque_limits` /
+  `joint_inertia` / `default_joint_inertia` / `joint_gravity_load` を追加。`clamp_joint_trajectory`
+  の report に raw/safe 推定最大トルク・`torque_violation_frames` を追加。`demo-joint-safety` が
+  推定トルクを raw 7199 → safe 40 N·m に整形する様子を表示。**CI でも検証**。v0 は粗い実効慣性
+  モデルの計画段階 guard で、完全な剛体動力学でもモータ電流飽和の代替でもない（電流は τ/Kt で
+  モータ制御器が担う）。
+
 ## [0.11.0] - 2026-06-03
 
 説明責任の節目リリース（pre-alpha）。10 リリースで機能が揃ったのを受け、成果物の **Model / Motion
