@@ -864,15 +864,28 @@ def _overlay(video: Path, mir_path: Path, out: Path, stride: int) -> int:
     return 0
 
 
-def _validate_sim(path: Path, robot: str, out: Path | None) -> int:
+def _sim_backends() -> int:
+    """登録済み sim backend と利用可否を表示する（§4.3）。"""
+    from robotdance_sim.backend import backend_status
+
+    print("🧩 sim backends（physics 検証 backend, --backend で選択）:")
+    for b in backend_status():
+        mark = "✅ 利用可" if b["available"] else "— 未インストール（scaffold）"
+        print(f"  {b['name']:10s} {mark}")
+    print("  ⚠️ v0: MuJoCo が参照実装。Isaac Lab/Genesis は contract（passed/verdict/backend/"
+          "metrics/reasons の certificate dict）に従って利用者環境で実装する（本体は同梱しない）。")
+    return 0
+
+
+def _validate_sim(path: Path, robot: str, out: Path | None, backend: str = "mujoco") -> int:
     from .rd_mir import RdMir
     from robotdance_retarget.kinematic import retarget
-    from robotdance_sim.mujoco_backend import certify
+    from robotdance_sim.backend import certify
     from robotdance_unitree import get_morphology
 
     morph = get_morphology(robot)
     motion = retarget(RdMir.load(path), morph)
-    certify(motion, morph)
+    certify(motion, morph, backend=backend)
     cert = motion.sim_certificate or {}
     print(f"{'✅' if cert.get('passed') else '⛔'} {robot}: {cert.get('verdict')}")
     for k, v in (cert.get("metrics") or {}).items():
@@ -1135,10 +1148,13 @@ def main(argv: list[str] | None = None) -> int:
     p_v2r.add_argument("-o", "--out", type=Path, default=Path("shorts_to_humanoid.gif"))
     p_v2r.add_argument("--stride", type=int, default=2)
 
-    p_vsim = sub.add_parser("validate-sim", help="RD-MIR を robot へ retarget し MuJoCo 物理検証")
+    p_vsim = sub.add_parser("validate-sim", help="RD-MIR を robot へ retarget し物理検証（backend 選択可）")
     p_vsim.add_argument("path", type=Path, help="RD-MIR JSON")
     p_vsim.add_argument("--robot", default="unitree_g1")
+    p_vsim.add_argument("--backend", default="mujoco", help="sim backend（mujoco / isaaclab …）")
     p_vsim.add_argument("-o", "--out", type=Path, default=None, help="certificate 付き .rdmotion 保存先")
+
+    sub.add_parser("sim-backends", help="登録済み sim backend と利用可否を表示（§4.3）")
 
     p_safety = sub.add_parser("demo-safety", help="safe dance(PASS) vs backflip(REJECT) を描画")
     p_safety.add_argument("-o", "--out", type=Path, default=Path("safety_check.gif"))
@@ -1184,7 +1200,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "demo-multi":
         return _demo_multi(args.out, args.robots, args.stride)
     if args.command == "validate-sim":
-        return _validate_sim(args.path, args.robot, args.out)
+        return _validate_sim(args.path, args.robot, args.out, args.backend)
+    if args.command == "sim-backends":
+        return _sim_backends()
     if args.command == "demo-safety":
         return _demo_safety(args.out, args.robot, args.stride)
     if args.command == "train-tracking":

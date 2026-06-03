@@ -5,6 +5,16 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Sim backend 抽象 + registry（§4.3）**（`sim-backends`, `validate-sim --backend`,
+  `robotdance_sim.backend`）: sim_certificate の物理 backend を **pluggable** にする。`SimBackend`
+  契約（`passed` / `verdict` / `backend` / `metrics` / `reasons` の certificate dict）と registry
+  （`register_backend` / `get_backend` / `backend_status` / `certify(..., backend=...)`）を提供。
+  MuJoCo を参照実装として登録し、**Isaac Lab** を contract のみの scaffold として登録（未インストール
+  なら導入手順を示す明示エラー）。dispatch 時に契約キーを検証。registry/contract/scaffold は依存なしで
+  **CI でも検証**。**Isaac Lab 本体（NVIDIA Omniverse 依存・大容量）は同梱・実行しない**（license/容量
+  safe）— 実装は利用者環境で contract に従って行う。Isaac Lab/Genesis 実装・GPU 並列 sim は今後。
+
 ## [0.14.0] - 2026-06-03
 
 生成スタック深化の節目リリース（pre-alpha）。causal token prior（続きを作る）に、**双方向

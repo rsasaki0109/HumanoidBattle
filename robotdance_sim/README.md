@@ -6,6 +6,11 @@ Isaac Lab / MuJoCo / Genesis-style backend adapters — 物理シミュレーシ
 
 - `mjcf.py` — `RobotMorphology` → MuJoCo MJCF（bone ごとに独立 ball joint を持つ多体ツリー、
   質量 ∝ bone 長）。`ground=False` で純浮遊多体（逆動力学に接触力が混入しない）。
+- `backend.py` — **sim backend 抽象 + registry**（§4.3）。`SimBackend` 契約（`passed` / `verdict` /
+  `backend` / `metrics` / `reasons` の certificate dict）と registry を提供し、
+  `certify(motion, morphology, backend="mujoco")` で backend を選べる。`backend_status()` で利用可否を
+  確認。MuJoCo を参照実装、Isaac Lab を contract のみの scaffold（未インストールなら明示エラー）として登録。
+  **Isaac Lab 本体（Omniverse 依存・大容量）は同梱・実行しない**（license/容量 safe）。
 - `mujoco_backend.py` — **MuJoCo 物理ベースの feasibility 検証**。`simulate_certificate(motion, morphology)`
   / `certify(motion, morphology)` が [RD-Motion](../specs/rd-motion/) の `sim_certificate` を計算する。
 - `tracking_env.py` — **RL tracking 環境**（§4.5）。`TrackingEnv(reference, morphology)` が参照運動を
@@ -26,8 +31,13 @@ Isaac Lab / MuJoCo / Genesis-style backend adapters — 物理シミュレーシ
 | 過大運動 | ball joint 角速度 | >30 rad/s |
 
 ```python
-from robotdance_sim.mujoco_backend import certify
-certify(motion, morphology)        # motion.sim_certificate にPASS/REJECTと指標を格納
+from robotdance_sim.backend import certify, backend_status
+certify(motion, morphology, backend="mujoco")   # backend を選んで sim_certificate を格納
+backend_status()   # [{'name':'isaaclab','available':False}, {'name':'mujoco','available':True}]
+```
+```bash
+robotdance sim-backends                              # 登録 backend と利用可否
+robotdance validate-sim dance.rdmir.json --backend mujoco
 ```
 
 > ⚠️ **v0 注意:** 質量・慣性は bone 長比の**近似**であり実機値ではない。ball-joint 近似のため
