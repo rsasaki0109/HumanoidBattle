@@ -117,13 +117,16 @@ def test_real_pixels_astronaut(tmp_path) -> None:
 
     img = data.astronaut()
     model = ensure_model()
-    lmk = vision.PoseLandmarker.create_from_options(
-        vision.PoseLandmarkerOptions(
-            base_options=BaseOptions(model_asset_path=str(model)),
-            running_mode=vision.RunningMode.IMAGE,
-            num_poses=1,
+    try:
+        lmk = vision.PoseLandmarker.create_from_options(
+            vision.PoseLandmarkerOptions(
+                base_options=BaseOptions(model_asset_path=str(model)),
+                running_mode=vision.RunningMode.IMAGE,
+                num_poses=1,
+            )
         )
-    )
+    except OSError as e:  # CI など OpenGL 系ライブラリが無い環境では skip
+        pytest.skip(f"mediapipe runtime libs unavailable: {e}")
     res = lmk.detect(Image(image_format=ImageFormat.SRGB, data=np.ascontiguousarray(img)))
     assert res.pose_world_landmarks, "実写人物を検出できなかった"
     world = np.array([[p.x, p.y, p.z] for p in res.pose_world_landmarks[0]])
