@@ -301,7 +301,7 @@ robotdance_viewer/      side-by-side video/motion/robot visualization
 
 ## ステータス
 
-🚧 **Pre-v0.1。** specs v0、RD-MIR/RD-Motion の Python モデル、合成モーション生成、
+🏁 **v0.1.0（pre-alpha, [CHANGELOG](CHANGELOG.md)）。** specs v0、RD-MIR/RD-Motion の Python モデル、合成モーション生成、
 **local 動画 → RD-MIR（MediaPipe Pose）+ smoothing + 2D overlay**、
 **AMASS ローダ + RD-Manifest license firewall（Data Bill of Materials）**、
 **motion embeddings + 類似検索 + Motion Map + 重複除去**、
