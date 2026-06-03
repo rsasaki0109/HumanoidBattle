@@ -5,6 +5,14 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **End-to-end pipeline ショーケース（§6）**（`demo-pipeline`, `robotdance_core.pipeline`）: RobotDance の
+  主要スタックを **1 コマンド**で繋ぐ統合デモ — `(data/synth) → RD-MIR → retarget → sim_certificate
+  → [tracking policy 学習 + RD-Policy/ONNX export] → Model/Policy Card`。各成果物（RD-MIR / RD-Motion /
+  RD-Policy）と説明責任カードを出力ディレクトリに書き出す。`--mir` で既存 RD-MIR（import-* の出力）を
+  入口に、`--train-policy` で policy 学習+export まで実行。重い段は**依存が無ければ graceful にスキップ**
+  （sim=mujoco / policy=torch+mujoco）。core 段（RD-MIR→retarget→card）は依存なしで **CI 検証**。
+
 ## [0.19.0] - 2026-06-04
 
 text-motion データ網羅の節目リリース（pre-alpha）。HumanML3D / BABEL に続き **Motion-X**

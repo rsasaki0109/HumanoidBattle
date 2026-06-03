@@ -942,6 +942,26 @@ def _overlay(video: Path, mir_path: Path, out: Path, stride: int) -> int:
     return 0
 
 
+def _demo_pipeline(out_dir: Path, robot: str, caption: str | None, mir_path: Path | None,
+                   no_sim: bool, train_policy: bool, iterations: int) -> int:
+    """end-to-end ショーケース: データ → RD-MIR → retarget → sim → policy → cards（§6）。"""
+    from robotdance_core.pipeline import run_pipeline
+    from robotdance_core.rd_mir import RdMir
+
+    mir = RdMir.load(mir_path) if mir_path else None
+    print("🚀 RobotDance end-to-end pipeline:")
+    res = run_pipeline(out_dir, mir=mir, caption=caption, robot=robot,
+                       do_sim=not no_sim, train_policy=train_policy, iterations=iterations)
+    for s in res["stages"]:
+        mark = "✓" if s["ok"] else "–"
+        print(f"  {mark} {s['stage']:16s} {s['detail']}")
+    print(f"  → 出力: {res['out_dir']}")
+    for name, path in res["artifacts"].items():
+        print(f"      {name:14s} {Path(path).name}")
+    print("  ⚠️ v0: 近似プロキシ・近似質量で実機保証ではない。実機適用は safety guard 通過後。")
+    return 0
+
+
 def _sim_backends() -> int:
     """登録済み sim backend と利用可否を表示する（§4.3）。"""
     from robotdance_sim.backend import backend_status
@@ -1262,6 +1282,17 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("sim-backends", help="登録済み sim backend と利用可否を表示（§4.3）")
 
+    p_pipe = sub.add_parser("demo-pipeline",
+                            help="end-to-end: データ→RD-MIR→retarget→sim→policy→cards（§6）")
+    p_pipe.add_argument("-o", "--out-dir", type=Path, default=Path("pipeline_out"))
+    p_pipe.add_argument("--robot", default="unitree_g1")
+    p_pipe.add_argument("--caption", default=None, help="合成モーションの action_label")
+    p_pipe.add_argument("--mir", type=Path, default=None, help="既存 RD-MIR を入口に使う")
+    p_pipe.add_argument("--no-sim", action="store_true", help="sim_certificate を省く")
+    p_pipe.add_argument("--train-policy", action="store_true",
+                        help="tracking policy を学習し RD-Policy+ONNX も出力（torch+mujoco 必要）")
+    p_pipe.add_argument("--iterations", type=int, default=20)
+
     p_safety = sub.add_parser("demo-safety", help="safe dance(PASS) vs backflip(REJECT) を描画")
     p_safety.add_argument("-o", "--out", type=Path, default=Path("safety_check.gif"))
     p_safety.add_argument("--robot", default="unitree_g1")
@@ -1309,6 +1340,9 @@ def main(argv: list[str] | None = None) -> int:
         return _validate_sim(args.path, args.robot, args.out, args.backend)
     if args.command == "sim-backends":
         return _sim_backends()
+    if args.command == "demo-pipeline":
+        return _demo_pipeline(args.out_dir, args.robot, args.caption, args.mir,
+                              args.no_sim, args.train_policy, args.iterations)
     if args.command == "demo-safety":
         return _demo_safety(args.out, args.robot, args.stride)
     if args.command == "train-tracking":
