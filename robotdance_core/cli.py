@@ -822,8 +822,9 @@ def _demo_track_multi(out: Path, robot: str, iterations: int, stride: int) -> in
     return 0
 
 
-def _search_text(query: str, checkpoint: Path, k: int) -> int:
-    """テキスト query から合成モーション・スイートを意味検索する（§4.2 デモ）。"""
+def _search_text(query: str, checkpoint: Path, k: int, gif: Path | None = None,
+                 stride: int = 2) -> int:
+    """テキスト query から合成モーション・スイートを意味検索する（§4.2 デモ, §6 viewer）。"""
     from robotdance_core.synthetic import generate_backflip, generate_dance
     from robotdance_models.contrastive import TextMotionModel
 
@@ -836,9 +837,16 @@ def _search_text(query: str, checkpoint: Path, k: int) -> int:
     }
     model = TextMotionModel(checkpoint)
     print(f'🔎 query: "{query}"')
-    for mid, sim in model.search(query, motions, k=k):
+    ranked = model.search(query, motions, k=k)
+    for mid, sim in ranked:
         bar = "█" * round(max(sim, 0.0) * 20)
         print(f"  {mid:14s} cos={sim:+.3f} {bar}")
+    if gif is not None:
+        from robotdance_viewer.skeleton_view import render_search_montage
+
+        results = [(motions[mid].keypoints_3d_array(), mid, float(sim)) for mid, sim in ranked]
+        render_search_montage(query, results, gif, stride=stride)
+        print(f"✓ 検索結果モンタージュ GIF: {gif}（top-{len(results)} を類似度付きで横並び）")
     return 0
 
 
@@ -1133,6 +1141,9 @@ def main(argv: list[str] | None = None) -> int:
     p_st.add_argument("--checkpoint", type=Path, default=Path("text_motion.pt"),
                       help="train-text-motion の .pt")
     p_st.add_argument("-k", type=int, default=5)
+    p_st.add_argument("--gif", type=Path, default=None,
+                      help="検索結果を類似度付きモンタージュ GIF に描画（§6）")
+    p_st.add_argument("--stride", type=int, default=2)
 
     p_tok = sub.add_parser("train-tokenizer", help="motion VQ-VAE（離散トークナイザ）を学習する")
     p_tok.add_argument("-o", "--out", type=Path, default=Path("motion_tokenizer.pt"))
@@ -1374,7 +1385,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "train-text-motion":
         return _train_text_motion(args.out, args.epochs, args.device)
     if args.command == "search-text":
-        return _search_text(args.query, args.checkpoint, args.k)
+        return _search_text(args.query, args.checkpoint, args.k, args.gif, args.stride)
     if args.command == "train-tokenizer":
         return _train_tokenizer(args.out, args.epochs, args.codes, args.device)
     if args.command == "demo-tokenizer":

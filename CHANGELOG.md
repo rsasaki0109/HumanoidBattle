@@ -5,6 +5,16 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Viewer 強化: caption overlay + 検索結果モンタージュ（§6）**（`robotdance_viewer.skeleton_view`,
+  `search-text --gif`）: デモ品質（見せ場）を向上。
+  - `render_gif` に **caption オーバーレイ**（None なら `semantics.action_label` を自動）+ 下部メタ行
+    （license_state / fps / frames）を追加。`view` が自動で caption 付き GIF を出す。
+  - `render_search_montage(query, results)` を追加: **text 検索の top-k** をクエリをタイトルに・
+    類似度（cosine）をバッジにして横並び描画。`search-text --gif` で出力。
+  - `render_side_by_side` に図全体の `title`（suptitle）を追加。
+  - `_mir_caption` は依存なしで **CI 検証**、描画は matplotlib/imageio を importorskip。
+
 ## [0.21.0] - 2026-06-04
 
 入口精度向上の節目リリース（pre-alpha）。HMR/Motion-X の **SMPL betas** で骨格の個体差を反映し、

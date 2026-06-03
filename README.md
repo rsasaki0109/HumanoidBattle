@@ -45,7 +45,7 @@ Output: Unitree G1 simulation motion + RD-MIR dataset + motion embedding
 | sim backend 抽象（pluggable, §4.3） | `sim-backends` / `validate-sim --backend` | MuJoCo 参照 + Isaac Lab scaffold |
 | **end-to-end pipeline（1 コマンド統合, §6）** | `demo-pipeline` | RD-MIR→retarget→sim→policy→cards |
 | motion embeddings + 類似検索 + Motion Map | `demo-motion-map` | Demo 3 |
-| テキスト → モーション意味検索（contrastive） | `train-text-motion` / `search-text` | group top-1 100% |
+| テキスト → モーション意味検索（contrastive + 検索 GIF） | `train-text-motion` / `search-text --gif` | group top-1 100%・モンタージュ |
 | モーション → 離散トークン（VQ-VAE） | `train-tokenizer` / `demo-tokenizer` | 4× 圧縮・再構成 RMSE ~0.03 |
 | モーション生成・補完・長尺（token prior） | `train-prior` / `demo-generate` | next-token 92%・長尺 sliding-window |
 | ノイズ除去・in-betweening（双方向 denoiser, §4.2） | `train-denoiser` / `demo-denoise` | masked modeling・補間/中割り |
@@ -391,7 +391,7 @@ robotdance_viewer/      side-by-side video/motion/robot visualization
 **motion × robot benchmark + leaderboard + extraction benchmark（MPJPE/PA-MPJPE/PCK/jitter）**、**Model Card 生成（lineage/license/failure/safety, §7）**、**ROS2 runtime（safety guard: Cartesian + 関節空間 位置/速度/加速度クランプ + motion server + /joint_states, Jazzy）**、
 3D & multi-panel ビューアまで動作
 （`demo-pipeline`/`extract`/`import-hmr`/`import-humanml3d`/`import-babel`/`import-motionx`/`model-card`/`benchmark-extraction`/`video-to-robot`/`build-dataset`/`benchmark`/`serve`/`demo-motion-map`/`train-text-motion`/`search-text`/`train-tokenizer`/`demo-tokenizer`/`train-prior`/`demo-generate`/`train-denoiser`/`demo-denoise`/`train-text2motion`/`generate-text`/`train-tracking`/`demo-track`/`demo-track-multi`/`demo-joint-safety`/`sim-backends`/`export-policy`/`retarget-ik`/`demo-runtime`/`overlay`/`smooth`/`demo-*` 他）。
-次は HMR betas 反映・Isaac Lab backend 実装・viewer 強化（text 注釈/検索 UI）・高度な RL tracking（AMP/実機転移）。詳細は [`docs/ROADMAP.md`](docs/ROADMAP.md)。
+次は Isaac Lab backend 実装・web viewer・重複除去の text-motion 拡張・高度な RL tracking（AMP/実機転移）。詳細は [`docs/ROADMAP.md`](docs/ROADMAP.md)。
 
 ## License
 

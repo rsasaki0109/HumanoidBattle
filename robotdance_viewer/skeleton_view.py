@@ -43,6 +43,13 @@ def _project(pts: np.ndarray, view: np.ndarray) -> np.ndarray:
     return np.stack([cam[:, 0], cam[:, 2]], axis=1)
 
 
+def _mir_caption(mir: RdMir) -> str | None:
+    """RD-MIR の semantics から表示用 caption（action_label）を取り出す。"""
+    sem = mir.semantics or {}
+    label = str(sem.get("action_label", "")).strip()
+    return label if label and label != "unknown" else None
+
+
 def render_gif(
     mir: RdMir,
     out_path: str | Path,
@@ -51,12 +58,19 @@ def render_gif(
     elev: float = 12.0,
     azim: float = -70.0,
     dpi: int = 80,
+    caption: str | None = None,
+    show_meta: bool = True,
 ) -> Path:
     """RD-MIR の keypoints_3d を回転スケルトンの GIF として書き出す。
 
     stride: 何フレームおきに描画するか（GIF を軽くする）。
+    caption: 上部に重ねる説明テキスト（None なら semantics.action_label を自動使用）。
+    show_meta: 下部に license_state / fps / frames のメタ行を表示するか。
     """
     import imageio.v2 as imageio
+
+    caption = caption if caption is not None else _mir_caption(mir)
+    meta = f"{mir.license_state} · {mir.fps:g}fps · {mir.num_frames}f" if show_meta else None
 
     kps = mir.keypoints_3d_array()  # [T, J, 3]
     n_frames = kps.shape[0]
@@ -92,6 +106,13 @@ def render_gif(
         ax.set_aspect("equal")
         ax.set_axis_off()
         ax.set_title(f"RD-MIR · {mir.motion_id}", fontsize=8)
+        if caption:
+            ax.text(0.5, 0.97, f"“{caption}”", transform=ax.transAxes, ha="center", va="top",
+                    fontsize=11, fontweight="bold", color="white",
+                    bbox=dict(boxstyle="round,pad=0.3", facecolor="#9467bd", edgecolor="none"))
+        if meta:
+            ax.text(0.5, 0.01, meta, transform=ax.transAxes, ha="center", va="bottom",
+                    fontsize=7, color="#555555")
 
         fig.canvas.draw()
         buf = np.asarray(fig.canvas.buffer_rgba())
@@ -113,6 +134,7 @@ def render_side_by_side(
     azim: float = -70.0,
     dpi: int = 80,
     verdicts: list[tuple[str, str]] | None = None,
+    title: str | None = None,
 ) -> Path:
     """複数のスケルトンを横並びの GIF に描画する（human | robot 比較用）。
 
@@ -120,6 +142,7 @@ def render_side_by_side(
     トポロジ（BONES）を共有し、**同一メートルスケール / 共通の縦レンジ**で描くため、
     身長差（G1 が低い）がそのまま見える。
     verdicts: 各 panel の下に表示する (text, hex_color) のバッジ（PASS/REJECT 等）。None で非表示。
+    title: 図全体の上部に表示するタイトル（検索クエリ等）。None で非表示。
     """
     import imageio.v2 as imageio
 
@@ -168,7 +191,9 @@ def render_side_by_side(
                     fontsize=11, fontweight="bold", color="white",
                     bbox=dict(boxstyle="round,pad=0.3", facecolor=vcolor, edgecolor="none"),
                 )
-        fig.tight_layout()
+        if title:
+            fig.suptitle(title, fontsize=12, fontweight="bold", y=0.99)
+        fig.tight_layout(rect=(0, 0, 1, 0.96) if title else None)
         fig.canvas.draw()
         buf = np.asarray(fig.canvas.buffer_rgba())
         frames.append(buf[..., :3].copy())
@@ -177,3 +202,26 @@ def render_side_by_side(
     out_fps = max(1, round(fps / stride))
     imageio.mimsave(out_path, frames, duration=1.0 / out_fps, loop=0)
     return out_path
+
+
+def render_search_montage(
+    query: str,
+    results: list[tuple[np.ndarray, str, float]],
+    out_path: str | Path,
+    *,
+    fps: float = 30.0,
+    stride: int = 2,
+    palette: tuple[str, ...] = ("#2ca02c", "#1f77b4", "#9467bd", "#ff7f0e", "#8c564b"),
+) -> Path:
+    """text 検索の top-k 結果を、クエリをタイトルに・類似度をバッジにして横並び描画する（§6）。
+
+    results: (keypoints[T,J,3], motion_id, cosine_similarity) を**良い順**に並べたリスト。
+    """
+    panels: list[tuple[np.ndarray, str, str]] = []
+    verdicts: list[tuple[str, str]] = []
+    for rank, (kp, mid, sim) in enumerate(results):
+        color = palette[rank % len(palette)]
+        panels.append((kp, f"#{rank + 1} {mid}", color))
+        verdicts.append((f"cos {sim:+.2f}", color))
+    return render_side_by_side(panels, out_path, fps=fps, stride=stride,
+                               verdicts=verdicts, title=f'🔎 "{query}"')
