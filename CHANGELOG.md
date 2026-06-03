@@ -5,6 +5,15 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Policy Card（§7, model_card 拡張）**（`model-card <policy.rdpolicy.json>`,
+  `robotdance_core.model_card.build_policy_card`）: RD-Policy の Model Card を生成する。Motion/MIR
+  カードに加え、policy 向けに **I/O Contract**（observation components / action space・dim・
+  base_actuated / control / architecture）と **Weights**（format / ref / sha256）セクションを追加。
+  lineage（reference motions → training → weights）・license・failure_modes（policy 保持分を優先、
+  無ければ手法 registry で補完）・safety_limits（下流 safety guard 強制）を出力。`model-card` CLI は
+  artifact 種別（mir / motion / policy）を自動判別。純 Python で **CI 検証**。
+
 ## [0.17.0] - 2026-06-03
 
 実機橋渡しの節目リリース（pre-alpha）。予定フィールドのみだった **RD-Policy** spec を v0 で確定し、

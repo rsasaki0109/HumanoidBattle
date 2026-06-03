@@ -18,6 +18,7 @@ from typing import Any, Optional
 
 from .rd_mir import RdMir
 from .rd_motion import RdMotion
+from .rd_policy import RdPolicy
 
 CARD_VERSION = "0"
 
@@ -196,6 +197,64 @@ def build_motion_card(motion: RdMotion, *, mir: Optional[RdMir] = None) -> dict[
     }
 
 
+def build_policy_card(policy: RdPolicy) -> dict[str, Any]:
+    """RD-Policy の Model Card（dict）を生成する。"""
+    obs = policy.observation
+    act = policy.action
+    prov = policy.provenance or {}
+    refs = prov.get("reference_motion_ids", [])
+    lineage = [
+        {"stage": "reference_motions",
+         "detail": (", ".join(refs) if refs else "（不明）") + " → 物理追従の目標"},
+        {"stage": "training", "detail": _fmt_dict(policy.training or {}) or prov.get("trainer", "PPO")},
+        {"stage": "weights",
+         "detail": f"format={policy.weights.format}, ref={policy.weights.ref}, "
+                   f"sha256={(policy.weights.sha256 or '')[:12]}…"},
+    ]
+    # policy 自体が failure_modes を保持（無ければ手法シグナルから補完）。
+    failures = policy.failure_modes or _collect_failures(["rl_tracking_policy", "policy"])
+    return {
+        "rd_card_version": CARD_VERSION,
+        "card_type": "policy",
+        "identity": {
+            "id": policy.policy_id,
+            "policy_type": policy.policy_type,
+            "robot": policy.robot_name,
+            "obs_dim": obs.dim,
+            "action_dim": act.dim,
+            "action_space": act.space,
+            "base_actuated": act.base_actuated,
+            "runtime_adapter": policy.runtime_adapter,
+        },
+        "io_contract": {
+            "observation": {"dim": obs.dim, "components": obs.components},
+            "action": {"dim": act.dim, "space": act.space, "scale": act.scale,
+                       "base_actuated": act.base_actuated},
+            "control": policy.control or {},
+            "architecture": policy.architecture or {},
+        },
+        "lineage": lineage,
+        "license": _license_section(policy.license_state),
+        "intended_use": [
+            f"{policy.robot_name} の sim 上での参照追従（physics rollout / 可視化）",
+            "joint-space safety guard 通過後の、慎重な実機評価（tethered, 低速）",
+            f"ランタイムへの組み込み（runtime_adapter={policy.runtime_adapter}, weights は別途取得）",
+        ],
+        "out_of_scope": [
+            "safety guard（位置/速度/加速度/トルク）を経由しない実機コマンド送出",
+            "学習分布外の motion / robot への無検証な適用",
+            "license_state が許さない再配布・商用利用",
+        ],
+        "failure_modes": failures,
+        "safety_limits": policy.safety_limits or {
+            "note": "実機コマンド直前に joint-space safety guard を通すこと。",
+        },
+        "metrics": policy.training or {},
+        "weights": policy.weights.model_dump(),
+        "provenance": prov,
+    }
+
+
 def license_composition(states: list[str]) -> dict[str, Any]:
     """license_state のリスト → 構成内訳（collection 用 license composition）。"""
     counts: dict[str, int] = {}
@@ -230,6 +289,18 @@ def render_markdown(card: dict[str, Any]) -> str:
     for st in card.get("lineage", []):
         lines.append(f"1. **{st['stage']}** — {st['detail']}")
 
+    import json
+
+    if card.get("io_contract"):
+        lines += ["", "## I/O Contract", "```json",
+                  json.dumps(card["io_contract"], ensure_ascii=False, indent=2), "```"]
+    if card.get("weights"):
+        w = card["weights"]
+        lines += ["", "## Weights",
+                  f"- **format**: `{w.get('format')}` / **ref**: `{w.get('ref')}` "
+                  f"(本体は artifact に埋め込まない)",
+                  f"- **sha256**: `{w.get('sha256')}`"]
+
     lic = card.get("license", {})
     lines += ["", "## License", f"- **state**: `{lic.get('state')}`",
               f"- 再配布可: {lic.get('redistribution')} / 商用可: {lic.get('commercial')}",
@@ -250,8 +321,6 @@ def render_markdown(card: dict[str, Any]) -> str:
 
     lines += ["", "## Safety Limits"]
     lines.append("```json")
-    import json
-
     lines.append(json.dumps(card.get("safety_limits", {}), ensure_ascii=False, indent=2))
     lines.append("```")
 

@@ -55,7 +55,7 @@ Output: Unitree G1 simulation motion + RD-MIR dataset + motion embedding
 | temporal smoothing + 2D overlay | `smooth` / `overlay` | jitter 0.099→0.022 |
 | benchmark（motion × robot leaderboard） | `benchmark` | CSV + leaderboard |
 | extraction benchmark（MediaPipe vs HMR, §4.1） | `benchmark-extraction` | MPJPE/PA-MPJPE/PCK/jitter |
-| Model Card（lineage/license/failure/safety, §7） | `model-card` | 責任ある公開・利用の説明責任 |
+| Model Card（MIR/Motion/Policy, §7） | `model-card` | lineage/license/failure/safety（policy は I/O+weights）|
 | ROS2 安全再生（Jazzy, safety guard） | `serve --ros2` / `demo-runtime` | RViz 可視化 |
 | 関節空間 safety guard（位置/速度/加速度/トルククランプ, §5.6） | `demo-joint-safety` | 実機コマンド直前の最終 gate |
 

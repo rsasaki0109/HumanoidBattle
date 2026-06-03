@@ -8,6 +8,7 @@ from __future__ import annotations
 from robotdance_core.model_card import (
     build_mir_card,
     build_motion_card,
+    build_policy_card,
     license_composition,
     render_markdown,
 )
@@ -75,6 +76,37 @@ def test_render_markdown_has_required_headers() -> None:
     for header in ("# RobotDance MOTION Card", "## Data Lineage", "## License",
                    "## Intended Use", "## Out of Scope",
                    "## Failure Modes / Known Limitations (v0)", "## Safety Limits"):
+        assert header in md
+
+
+def _policy():
+    from robotdance_models.policy_export import tracking_policy_artifact
+
+    return tracking_policy_artifact(
+        obs_dim=121, action_dim=54, hidden=128, robot="unitree_g1",
+        policy_id="rdpolicy-g1", weights_ref="policy.onnx", weights_format="onnx",
+        weights_sha256="deadbeef", training={"framework": "ppo", "iterations": 40},
+        reference_motion_ids=["dance", "idle"],
+    )
+
+
+def test_policy_card_sections_and_io_contract() -> None:
+    card = build_policy_card(_policy())
+    assert card["card_type"] == "policy"
+    assert card["identity"]["policy_type"] == "tracking"
+    assert card["identity"]["action_space"] == "residual_torque"
+    assert card["io_contract"]["observation"]["dim"] == 121
+    assert card["io_contract"]["action"]["base_actuated"] is False
+    assert card["weights"]["format"] == "onnx"
+    assert any(f["area"] == "control" for f in card["failure_modes"])
+    # reference motions が lineage に出る。
+    assert card["lineage"][0]["stage"] == "reference_motions"
+
+
+def test_policy_card_markdown_has_io_and_weights() -> None:
+    md = render_markdown(build_policy_card(_policy()))
+    for header in ("# RobotDance POLICY Card", "## I/O Contract", "## Weights",
+                   "## Safety Limits", "## Failure Modes / Known Limitations (v0)"):
         assert header in md
 
 

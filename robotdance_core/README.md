@@ -8,13 +8,17 @@ schemas, validators, metadata, CLI, config — RobotDance の中核。RD-MIR/RD-
 - `skeleton.py` — canonical 19-joint skeleton（embodiment 非依存の標準）。
 - `synthetic.py` — 決定的・権利クリーンな合成モーション生成（dance / backflip）。
 - `cli.py` — `robotdance` CLI（validate / synth / view / retarget / sim / train-* / serve / …）。
-- `model_card.py` — **Model / Motion Card 生成（§7）**: RD-MIR/RD-Motion から **data lineage・
-  license composition・failure modes・safety limits** を Markdown + 機械可読 JSON で出力する。
-  failure modes は手法シグナル（extractor / retarget / sim backend / control_mode）から curated
-  registry を引いて検出。dataset 全体の license firewall 内訳は `robotdance_data` の Data BOM が担う。
+- `rd_policy.py` — **RD-Policy** の pydantic モデル（学習済み policy の配布 artifact: I/O 規約・
+  weights 参照・安全制約）。spec は `specs/rd-policy/`、export は `robotdance_models.policy_export`。
+- `model_card.py` — **Model / Motion / Policy Card 生成（§7）**: RD-MIR/RD-Motion/**RD-Policy** から
+  **data lineage・license・failure modes・safety limits**（policy は **I/O Contract・Weights** も）を
+  Markdown + 機械可読 JSON で出力する。failure modes は手法シグナル（extractor / retarget / sim
+  backend / control_mode）から curated registry を引いて検出。dataset 全体の license firewall 内訳は
+  `robotdance_data` の Data BOM が担う。
 
 ```bash
 robotdance model-card g1.rdmotion.json --mir clip.rdmir.json -o MODEL_CARD.md --json card.json
+robotdance model-card policy.rdpolicy.json -o POLICY_CARD.md   # RD-Policy も同じコマンドで
 ```
 
 > ⚠️ v0 pre-alpha。カードは「既知の限界を正直に明示する」ためのもので、実機保証ではない。

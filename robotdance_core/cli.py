@@ -154,15 +154,23 @@ def _benchmark_extraction(out_csv: Path, out_md: Path, seed: int) -> int:
 
 
 def _model_card(path: Path, mir_path: Path | None, out: Path, json_out: Path | None) -> int:
-    """RD-MIR / RD-Motion から Model Card（lineage / license / failure modes / safety）を生成（§7）。"""
+    """RD-MIR / RD-Motion / RD-Policy から Model Card（lineage / license / failure / safety）を生成（§7）。"""
     import json
 
-    from robotdance_core.model_card import build_mir_card, build_motion_card, render_markdown
+    from robotdance_core.model_card import (
+        build_mir_card,
+        build_motion_card,
+        build_policy_card,
+        render_markdown,
+    )
     from robotdance_core.rd_mir import RdMir
     from robotdance_core.rd_motion import RdMotion
+    from robotdance_core.rd_policy import RdPolicy
 
     raw = json.loads(path.read_text(encoding="utf-8"))
-    if "robot_name" in raw or "rd_motion_version" in raw:
+    if "rd_policy_version" in raw or "policy_id" in raw:
+        card = build_policy_card(RdPolicy.load(path))
+    elif "rd_motion_version" in raw or "control_mode" in raw:
         motion = RdMotion.load(path)
         mir = RdMir.load(mir_path) if mir_path else None
         card = build_motion_card(motion, mir=mir)
