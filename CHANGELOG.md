@@ -5,6 +5,12 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-06-04
+
+見せ場（デモ品質）の節目リリース（pre-alpha）。RD-MIR の caption をオーバーレイし、text 検索の
+top-k を類似度バッジ付きモンタージュ GIF に描けるようにし、「言葉でモーションを探す」を視覚的に
+伝えられるようにした。
+
 ### Added
 - **Viewer 強化: caption overlay + 検索結果モンタージュ（§6）**（`robotdance_viewer.skeleton_view`,
   `search-text --gif`）: デモ品質（見せ場）を向上。
@@ -14,6 +20,8 @@ This project adheres to [Semantic Versioning](https://semver.org/).
     類似度（cosine）をバッジにして横並び描画。`search-text --gif` で出力。
   - `render_side_by_side` に図全体の `title`（suptitle）を追加。
   - `_mir_caption` は依存なしで **CI 検証**、描画は matplotlib/imageio を importorskip。
+
+[0.22.0]: https://github.com/rsasaki0109/RobotDance/releases/tag/v0.22.0
 
 ## [0.21.0] - 2026-06-04
 
