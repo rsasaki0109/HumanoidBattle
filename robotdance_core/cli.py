@@ -164,6 +164,61 @@ def _video_to_robot(video: Path, robot: str, out: Path, stride: int) -> int:
     return 0
 
 
+def _serve(path: Path, speed: float, ros2: bool, allow_uncertified: bool) -> int:
+    from .rd_motion import RdMotion
+    from robotdance_ros2.motion_server import MotionServer
+    from robotdance_ros2.safety_guard import SafetyGuard, SafetyLimits
+
+    if ros2:
+        from robotdance_ros2.motion_server_node import main as node_main
+
+        argv = [str(path), "--speed", str(speed)]
+        if allow_uncertified:
+            argv.append("--allow-uncertified")
+        return node_main(argv)
+
+    # dry-run（ROS2 不要）: 安全ゲートとフレーム整形をシミュレートする。
+    motion = RdMotion.load(path)
+    guard = SafetyGuard(SafetyLimits(require_certificate=not allow_uncertified), speed_scale=speed)
+    server = MotionServer(motion, guard)
+    pre = server.precheck()
+    print(f"precheck: {pre.status.value} {pre.reasons}")
+    frames = server.export_frames()
+    warns = sum(1 for _, s in frames if s.status.value == "WARNING")
+    aborted = any(s.is_abort for _, s in frames)
+    print(f"streamed {len(frames)} frames (speed×{speed}) warnings={warns} aborted={aborted}")
+    if not frames:
+        print("  ⛔ 再生されませんでした（safety guard が遮断）")
+    return 0
+
+
+def _demo_runtime() -> int:
+    """安全ゲートの実演: certified(PASS) は再生、uncertified/REJECT は遮断。"""
+    from .synthetic import generate_backflip, generate_dance
+    from robotdance_retarget.kinematic import retarget
+    from robotdance_ros2.motion_server import MotionServer
+    from robotdance_ros2.safety_guard import SafetyGuard
+    from robotdance_unitree import get_morphology
+
+    morph = get_morphology("unitree_g1")
+    try:
+        from robotdance_sim.mujoco_backend import certify
+    except ImportError:
+        print("mujoco 無し: demo-runtime は sim_certificate を要するためスキップ")
+        return 0
+
+    for label, mir in [("dance(PASS見込み)", generate_dance()),
+                       ("backflip(REJECT見込み)", generate_backflip())]:
+        motion = certify(retarget(mir, morph), morph)
+        server = MotionServer(motion, SafetyGuard())
+        frames = server.export_frames()
+        verdict = (motion.sim_certificate or {}).get("verdict")
+        gate = "再生" if frames else "遮断（ABORT）"
+        print(f"  {label:22s} cert={verdict:6s} → motion_server: {gate}（{len(frames)} frames）")
+    print("  → safety guard は certificate REJECT を実機/再生前に遮断する（§5.6）")
+    return 0
+
+
 def _benchmark(robots: list[str], motions_dir: Path | None, with_sim: bool, out_dir: Path) -> int:
     from robotdance_benchmarks.report import aggregate_by_robot, write_csv, write_markdown
     from robotdance_benchmarks.suite import default_motion_suite, run_benchmark, run_from_dir
@@ -384,6 +439,14 @@ def main(argv: list[str] | None = None) -> int:
     p_multi.add_argument("--robots", nargs="+", default=["unitree_g1", "unitree_h1"])
     p_multi.add_argument("--stride", type=int, default=2)
 
+    p_serve = sub.add_parser("serve", help=".rdmotion を safety guard 越しに再生（--ros2 で ROS2 配信）")
+    p_serve.add_argument("rdmotion", type=Path, help="certified .rdmotion JSON")
+    p_serve.add_argument("--speed", type=float, default=1.0)
+    p_serve.add_argument("--ros2", action="store_true", help="ROS2 ノードとして配信（rclpy 必要）")
+    p_serve.add_argument("--allow-uncertified", action="store_true", help="certificate 無しでも再生（危険）")
+
+    sub.add_parser("demo-runtime", help="safety guard の PASS/REJECT 遮断を実演")
+
     p_bench = sub.add_parser("benchmark", help="motion × robot を回し CSV + leaderboard を出力")
     p_bench.add_argument("--robots", nargs="+", default=["unitree_g1", "unitree_h1"])
     p_bench.add_argument("--motions-dir", type=Path, default=None, help="*.rdmir.json のディレクトリ（既定: 合成スイート）")
@@ -453,6 +516,10 @@ def main(argv: list[str] | None = None) -> int:
         return _validate_sim(args.path, args.robot, args.out)
     if args.command == "demo-safety":
         return _demo_safety(args.out, args.robot, args.stride)
+    if args.command == "serve":
+        return _serve(args.rdmotion, args.speed, args.ros2, args.allow_uncertified)
+    if args.command == "demo-runtime":
+        return _demo_runtime()
     if args.command == "benchmark":
         return _benchmark(args.robots, args.motions_dir, not args.no_sim, args.out)
     if args.command == "demo-motion-map":

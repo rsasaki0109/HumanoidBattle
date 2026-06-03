@@ -104,6 +104,24 @@ robotdance overlay my_clip.mp4 clip.rdmir.json -o overlay.gif
 > 検証は landmark→canonical マッピングの単体テストと、公有 `astronaut` 実写での検出テストで行っています
 > （[`robotdance_perception`](robotdance_perception/) / [`robotdance_motion`](robotdance_motion/)）。
 
+## ROS2 runtime — 安全ゲート越しの motion server（Jazzy）
+
+certified な `.rdmotion` を **Safety Guard**（§5.6）越しに ROS2 へ配信します。`sim_certificate` が
+無い / REJECT の motion は**再生前に遮断**します（「動画を入れたら即ロボットが踊る」を防ぐ）。
+
+```bash
+robotdance demo-runtime          # certificate PASS → 再生 / REJECT → 遮断（ABORT）
+robotdance serve g1.rdmotion.json --ros2   # ROS2 配信（RViz で skeleton 可視化）
+```
+```
+dance(PASS)      cert=PASS   → motion_server: 再生（120 frames）
+backflip(REJECT) cert=REJECT → motion_server: 遮断（ABORT）（0 frames）
+```
+
+- core（safety guard / motion server）は **ROS2 非依存で完全テスト可能**。ノードは **ROS2 Jazzy**（primary target）。
+- topic: `/robotdance/skeleton`（MarkerArray, RViz）、`/robotdance/safety`、`/robotdance/estop`。
+- **sim-first** — 実機 bridge は安全レビュー後（[`robotdance_ros2`](robotdance_ros2/)）。
+
 ## Benchmark — motion × robot leaderboard
 
 全指標（retarget / sim_certificate / source 品質）を **motion × robot** で集計し、CSV + leaderboard を出力します。
@@ -266,8 +284,9 @@ robotdance_viewer/      side-by-side video/motion/robot visualization
 **AMASS ローダ + RD-Manifest license firewall（Data Bill of Materials）**、
 **motion embeddings + 類似検索 + Motion Map + 重複除去**、
 **G1/H1 への kinematic retarget（multi-embodiment）**、**MuJoCo 物理検証（sim_certificate / PASS・REJECT）**、
-**motion × robot benchmark + leaderboard**、3D & multi-panel ビューアまで動作
-（`extract`/`video-to-robot`/`build-dataset`/`benchmark`/`demo-motion-map`/`overlay`/`smooth`/`retarget`/`validate-sim`/`demo-*` 他）。
+**motion × robot benchmark + leaderboard**、**ROS2 runtime（safety guard + motion server, Jazzy）**、
+3D & multi-panel ビューアまで動作
+（`extract`/`video-to-robot`/`build-dataset`/`benchmark`/`serve`/`demo-motion-map`/`demo-runtime`/`overlay`/`smooth`/`retarget`/`demo-*` 他）。
 次は 学習 motion encoder・HMR adapter（4DHumans/GVHMR）・実 URDF・Isaac Lab backend。詳細は [`docs/ROADMAP.md`](docs/ROADMAP.md)。
 
 ## License
