@@ -5,6 +5,11 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-03
+
+実機パスの節目リリース（pre-alpha）。**人間動画/mocap → 実 G1 の実関節角 → ROS2 /joint_states 配信**
+までが繋がり、実機コマンドの直前（RViz で実 G1 メッシュが動く）まで到達した。
+
 ### Added
 - **ROS2 `/joint_states` 配信 + RViz launch**: actuator-space IK の実関節角を `sensor_msgs/JointState`
   で配信。`robot_state_publisher` + 実 URDF と合わせると RViz で**本物の G1 メッシュ**が動く
@@ -14,6 +19,8 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   `joint_rotations` に実機（ROS2/SDK2）が command できる joint trajectory を格納。IK 位置誤差が
   実 G1 の限られた DOF での追従性を示す（dance ~0.07m / backflip ~0.16m）。参照 IK であり
   バランス policy ではない（動的実現可能性は sim_certificate が別途検証）。
+
+[0.3.0]: https://github.com/rsasaki0109/RobotDance/releases/tag/v0.3.0
 
 ## [0.2.0] - 2026-06-03
 
