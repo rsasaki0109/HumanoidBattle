@@ -5,6 +5,11 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-06-04
+
+text-motion データ網羅の節目リリース（pre-alpha）。HumanML3D / BABEL に続き **Motion-X**
+（whole-body）adapter を追加し、主要な text-motion データセットを一通りカバーした。
+
 ### Added
 - **Motion-X adapter（§4.1, whole-body text-motion）**（`import-motionx`,
   `robotdance_data.motionx`）: SMPL-X（whole-body）+ 記述文の大規模 text-motion データセットを
@@ -12,6 +17,8 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   trans** を取り出し、既存の skeleton-first SMPL FK で canonical 化（手/顔/betas は未使用）。322 /
   66 次元 / [T,22,3] 形式を自動判別。記述文を `semantics` に格納。numpy のみで **CI 検証**。
   データセット本体は同梱せず利用者が各自取得（license_state=research_only）。
+
+[0.19.0]: https://github.com/rsasaki0109/RobotDance/releases/tag/v0.19.0
 
 ## [0.18.0] - 2026-06-04
 
