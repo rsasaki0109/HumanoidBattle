@@ -5,6 +5,12 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-06-04
+
+説明責任を policy まで広げた節目リリース（pre-alpha）。RD-MIR / RD-Motion に続き **RD-Policy** の
+Model Card 生成を追加し、生成 → 学習 → 配布の各 artifact が統一インターフェース（`model-card`）で
+lineage・license・failure modes・safety limits（policy は I/O Contract・Weights も）を備えた。
+
 ### Added
 - **Policy Card（§7, model_card 拡張）**（`model-card <policy.rdpolicy.json>`,
   `robotdance_core.model_card.build_policy_card`）: RD-Policy の Model Card を生成する。Motion/MIR
@@ -13,6 +19,8 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   lineage（reference motions → training → weights）・license・failure_modes（policy 保持分を優先、
   無ければ手法 registry で補完）・safety_limits（下流 safety guard 強制）を出力。`model-card` CLI は
   artifact 種別（mir / motion / policy）を自動判別。純 Python で **CI 検証**。
+
+[0.18.0]: https://github.com/rsasaki0109/RobotDance/releases/tag/v0.18.0
 
 ## [0.17.0] - 2026-06-03
 
