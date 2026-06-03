@@ -5,6 +5,12 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-06-03
+
+入口品質の可視化の節目リリース（pre-alpha）。抽出 adapter（MediaPipe / HMR）を共通 ground-truth に
+対し定量比較する **extraction benchmark** を追加し、retarget/sim の leaderboard に続いて
+**video→RD-MIR の質**も MPJPE / PA-MPJPE / PCK / jitter 等で評価できるようになった。
+
 ### Added
 - **Extraction benchmark（§4.1）**（`benchmark-extraction`, `robotdance_benchmarks.extraction`）:
   video→RD-MIR の抽出 adapter（MediaPipe / HMR(4DHumans/GVHMR) 等）を **共通 ground-truth に対し
@@ -14,6 +20,8 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   leaderboard（CSV/Markdown）。純 numpy・画像不要で **CI でも検証**。同梱デモは合成 GT に
   MediaPipe 風（奥行きノイズ+jitter）/ HMR 風（骨長近似+時間的に滑らか）の劣化を加えて harness を
   実演する（実 adapter 比較は実 video の抽出結果と GT を渡して行う。**実モデルの精度主張ではない**）。
+
+[0.13.0]: https://github.com/rsasaki0109/RobotDance/releases/tag/v0.13.0
 
 ## [0.12.0] - 2026-06-03
 
