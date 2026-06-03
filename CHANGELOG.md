@@ -5,6 +5,17 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Motion denoiser / in-betweening + 長尺生成（§4.2 拡張）**（`train-denoiser` / `demo-denoise`,
+  `robotdance_models.denoiser`, torch）: token prior の causal 生成に対し、**双方向 Transformer** を
+  **masked token modeling**（BERT 風）で学習し、`MotionDenoiser.denoise()` が尤度の低い外れトークンを
+  mask→双方向充填で**ノイズ除去**、`inbetween()` が両端を残し中間を埋めて**補間（in-betweening / 中割り）**
+  する。foundation model スタックが「生成（prior）+ 補間/除去（denoiser）」を備える。合成 corpus で
+  masked-token 復元精度がランダム（~0.8%）を大きく上回る（~50%）。あわせて prior の
+  **長尺生成**を明示化（`MotionGenerator.generate(length=...)` が seq_len 超を sliding-window 自己回帰で
+  生成、`demo-generate --length`）。256 frames でも jitter ~0.035 と滑らか。torch tests は CI で skip。
+  生成物は物理的に妥当とは限らず retarget → sim_certificate を必ず通す。長尺学習・betas・実データ規模は今後。
+
 ## [0.13.0] - 2026-06-03
 
 入口品質の可視化の節目リリース（pre-alpha）。抽出 adapter（MediaPipe / HMR）を共通 ground-truth に

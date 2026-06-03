@@ -465,8 +465,8 @@ def _train_prior(tokenizer: Path, out: Path, epochs: int, device: str | None) ->
 
 
 def _demo_generate(out: Path, prior_ckpt: Path | None, epochs: int, temperature: float,
-                   stride: int) -> int:
-    """token prior でモーションを生成・補完する（§4.2）。"""
+                   stride: int, length: int) -> int:
+    """token prior でモーションを生成・補完する（§4.2）。--length で長尺生成。"""
     import numpy as np
 
     from robotdance_core.synthetic import generate_dance
@@ -482,11 +482,12 @@ def _demo_generate(out: Path, prior_ckpt: Path | None, epochs: int, temperature:
         train_prior(tokenizer_ckpt=tok, out_path=pri, epochs=2 * epochs)
     gen = MotionGenerator(pri)
 
-    print("🎲 token prior による生成（BOS から自己回帰サンプリング）:")
+    long_note = f"（長尺 {length} tokens, sliding-window）" if length > gen.seq_len else ""
+    print(f"🎲 token prior による生成（BOS から自己回帰サンプリング）{long_note}:")
     panels = []
     colors = ["#9467bd", "#2ca02c", "#e377c2"]
     for i, sd in enumerate((0, 1, 2)):
-        m = gen.generate(length=16, temperature=temperature, seed=sd)
+        m = gen.generate(length=length, temperature=temperature, seed=sd)
         kp = m.keypoints_3d_array()
         jit = float(np.linalg.norm(np.diff(kp, n=2, axis=0), axis=2).mean())
         print(f"  sample seed={sd}: frames={m.num_frames} jitter={jit:.4f}")
@@ -500,6 +501,74 @@ def _demo_generate(out: Path, prior_ckpt: Path | None, epochs: int, temperature:
     comp, toks = gen.complete(dance, keep=4, temperature=temperature, seed=0)
     print(f"  補完: 先頭 4 トークンを残し続きを生成 → {len(toks)} tokens / {comp.num_frames} frames")
     print("  ⚠️ 生成物は物理的に妥当とは限らない — retarget → sim_certificate（validate-sim）で必ず検証する。")
+    return 0
+
+
+def _train_denoiser(tokenizer: Path, out: Path, epochs: int, device: str | None) -> int:
+    """masked motion denoiser（双方向）を学習する（§4.2 拡張）。"""
+    from robotdance_models.denoiser import train_denoiser
+
+    res = train_denoiser(tokenizer_ckpt=tokenizer, out_path=out, epochs=epochs, device=device)
+    h = res["loss_history"]
+    print(f"✓ motion denoiser 学習完了: {out}")
+    print(f"  sequences={res['sequences']} num_codes={res['num_codes']} device={res['device']} "
+          f"epochs={epochs}")
+    print(f"  masked loss: {h[0]:.4f} → {h[-1]:.4f}  /  masked-token 復元精度: "
+          f"{100 * res['masked_token_acc']:.0f}%")
+    return 0
+
+
+def _demo_denoise(out: Path, denoiser_ckpt: Path | None, epochs: int, stride: int) -> int:
+    """denoiser でトークンノイズ除去・in-betweening を実演する（§4.2 拡張）。"""
+    import numpy as np
+
+    from robotdance_core.synthetic import generate_dance
+    from robotdance_models.denoiser import MotionDenoiser, train_denoiser
+    from robotdance_models.tokenizer import train_tokenizer
+    from robotdance_viewer.skeleton_view import render_side_by_side
+
+    den_ckpt = denoiser_ckpt
+    if den_ckpt is None:
+        tok = out.with_name("demo_tokenizer.pt")
+        den_ckpt = out.with_suffix(".pt")
+        train_tokenizer(out_path=tok, epochs=epochs)
+        train_denoiser(tokenizer_ckpt=tok, out_path=den_ckpt, epochs=2 * epochs)
+    den = MotionDenoiser(den_ckpt)
+
+    # クリーンな motion のトークンを 1/4 ランダム破損 → denoise で復元。
+    clean = generate_dance(beats_per_second=1.0)
+    ids = den.tok.encode(clean)
+    rng = np.random.default_rng(0)
+    pos = rng.choice(len(ids), size=max(1, len(ids) // 4), replace=False)
+    corrupt = ids.copy()
+    corrupt[pos] = rng.integers(0, den.num_codes, size=len(pos))
+    corrupt_mir = den.tok.decode_to_mir(corrupt, motion_id="corrupt")
+    denoised, info = den.denoise(corrupt_mir, detect_ratio=0.3)
+    print("🧹 motion denoiser（双方向 masked modeling）:")
+    print(f"  破損 {len(pos)}/{len(ids)} tokens → denoise: mask {info['masked']} / 変更 "
+          f"{info['changed']} tokens")
+
+    # in-betweening: 両端を残し中間を埋める。
+    ib, toks = den.inbetween(clean, keep=2)
+    print(f"  in-betweening: 両端 2 tokens を残し中間 {len(toks) - 4} tokens を双方向補間 "
+          f"→ {ib.num_frames} frames")
+
+    def _jit(m):
+        k = m.keypoints_3d_array()
+        return float(np.linalg.norm(np.diff(k, n=2, axis=0), axis=2).mean())
+
+    print(f"  jitter: corrupt {_jit(corrupt_mir):.4f} → denoised {_jit(denoised):.4f} "
+          f"(clean {_jit(clean):.4f})")
+    panels = [
+        (clean.keypoints_3d_array(), "clean", "#2ca02c"),
+        (corrupt_mir.keypoints_3d_array(), "corrupted", "#d62728"),
+        (denoised.keypoints_3d_array(), "denoised", "#1f77b4"),
+        (ib.keypoints_3d_array(), "in-between", "#9467bd"),
+    ]
+    render_side_by_side(panels, out, stride=stride,
+                        verdicts=[(lbl, c) for _, lbl, c in panels])
+    print(f"✓ denoise デモ GIF: {out}")
+    print("  ⚠️ 生成物は物理的に妥当とは限らない — retarget → sim_certificate で必ず検証する。")
     return 0
 
 
@@ -978,6 +1047,23 @@ def main(argv: list[str] | None = None) -> int:
     p_dgen.add_argument("--epochs", type=int, default=150)
     p_dgen.add_argument("--temperature", type=float, default=1.0)
     p_dgen.add_argument("--stride", type=int, default=2)
+    p_dgen.add_argument("--length", type=int, default=16,
+                        help="生成 code token 数（seq_len 超で長尺 sliding-window 生成）")
+
+    p_den = sub.add_parser("train-denoiser", help="masked motion denoiser（双方向, §4.2）を学習")
+    p_den.add_argument("--tokenizer", type=Path, default=Path("motion_tokenizer.pt"),
+                       help="train-tokenizer の .pt")
+    p_den.add_argument("-o", "--out", type=Path, default=Path("motion_denoiser.pt"))
+    p_den.add_argument("--epochs", type=int, default=300)
+    p_den.add_argument("--device", default=None, help="cpu / cuda（既定: 自動）")
+
+    p_dden = sub.add_parser("demo-denoise",
+                            help="denoiser でノイズ除去・in-betweening を実演（§4.2）")
+    p_dden.add_argument("-o", "--out", type=Path, default=Path("denoise.gif"))
+    p_dden.add_argument("--checkpoint", type=Path, default=None,
+                        help="train-denoiser の .pt（省略時はその場で学習）")
+    p_dden.add_argument("--epochs", type=int, default=150)
+    p_dden.add_argument("--stride", type=int, default=2)
 
     p_t2m = sub.add_parser("train-text2motion", help="テキスト条件付き生成 prior を学習する")
     p_t2m.add_argument("--tokenizer", type=Path, default=Path("motion_tokenizer.pt"),
@@ -1134,7 +1220,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "train-prior":
         return _train_prior(args.tokenizer, args.out, args.epochs, args.device)
     if args.command == "demo-generate":
-        return _demo_generate(args.out, args.checkpoint, args.epochs, args.temperature, args.stride)
+        return _demo_generate(args.out, args.checkpoint, args.epochs, args.temperature,
+                              args.stride, args.length)
+    if args.command == "train-denoiser":
+        return _train_denoiser(args.tokenizer, args.out, args.epochs, args.device)
+    if args.command == "demo-denoise":
+        return _demo_denoise(args.out, args.checkpoint, args.epochs, args.stride)
     if args.command == "train-text2motion":
         return _train_text2motion(args.tokenizer, args.out, args.epochs, args.device)
     if args.command == "generate-text":

@@ -44,7 +44,8 @@ Output: Unitree G1 simulation motion + RD-MIR dataset + motion embedding
 | motion embeddings + 類似検索 + Motion Map | `demo-motion-map` | Demo 3 |
 | テキスト → モーション意味検索（contrastive） | `train-text-motion` / `search-text` | group top-1 100% |
 | モーション → 離散トークン（VQ-VAE） | `train-tokenizer` / `demo-tokenizer` | 4× 圧縮・再構成 RMSE ~0.03 |
-| モーション生成・補完（token prior） | `train-prior` / `demo-generate` | next-token 92%・滑らか生成 |
+| モーション生成・補完・長尺（token prior） | `train-prior` / `demo-generate` | next-token 92%・長尺 sliding-window |
+| ノイズ除去・in-betweening（双方向 denoiser, §4.2） | `train-denoiser` / `demo-denoise` | masked modeling・補間/中割り |
 | テキスト → モーション生成（text2motion） | `train-text2motion` / `generate-text` | "a backflip" → バックフリップ |
 | RL tracking policy（物理上で参照を追従, §4.5） | `train-tracking` / `demo-track` | PPO・base 非駆動・survival 100% |
 | multi-motion tracking（1 方策で 4 運動を汎化） | `train-tracking --suite` / `demo-track-multi` | reference-conditioned・全運動 survival 100% |
@@ -380,12 +381,12 @@ robotdance_viewer/      side-by-side video/motion/robot visualization
 **local 動画 → RD-MIR（MediaPipe Pose / HMR 4DHumans・GVHMR SMPL adapter）+ smoothing + 2D overlay**、
 **AMASS ローダ + RD-Manifest license firewall（Data Bill of Materials）**、
 **motion embeddings + 類似検索 + Motion Map + 重複除去（+ 学習 encoder option）**、
-**テキスト → モーション意味検索（contrastive text-motion）**、**モーション → 離散トークン（VQ-VAE）+ 生成・補完（token prior）+ テキスト条件付き生成（text2motion）**、
+**テキスト → モーション意味検索（contrastive text-motion）**、**モーション → 離散トークン（VQ-VAE）+ 生成・補完・長尺（token prior）+ テキスト条件付き生成（text2motion）+ 双方向 denoiser（ノイズ除去・in-betweening）**、
 **G1/H1 への kinematic retarget（multi-embodiment）+ アクチュエータ空間 IK（実 G1 関節角）**、
 **MuJoCo 物理検証（sim_certificate / PASS・REJECT）+ RL tracking policy baseline（物理上で参照を追従, PPO, base 非駆動, 1 方策で複数運動を汎化）+ joint-space safety guard（位置/速度/加速度/トルク）**、
 **motion × robot benchmark + leaderboard + extraction benchmark（MPJPE/PA-MPJPE/PCK/jitter）**、**Model Card 生成（lineage/license/failure/safety, §7）**、**ROS2 runtime（safety guard: Cartesian + 関節空間 位置/速度/加速度クランプ + motion server + /joint_states, Jazzy）**、
 3D & multi-panel ビューアまで動作
-（`extract`/`import-hmr`/`model-card`/`benchmark-extraction`/`video-to-robot`/`build-dataset`/`benchmark`/`serve`/`demo-motion-map`/`train-text-motion`/`search-text`/`train-tokenizer`/`demo-tokenizer`/`train-prior`/`demo-generate`/`train-text2motion`/`generate-text`/`train-tracking`/`demo-track`/`demo-track-multi`/`demo-joint-safety`/`retarget-ik`/`demo-runtime`/`overlay`/`smooth`/`demo-*` 他）。
+（`extract`/`import-hmr`/`model-card`/`benchmark-extraction`/`video-to-robot`/`build-dataset`/`benchmark`/`serve`/`demo-motion-map`/`train-text-motion`/`search-text`/`train-tokenizer`/`demo-tokenizer`/`train-prior`/`demo-generate`/`train-denoiser`/`demo-denoise`/`train-text2motion`/`generate-text`/`train-tracking`/`demo-track`/`demo-track-multi`/`demo-joint-safety`/`retarget-ik`/`demo-runtime`/`overlay`/`smooth`/`demo-*` 他）。
 次は model cards（data lineage / license / safety limits）・トルク limit（safety guard）・高度な RL tracking（AMP/実機転移）・Isaac Lab backend。詳細は [`docs/ROADMAP.md`](docs/ROADMAP.md)。
 
 ## License

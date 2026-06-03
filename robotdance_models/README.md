@@ -19,6 +19,12 @@ tokenizer, encoder, diffusion/autoregressive model, policy training — Motion E
 - `prior.py` — **Motion token prior**（GPT 風 causal Transformer）。VQ-VAE トークン列上で next-token
   予測を学習し、`MotionGenerator.generate()` で**新規モーション生成**、`complete()` で**補完**を行う。
   tokenizer（符号化⇄復号）と prior（並びの確率モデル）が揃って初めて生成が動く。
+  `generate(length=...)` は seq_len を超える長さを **sliding-window 自己回帰**で **長尺生成**できる。
+- `denoiser.py` — **Motion denoiser / in-betweening**（双方向 Transformer, masked token modeling）。
+  causal prior が「続きを作る」のに対し、双方向 denoiser は **全体の文脈で埋める/直す**:
+  `MotionDenoiser.denoise()` が尤度の低い外れトークンを mask→双方向充填で**ノイズ除去**し、
+  `inbetween()` が両端を残し中間を埋めて**補間（中割り）**する。foundation model スタックが
+  生成（prior）+ 補間/除去（denoiser）を備える。
 - `text2motion.py` — **Text-conditioned 生成**。token prior を**テキスト特徴で条件付け**し、
   `TextToMotion.generate(caption)` で **caption → モーション**を生成する（"a backflip" → バックフリップ）。
   `text.py`（テキスト特徴）+ `tokenizer.py`（VQ-VAE）+ `prior.py`（生成）を 1 本に繋ぐ集大成。
@@ -44,9 +50,13 @@ robotdance search-text "a person doing a backflip" --checkpoint text_motion.pt
 robotdance train-tokenizer -o motion_tokenizer.pt --epochs 150
 robotdance demo-tokenizer --checkpoint motion_tokenizer.pt -o tokenizer_recon.gif
 
-# トークン生成 prior でモーション生成・補完
+# トークン生成 prior でモーション生成・補完（--length で長尺 sliding-window 生成）
 robotdance train-prior --tokenizer motion_tokenizer.pt -o motion_prior.pt --epochs 300
-robotdance demo-generate --checkpoint motion_prior.pt -o generated.gif
+robotdance demo-generate --checkpoint motion_prior.pt -o generated.gif --length 64
+
+# masked denoiser でノイズ除去・in-betweening（双方向, §4.2 拡張）
+robotdance train-denoiser --tokenizer motion_tokenizer.pt -o motion_denoiser.pt --epochs 300
+robotdance demo-denoise --checkpoint motion_denoiser.pt -o denoise.gif
 
 # テキストからモーションを生成（text → motion）
 robotdance train-text2motion --tokenizer motion_tokenizer.pt -o text2motion.pt --epochs 400
@@ -79,7 +89,11 @@ model.search("flipping backwards in the air", suite)   # → backflip が top-1
 > - **motion VQ-VAE**: 合成 corpus で再構成 MSE が下がり（例: 0.055→0.0007）・codebook が健全に使われる
 >   （collapse 回避）ことを示す。本モジュールは符号化⇄復号のみ。
 > - **motion token prior**: VQ-VAE トークン列で next-token 精度 ~92% に達し、生成（滑らかな新規モーション,
->   jitter ~0.03）・補完（prefix を保持して継続）が動くことを示す。
+>   jitter ~0.03）・補完（prefix を保持して継続）・**長尺生成**（seq_len 超を sliding-window で,
+>   256 frames でも jitter ~0.035）が動くことを示す。
+> - **motion denoiser / in-betweening**: 双方向 masked modeling で masked-token 復元精度がランダム
+>   （~0.8%）を大きく上回る（合成 corpus で ~50%）。破損トークンの**ノイズ除去**・両端固定の
+>   **補間（中割り）**が動くことを示す。bidirectional ゆえ生成 prior と相補的（長尺/betas は今後）。
 > - **text-conditioned 生成**: caption の **action 群**（dance / idle / backflip）に応じて生成が変わる
 >   （"a backflip" → energy ~0.26 vs "standing still" → ~0.02 の高/低エネルギー）。小さな合成 corpus の
 >   ため語彙・多様性・新規 caption 汎化は限定的。**生成物は物理的に妥当とは限らない** —
