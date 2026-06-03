@@ -164,6 +164,25 @@ def _video_to_robot(video: Path, robot: str, out: Path, stride: int) -> int:
     return 0
 
 
+def _benchmark(robots: list[str], motions_dir: Path | None, with_sim: bool, out_dir: Path) -> int:
+    from robotdance_benchmarks.report import aggregate_by_robot, write_csv, write_markdown
+    from robotdance_benchmarks.suite import default_motion_suite, run_benchmark, run_from_dir
+
+    if motions_dir is not None:
+        report = run_from_dir(motions_dir, robots, with_sim=with_sim)
+    else:
+        report = run_benchmark(default_motion_suite(), robots, with_sim=with_sim)
+    csv_path = write_csv(report, out_dir / "benchmark.csv")
+    md_path = write_markdown(report, out_dir / "LEADERBOARD.md")
+    print(f"✓ benchmark: {len(report['rows'])} runs "
+          f"(sim {'on' if report['sim_available'] else 'off'})")
+    print(f"  {csv_path}\n  {md_path}")
+    for a in aggregate_by_robot(report):
+        print(f"  {a['robot']:12s} PASS率={a['pass_rate']} "
+              f"bone_cos={a['mean_bone_dir_cos']} foot_sliding={a['mean_foot_sliding']}")
+    return 0
+
+
 def _demo_motion_map(out: Path) -> int:
     """多様な合成モーションを埋め込み、検索・重複・2D マップを示す（§6.2 Demo 3）。"""
     from .synthetic import generate_backflip, generate_dance
@@ -365,6 +384,12 @@ def main(argv: list[str] | None = None) -> int:
     p_multi.add_argument("--robots", nargs="+", default=["unitree_g1", "unitree_h1"])
     p_multi.add_argument("--stride", type=int, default=2)
 
+    p_bench = sub.add_parser("benchmark", help="motion × robot を回し CSV + leaderboard を出力")
+    p_bench.add_argument("--robots", nargs="+", default=["unitree_g1", "unitree_h1"])
+    p_bench.add_argument("--motions-dir", type=Path, default=None, help="*.rdmir.json のディレクトリ（既定: 合成スイート）")
+    p_bench.add_argument("--no-sim", action="store_true", help="MuJoCo 物理検証を行わない")
+    p_bench.add_argument("-o", "--out", type=Path, default=Path("benchmark_out"))
+
     p_mmap = sub.add_parser("demo-motion-map", help="合成モーションを埋め込み Motion Map を描く")
     p_mmap.add_argument("-o", "--out", type=Path, default=Path("motion_map.png"))
 
@@ -428,6 +453,8 @@ def main(argv: list[str] | None = None) -> int:
         return _validate_sim(args.path, args.robot, args.out)
     if args.command == "demo-safety":
         return _demo_safety(args.out, args.robot, args.stride)
+    if args.command == "benchmark":
+        return _benchmark(args.robots, args.motions_dir, not args.no_sim, args.out)
     if args.command == "demo-motion-map":
         return _demo_motion_map(args.out)
     if args.command == "build-dataset":

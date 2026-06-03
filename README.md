@@ -104,6 +104,24 @@ robotdance overlay my_clip.mp4 clip.rdmir.json -o overlay.gif
 > 検証は landmark→canonical マッピングの単体テストと、公有 `astronaut` 実写での検出テストで行っています
 > （[`robotdance_perception`](robotdance_perception/) / [`robotdance_motion`](robotdance_motion/)）。
 
+## Benchmark — motion × robot leaderboard
+
+全指標（retarget / sim_certificate / source 品質）を **motion × robot** で集計し、CSV + leaderboard を出力します。
+
+```bash
+robotdance benchmark --robots unitree_g1 unitree_h1 -o out/
+```
+
+サンプル結果（合成スイート 4 motion × G1/H1、[全文](docs/benchmark/LEADERBOARD.md)）:
+
+| robot | runs | PASS率 | 平均 bone方向cos | 平均 foot_sliding |
+| --- | --- | --- | --- | --- |
+| unitree_g1 | 4 | 0.75 | 1.000 | 0.024 |
+| unitree_h1 | 4 | 0.50 | 1.000 | 0.034 |
+
+<sub>backflip は両機で REJECT。fast dance は背の高い H1 でバランス違反 → REJECT（小型 G1 は PASS）という妥当な所見が出る。
+v0 は近似プロキシ・近似質量で実機保証ではない。</sub>
+
 ## Motion Map — 類似検索・重複除去・運動の地図（Demo 3）
 
 RD-MIR を **motion embedding** に符号化し、類似動作検索・near-duplicate 検出・2D マップを実現します。
@@ -248,8 +266,8 @@ robotdance_viewer/      side-by-side video/motion/robot visualization
 **AMASS ローダ + RD-Manifest license firewall（Data Bill of Materials）**、
 **motion embeddings + 類似検索 + Motion Map + 重複除去**、
 **G1/H1 への kinematic retarget（multi-embodiment）**、**MuJoCo 物理検証（sim_certificate / PASS・REJECT）**、
-3D & multi-panel ビューアまで動作
-（`extract`/`video-to-robot`/`build-dataset`/`demo-motion-map`/`overlay`/`smooth`/`retarget`/`validate-sim`/`demo-*` 他）。
+**motion × robot benchmark + leaderboard**、3D & multi-panel ビューアまで動作
+（`extract`/`video-to-robot`/`build-dataset`/`benchmark`/`demo-motion-map`/`overlay`/`smooth`/`retarget`/`validate-sim`/`demo-*` 他）。
 次は 学習 motion encoder・HMR adapter（4DHumans/GVHMR）・実 URDF・Isaac Lab backend。詳細は [`docs/ROADMAP.md`](docs/ROADMAP.md)。
 
 ## License

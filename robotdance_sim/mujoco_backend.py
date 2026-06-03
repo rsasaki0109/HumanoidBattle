@@ -94,43 +94,36 @@ def simulate_certificate(
     n = kps.shape[0]
     dt = 1.0 / motion.fps
 
-    # 各フレームの qpos と COM。
+    # 重力保持トルクは subtree COM から解析的に計算する。短い足先 bone（toe）は除外。
+    toe_joints = {JOINT_NAMES.index("left_foot"), JOINT_NAMES.index("right_foot")}
+    grav_bodies = [model.body(f"body_{j}").id for j in range(1, len(JOINT_NAMES))
+                   if j not in toe_joints]
+    sub_mass = {bid: float(model.body_subtreemass[bid]) for bid in grav_bodies}
+
+    # 各フレームの qpos / COM / 重力保持トルク。
     qpos = np.stack([_pose_to_qpos(model, morphology, kps[f]) for f in range(n)])
     com = np.zeros((n, 3))
+    per_frame_torque = []
     for f in range(n):
         data.qpos[:] = qpos[f]
         data.qvel[:] = 0
         mujoco.mj_forward(model, data)
         com[f] = data.subtree_com[root_id]
+        # joint j の重力保持トルク = m_subtree·g·(joint anchor と subtree COM の水平距離)。
+        # mj_inverse の ball-joint 特異性を避ける robust な解析計算。
+        tmax = 0.0
+        for bid in grav_bodies:
+            anchor = data.xpos[bid]
+            csub = data.subtree_com[bid]
+            d_horiz = float(np.hypot(csub[0] - anchor[0], csub[1] - anchor[1]))
+            tmax = max(tmax, sub_mass[bid] * _G * d_horiz)
+        per_frame_torque.append(tmax)
+    gravity_torque = float(np.max(per_frame_torque)) if per_frame_torque else 0.0
 
-    # qvel / qacc（quaternion 対応の差分）。
+    # joint 角速度（first-order 差分。ang_speed 用）。
     qvel = np.zeros((n, model.nv))
     for f in range(n - 1):
         mujoco.mj_differentiatePos(model, qvel[f], dt, qpos[f], qpos[f + 1])
-    qacc = np.zeros((n, model.nv))
-    qacc[1:-1] = (qvel[2:] - qvel[:-2]) / (2 * dt)
-
-    # 逆動力学で内部 joint トルク。短い足先 bone（toe）は方向が数値的に不安定で
-    # スパイクを生むため除外し、各フレームの最大トルクの 95 パーセンタイルで評価する
-    # （近似慣性 + 有限差分のため単一フレームの外れ値に依存しない robust 統計）。
-    toe_joints = {JOINT_NAMES.index("left_foot"), JOINT_NAMES.index("right_foot")}
-    dof_slices = [
-        (model.joint(f"jnt_{j}").dofadr[0], model.joint(f"jnt_{j}").dofadr[0] + 3)
-        for j in range(1, len(JOINT_NAMES))
-        if j not in toe_joints
-    ]
-    per_frame_max = []
-    for f in range(1, n - 1):
-        data.qpos[:] = qpos[f]
-        data.qvel[:] = qvel[f]
-        data.qacc[:] = qacc[f]
-        mujoco.mj_inverse(model, data)
-        tau = data.qfrc_inverse
-        per_frame_max.append(max(float(np.linalg.norm(tau[a:b])) for a, b in dof_slices))
-    # 腕が頭上で rest と反平行になると ball joint が 180° 特異姿勢になり mj_inverse が
-    # 局所的にスパイクする。median（典型負荷）で gate し、peak は参考値として併記する。
-    torque_p50 = float(np.median(per_frame_max)) if per_frame_max else 0.0
-    torque_peak = float(np.max(per_frame_max)) if per_frame_max else 0.0
 
     # COM 加速度 → ZMP（平地・総質量点近似, ground z=0）。
     com_acc = np.zeros((n, 3))
@@ -161,15 +154,15 @@ def simulate_certificate(
     airborne_ratio = airborne / n
     balance_violation_ratio = unsupported / n
     max_joint_ang_speed = float(np.abs(qvel[:, 6:]).max()) if n > 1 else 0.0
-    torque_ratio = torque_p50 / torque_limit
+    torque_ratio = gravity_torque / torque_limit
 
     reasons: list[str] = []
     if airborne_ratio > 0.1:
         reasons.append(f"airborne {airborne_ratio:.0%}（接地なしで支持不能）")
     if balance_violation_ratio > 0.3:
         reasons.append(f"ZMP が支持多角形外 {balance_violation_ratio:.0%}（転倒リスク）")
-    if torque_ratio > 1.5:
-        reasons.append(f"torque saturation ×{torque_ratio:.2f}（典型負荷が actuator 限界超過）")
+    if torque_ratio > 1.0:
+        reasons.append(f"重力保持トルク ×{torque_ratio:.2f}（actuator 限界超過）")
     if max_joint_ang_speed > 30.0:
         reasons.append(f"関節角速度過大 {max_joint_ang_speed:.0f} rad/s")
 
@@ -183,21 +176,20 @@ def simulate_certificate(
         "metrics": {
             "airborne_ratio": round(airborne_ratio, 3),
             "balance_violation_ratio": round(balance_violation_ratio, 3),
-            "joint_torque_nm_p50": round(torque_p50, 1),
-            "joint_torque_nm_peak": round(torque_peak, 1),
+            "gravity_torque_nm": round(gravity_torque, 1),
             "torque_ratio": round(torque_ratio, 3),
             "max_joint_ang_speed_rad_s": round(max_joint_ang_speed, 2),
         },
         "thresholds": {
             "airborne_ratio": 0.1,
             "balance_violation_ratio": 0.3,
-            "torque_ratio_p50": 1.5,
+            "gravity_torque_ratio": 1.0,
             "max_joint_ang_speed_rad_s": 30.0,
         },
         "reasons": reasons,
         "note": (
-            "physically-informed feasibility（近似慣性, ball-joint 近似）— 実機保証ではない（v0）。"
-            " torque は median(p50) で判定（特異姿勢の peak は参考値）。"
+            "physically-informed feasibility（近似質量, v0）— 実機保証ではない。gravity_torque は"
+            " subtree COM から解析計算（mj_inverse の ball-joint 特異性を回避した robust 値）。"
         ),
     }
 
