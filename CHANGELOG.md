@@ -5,6 +5,12 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-06-03
+
+Motion intelligence の節目リリース（pre-alpha）。手作り embedding → 学習 encoder に続き、
+**自然文でモーションを意味検索**できる contrastive text-motion を追加。**テキスト → モーション**の
+橋渡しが通り、検索・条件付け・VLA 接続の足場ができた。
+
 ### Added
 - **Contrastive text-motion 検索**（`train-text-motion` / `search-text`,
   `robotdance_models.contrastive`, torch）: motion encoder（masked modeling の再利用）と
@@ -14,6 +20,8 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   自然文でモーションを意味検索できる。合成 corpus で **caption→motion を action 群レベル top-1 100%**
   で引け、学習に無い言い回し（"flipping backwards through the air" → backflip 等）にも汎化する。
   v0 は事前学習言語モデルなし・合成 corpus（実キャプション規模・CLIP 等への差し替えは今後）。
+
+[0.4.0]: https://github.com/rsasaki0109/RobotDance/releases/tag/v0.4.0
 
 ## [0.3.0] - 2026-06-03
 
