@@ -15,6 +15,7 @@ from robotdance_core.rd_mir import RdMir
 from robotdance_core.skeleton import NUM_JOINTS
 from robotdance_data.babel import babel_entry_to_mir, load_babel
 from robotdance_data.humanml3d import humanml3d_to_mir, load_humanml3d
+from robotdance_data.motionx import _extract_body, load_motionx, motionx_to_mir
 
 _SCHEMA = json.loads(
     (Path(__file__).resolve().parent.parent / "specs" / "rd-mir" / "rd-mir.schema.json")
@@ -110,6 +111,54 @@ def test_load_babel_skips_missing_amass(tmp_path: Path) -> None:
     # AMASS が存在する 1 件だけ。
     assert len(out) == 1
     assert out[0].semantics["action_label"] == "walk"
+
+
+# --- Motion-X ---
+
+def test_motionx_322dim_extracts_body() -> None:
+    """322 次元表現から root_orient+pose_body(66) と trans を取り出す。"""
+    rng = np.random.default_rng(0)
+    t = 40
+    m = rng.normal(0, 0.1, size=(t, 322))
+    m[:, 309:312] = np.cumsum(0.01 * np.ones((t, 3)), axis=0)
+    pose, trans = _extract_body(m)
+    assert pose.shape == (t, 22, 3)
+    assert trans is not None and trans.shape == (t, 3)
+    # root_orient(0:3) + pose_body(3:66) を使っている。
+    assert np.allclose(pose.reshape(t, 66)[:, :66], m[:, :66])
+    assert np.allclose(trans, m[:, 309:312])
+
+
+def test_motionx_to_mir_and_schema() -> None:
+    rng = np.random.default_rng(1)
+    m = rng.normal(0, 0.1, size=(30, 322))
+    mir = motionx_to_mir(m, ["a person dances", "dancing"], fps=30.0)
+    assert mir.num_frames == 30
+    assert np.array(mir.keypoints_3d).shape == (30, NUM_JOINTS, 3)
+    assert mir.license_state == "research_only"
+    assert mir.semantics["action_label"] == "a person dances"
+    assert mir.semantics["source_dataset"] == "motionx"
+    _valid(mir)
+
+
+def test_motionx_accepts_66dim_and_rejects_short() -> None:
+    rng = np.random.default_rng(2)
+    mir = motionx_to_mir(rng.normal(0, 0.1, size=(10, 66)), "walk")
+    assert mir.num_frames == 10
+    import pytest
+
+    with pytest.raises(ValueError, match="次元が不足"):
+        motionx_to_mir(rng.normal(0, 0.1, size=(10, 30)))
+
+
+def test_load_motionx(tmp_path: Path) -> None:
+    rng = np.random.default_rng(3)
+    np.save(tmp_path / "000.npy", rng.normal(0, 0.1, size=(20, 322)))
+    (tmp_path / "000.txt").write_text("a person jumps\nleaping\n", encoding="utf-8")
+    mir = load_motionx(tmp_path / "000.npy", tmp_path / "000.txt")
+    assert mir.semantics["action_label"] == "a person jumps"
+    assert mir.semantics["captions"] == ["a person jumps", "leaping"]
+    _valid(mir)
 
 
 def test_babel_output_retargets(tmp_path: Path) -> None:

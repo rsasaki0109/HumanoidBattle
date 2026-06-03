@@ -225,6 +225,21 @@ def _import_babel(babel_json: Path, amass_root: Path, limit: int | None, out_dir
     return 0 if count else 1
 
 
+def _import_motionx(motion: Path, text: Path | None, fps: float, out: Path) -> int:
+    """Motion-X の whole-body SMPL-X(.npy)+記述(.txt) を RD-MIR 化する（body のみ, §4.1）。"""
+    from robotdance_data.motionx import load_motionx
+
+    mir = load_motionx(motion, text, fps=fps)
+    sem = mir.semantics or {}
+    mir.save(out)
+    print(f"✓ Motion-X {motion.name} → RD-MIR: {out}")
+    print(f"  frames={mir.num_frames} fps={mir.fps:g} caption=\"{sem.get('action_label')}\" "
+          f"captions={len(sem.get('captions', []))} license_state={mir.license_state}")
+    print("  ⚠️ skeleton-first（SMPL-X の body 66 次元のみ使用, 手/顔/betas は未使用）。"
+          "research_only。")
+    return 0
+
+
 def _import_hmr(path: Path, source: str, fps: float | None, out: Path) -> int:
     """HMR（4DHumans/GVHMR）の SMPL 出力（.npz 交換フォーマット）を RD-MIR 化する（§4.1）。"""
     from robotdance_perception.hmr import load_hmr_npz
@@ -1219,6 +1234,13 @@ def main(argv: list[str] | None = None) -> int:
     p_bab.add_argument("--limit", type=int, default=None)
     p_bab.add_argument("--out-dir", type=Path, default=Path("babel_rdmir"))
 
+    p_mx = sub.add_parser("import-motionx",
+                          help="Motion-X の whole-body SMPL-X(.npy)+text(.txt) を RD-MIR 化（§4.1）")
+    p_mx.add_argument("motion", type=Path, help="Motion-X motion/<id>.npy（322 次元等）")
+    p_mx.add_argument("--text", type=Path, default=None, help="texts/<id>.txt")
+    p_mx.add_argument("--fps", type=float, default=30.0)
+    p_mx.add_argument("-o", "--out", type=Path, default=Path("motionx.rdmir.json"))
+
     p_hmr = sub.add_parser("import-hmr",
                            help="HMR(4DHumans/GVHMR)の SMPL 出力(.npz)を RD-MIR 化（§4.1）")
     p_hmr.add_argument("path", type=Path, help="HMR 出力 .npz（global_orient/body_pose[/transl/fps]）")
@@ -1349,6 +1371,8 @@ def main(argv: list[str] | None = None) -> int:
         return _import_humanml3d(args.joints, args.text, args.fps, args.out)
     if args.command == "import-babel":
         return _import_babel(args.babel_json, args.amass_root, args.limit, args.out_dir)
+    if args.command == "import-motionx":
+        return _import_motionx(args.motion, args.text, args.fps, args.out)
     if args.command == "import-hmr":
         return _import_hmr(args.path, args.source, args.fps, args.out)
     if args.command == "model-card":

@@ -11,6 +11,7 @@ manifests, source adapters, dataset builder, dedupe, license firewall — URL/ma
 | `aist.py` | `load_aist_pkl(path) -> RdMir`。AIST++（ダンス, 60fps）の SMPL pose を canonical RD-MIR 化 |
 | `humanml3d.py` | **HumanML3D**（text-motion）。`load_humanml3d(npy, txt)`: 前処理済み SMPL joint 位置 [T,22,3] を canonical 化し、**記述文を `semantics` に格納** |
 | `babel.py` | **BABEL**（AMASS への行動ラベル）。`babel_entry_to_mir` / `load_babel(json, amass_root)`: 注釈から AMASS を読み、**行動ラベル（seq/frame）を `semantics` に付与** |
+| `motionx.py` | **Motion-X**（whole-body text-motion）。`load_motionx(npy, txt)`: SMPL-X 322 次元表現の **body 66 次元（root_orient+pose_body）+ trans** を canonical 化し記述文を `semantics` に格納（手/顔/betas は未使用） |
 | `manifest.py` | RD-Manifest 読込・schema 検証 + **license firewall**（`evaluate(manifest) -> FirewallDecision`） |
 | `dataset.py` | manifest 駆動ビルダー。firewall + **motion embedding 重複除去** を通し、**Data Bill of Materials** を出力 |
 
@@ -21,6 +22,7 @@ robotdance build-dataset manifests.json --data-root /path/to/data --dedupe -o bu
 # text-motion データセット（§4.1）
 robotdance import-humanml3d new_joints/000.npy --text texts/000.txt -o clip.rdmir.json
 robotdance import-babel babel_v1.0/train.json --amass-root /path/to/amass --limit 100 --out-dir out/
+robotdance import-motionx motion/000.npy --text texts/000.txt -o clip.rdmir.json
 ```
 
 source_uri は `dataset://<name>/<相対パス>` 形式（`<name>` = `amass` / `aist`）で dataset とローカル位置を指定。
@@ -37,5 +39,6 @@ source_uri は `dataset://<name>/<相対パス>` 形式（`<name>` = `amass` / `
 > ⚠️ **v0 注意:** SMPL FK の rest offset は近似（正確な shape-conditioned joint regressor は未使用）。
 > retarget は direction-preserving なので下流に影響は小さい。**HumanML3D** は frame 正規化が近似
 > （前処理 frame を SMPL frame とみなす）、**BABEL** は AMASS .npz が見つかる entry のみ変換。
-> Motion-X 等の adapter・重複除去（perceptual hash）は今後。実 AMASS/HumanML3D/BABEL は登録制で
-> 同梱せず、利用者が各自取得する（license_state は research_only）。
+> **Motion-X** は SMPL-X の body 66 次元のみ使用（手/顔/betas は未使用）。重複除去
+> （perceptual hash）は今後。実 AMASS/HumanML3D/BABEL/Motion-X は登録制で同梱せず、
+> 利用者が各自取得する（license_state は research_only）。
