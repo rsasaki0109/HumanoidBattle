@@ -5,6 +5,12 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-06-03
+
+生成スタック深化の節目リリース（pre-alpha）。causal token prior（続きを作る）に、**双方向
+denoiser**（全体の文脈で埋める/直す）と **長尺生成**（sliding-window）を加え、motion foundation
+model スタックが「生成 + 補間/ノイズ除去 + 長尺」を備えた。
+
 ### Added
 - **Motion denoiser / in-betweening + 長尺生成（§4.2 拡張）**（`train-denoiser` / `demo-denoise`,
   `robotdance_models.denoiser`, torch）: token prior の causal 生成に対し、**双方向 Transformer** を
@@ -15,6 +21,8 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   **長尺生成**を明示化（`MotionGenerator.generate(length=...)` が seq_len 超を sliding-window 自己回帰で
   生成、`demo-generate --length`）。256 frames でも jitter ~0.035 と滑らか。torch tests は CI で skip。
   生成物は物理的に妥当とは限らず retarget → sim_certificate を必ず通す。長尺学習・betas・実データ規模は今後。
+
+[0.14.0]: https://github.com/rsasaki0109/RobotDance/releases/tag/v0.14.0
 
 ## [0.13.0] - 2026-06-03
 
