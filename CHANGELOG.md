@@ -5,6 +5,12 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-06-03
+
+実機安全 gate 完成の節目リリース（pre-alpha）。joint-space safety guard に**アクチュエータ トルク
+limit** を追加し、実機コマンド直前の最終 gate が **位置・速度・加速度・トルク** まで揃った。
+`sim_certificate`（物理的妥当性）→ safety guard（機構的安全）の二段構えが完成。
+
 ### Added
 - **Joint-space safety guard にトルク limit を追加（§5.6）**（`robotdance_ros2.safety_guard`）:
   v0.9 の位置/速度/加速度クランプに加え、**アクチュエータのトルク上限**を強制する。**必要トルク
@@ -16,6 +22,8 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   推定トルクを raw 7199 → safe 40 N·m に整形する様子を表示。**CI でも検証**。v0 は粗い実効慣性
   モデルの計画段階 guard で、完全な剛体動力学でもモータ電流飽和の代替でもない（電流は τ/Kt で
   モータ制御器が担う）。
+
+[0.12.0]: https://github.com/rsasaki0109/RobotDance/releases/tag/v0.12.0
 
 ## [0.11.0] - 2026-06-03
 
