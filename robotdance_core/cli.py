@@ -22,6 +22,8 @@ _SCHEMAS = {
     "manifest": _SPECS_DIR / "rd-manifest" / "rd-manifest.schema.json",
     "mir": _SPECS_DIR / "rd-mir" / "rd-mir.schema.json",
     "embodiment": _SPECS_DIR / "rd-embodiment" / "rd-embodiment.schema.json",
+    "motion": _SPECS_DIR / "rd-motion" / "rd-motion.schema.json",
+    "policy": _SPECS_DIR / "rd-policy" / "rd-policy.schema.json",
 }
 
 
@@ -537,6 +539,23 @@ def _demo_generate(out: Path, prior_ckpt: Path | None, epochs: int, temperature:
     comp, toks = gen.complete(dance, keep=4, temperature=temperature, seed=0)
     print(f"  補完: 先頭 4 トークンを残し続きを生成 → {len(toks)} tokens / {comp.num_frames} frames")
     print("  ⚠️ 生成物は物理的に妥当とは限らない — retarget → sim_certificate（validate-sim）で必ず検証する。")
+    return 0
+
+
+def _export_policy(checkpoint: Path, robot: str, out: Path, onnx: Path | None) -> int:
+    """tracking policy checkpoint を RD-Policy artifact（+任意 ONNX）に export する（§3/§4.5）。"""
+    from robotdance_models.policy_export import export_tracking_policy
+
+    policy = export_tracking_policy(checkpoint, robot=robot, onnx_path=onnx, out_path=out)
+    print(f"✓ RD-Policy artifact: {out}")
+    print(f"  policy_type={policy.policy_type} robot={policy.robot_name} "
+          f"obs={policy.observation.dim} act={policy.action.dim}（{policy.action.space}, base 非駆動）")
+    print(f"  weights: format={policy.weights.format} ref={policy.weights.ref} "
+          f"sha256={(policy.weights.sha256 or '')[:12]}…")
+    if onnx is not None:
+        print(f"  ONNX: {onnx}（実機ランタイム向け・決定論方策の mean を出力）")
+    print(f"  failure_modes={len(policy.failure_modes)} / safety_limits は下流 safety guard で強制")
+    print("  ⚠️ v0: weights は埋め込まず参照（license/容量 safe）。実機適用は safety guard 通過後。")
     return 0
 
 
@@ -1099,6 +1118,13 @@ def main(argv: list[str] | None = None) -> int:
     p_dgen.add_argument("--length", type=int, default=16,
                         help="生成 code token 数（seq_len 超で長尺 sliding-window 生成）")
 
+    p_xp = sub.add_parser("export-policy",
+                          help="tracking policy(.pt) を RD-Policy artifact(+ONNX)に export（§3/§4.5）")
+    p_xp.add_argument("checkpoint", type=Path, help="train-tracking の .pt")
+    p_xp.add_argument("--robot", default="unitree_g1")
+    p_xp.add_argument("-o", "--out", type=Path, default=Path("policy.rdpolicy.json"))
+    p_xp.add_argument("--onnx", type=Path, default=None, help="ONNX も書き出す（実機ランタイム向け）")
+
     p_den = sub.add_parser("train-denoiser", help="masked motion denoiser（双方向, §4.2）を学習")
     p_den.add_argument("--tokenizer", type=Path, default=Path("motion_tokenizer.pt"),
                        help="train-tokenizer の .pt")
@@ -1290,6 +1316,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "demo-generate":
         return _demo_generate(args.out, args.checkpoint, args.epochs, args.temperature,
                               args.stride, args.length)
+    if args.command == "export-policy":
+        return _export_policy(args.checkpoint, args.robot, args.out, args.onnx)
     if args.command == "train-denoiser":
         return _train_denoiser(args.tokenizer, args.out, args.epochs, args.device)
     if args.command == "demo-denoise":

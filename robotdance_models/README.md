@@ -28,6 +28,10 @@ tokenizer, encoder, diffusion/autoregressive model, policy training — Motion E
 - `text2motion.py` — **Text-conditioned 生成**。token prior を**テキスト特徴で条件付け**し、
   `TextToMotion.generate(caption)` で **caption → モーション**を生成する（"a backflip" → バックフリップ）。
   `text.py`（テキスト特徴）+ `tokenizer.py`（VQ-VAE）+ `prior.py`（生成）を 1 本に繋ぐ集大成。
+- `policy_export.py` — **RD-Policy export**（§3/§4.5）。学習済み tracking policy checkpoint を
+  配布 artifact（`.rdpolicy`, `robotdance_core.rd_policy`）にまとめる: I/O 規約・アーキテクチャ・
+  学習来歴・**安全制約**・**weights 参照**（format/ref/sha256, 本体は非埋め込み）。任意で **ONNX**
+  （決定論方策, onnxruntime 実行可能 = 実機ランタイム橋渡し）を書き出す。`export-policy` CLI。
 - `tracking_policy.py` — **RL tracking policy baseline**（§4.5）。
   [`robotdance_sim.TrackingEnv`](../robotdance_sim/)（base 非駆動の物理 env）で参照運動を
   **倒れずに追従する方策**を小型 **PPO** で学習する。学習表現の次にある制御スタックの足場で、

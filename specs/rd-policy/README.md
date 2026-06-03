@@ -1,6 +1,17 @@
 # RD-Policy
 
-> **status:** v0 (draft, スキーマは Phase 3 で確定)
+> **status:** v0 (draft) — スキーマ確定: [`rd-policy.schema.json`](rd-policy.schema.json)
+
+学習済み motion policy の **配布 artifact**（`.rdpolicy`）。policy の I/O 規約・アーキテクチャ・
+学習来歴・**安全制約**・**weights 参照**を 1 つの spec 適合 JSON にまとめる。weights 本体は
+埋め込まず参照する（license/容量 safe）。`robotdance export-policy` で tracking policy checkpoint
+から生成でき、任意で **ONNX**（実機ランタイム向け）も書き出す。
+
+必須フィールド: `rd_policy_version` / `policy_id` / `policy_type`（tracking|skill）/ `robot_name` /
+`observation`（dim, components）/ `action`（dim, space, base_actuated）/ `weights`（format, ref, sha256）。
+任意: `control` / `architecture` / `training` / `safety_limits` / `failure_modes` / `provenance` /
+`license_state` / `runtime_adapter`。
+
 
 Motion Policy の I/O 規約。policy は 2 種類:
 

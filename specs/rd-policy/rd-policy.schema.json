@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://robotdance.dev/specs/rd-policy/v0/rd-policy.schema.json",
+  "title": "RD-Policy",
+  "description": "学習済み motion policy の配布 artifact (.rdpolicy, v0 draft)。policy の I/O 規約・アーキテクチャ・学習来歴・安全制約・weights 参照を記述する。weights 本体は埋め込まず参照する（license/容量 safe）。tracking policy（参照追従）/ skill policy（VLA 補完）を対象。",
+  "type": "object",
+  "required": [
+    "rd_policy_version",
+    "policy_id",
+    "policy_type",
+    "robot_name",
+    "observation",
+    "action",
+    "weights"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "rd_policy_version": { "type": "string", "const": "0" },
+    "policy_id": { "type": "string" },
+    "policy_type": { "type": "string", "enum": ["tracking", "skill"] },
+    "robot_name": { "type": "string", "description": "例: unitree_g1" },
+    "license_state": {
+      "type": "string",
+      "enum": ["redistributable", "trainable", "commercial_allowed", "research_only", "unknown"]
+    },
+    "runtime_adapter": { "type": "string", "description": "例: unitree_sdk2 / ros2_control" },
+    "observation": {
+      "type": "object",
+      "required": ["dim"],
+      "additionalProperties": true,
+      "properties": {
+        "dim": { "type": "integer", "minimum": 1 },
+        "components": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "観測ベクトルの構成要素（例: base_height, base_quat, joint_vel, pose_error, phase）"
+        }
+      }
+    },
+    "action": {
+      "type": "object",
+      "required": ["dim", "space"],
+      "additionalProperties": true,
+      "properties": {
+        "dim": { "type": "integer", "minimum": 1 },
+        "space": {
+          "type": "string",
+          "description": "行動空間（例: residual_torque / position / velocity / torque）"
+        },
+        "scale": { "type": ["number", "null"], "description": "行動スケール（残差の N·m 等）" },
+        "base_actuated": {
+          "type": "boolean",
+          "description": "base(root) が駆動か。tracking policy は通常 false（underactuated）"
+        }
+      }
+    },
+    "control": {
+      "type": ["object", "null"],
+      "description": "制御パラメータ（control_mode, dt, kp, kd, residual_scale 等）",
+      "additionalProperties": true
+    },
+    "architecture": {
+      "type": ["object", "null"],
+      "description": "モデル構造（type, hidden, layers, params 等）",
+      "additionalProperties": true
+    },
+    "weights": {
+      "type": "object",
+      "required": ["format"],
+      "additionalProperties": false,
+      "properties": {
+        "format": { "type": "string", "enum": ["pytorch", "onnx", "none"] },
+        "ref": {
+          "type": ["string", "null"],
+          "description": "weights ファイルへの相対パス/URI（本体は artifact に埋め込まない）"
+        },
+        "sha256": { "type": ["string", "null"], "description": "weights の整合性ハッシュ" }
+      }
+    },
+    "training": {
+      "type": ["object", "null"],
+      "description": "学習来歴（framework, iterations, metrics, reference_motion_ids, device, seed）",
+      "additionalProperties": true
+    },
+    "safety_limits": {
+      "type": ["object", "null"],
+      "description": "下流の safety guard が強制すべき joint 位置/速度/加速度/トルク制約",
+      "additionalProperties": true
+    },
+    "failure_modes": {
+      "type": "array",
+      "description": "既知の v0 限界（area, description）",
+      "items": {
+        "type": "object",
+        "properties": {
+          "area": { "type": "string" },
+          "description": { "type": "string" }
+        },
+        "additionalProperties": true
+      }
+    },
+    "provenance": {
+      "type": ["object", "null"],
+      "description": "元 motion / embodiment / tokenizer 等への参照",
+      "additionalProperties": true
+    }
+  }
+}

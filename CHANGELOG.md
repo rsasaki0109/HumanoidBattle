@@ -5,6 +5,18 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **RD-Policy spec 確定 + policy export（§3/§4.5）**（`export-policy`, `validate policy`,
+  `robotdance_core.rd_policy`, `robotdance_models.policy_export`）: 学習済み motion policy の **配布
+  artifact**（`.rdpolicy`）の v0 JSON Schema + pydantic モデルを確定（これまで予定フィールドのみ）。
+  policy の **I/O 規約**（observation/action の dim・space・base_actuated）・**アーキテクチャ**・
+  **学習来歴**・**安全制約**・**weights 参照**（format/ref/sha256、本体は非埋め込み）を 1 つの spec 適合
+  JSON にまとめる。`export-policy` が tracking policy checkpoint(.pt) から生成し、任意で **ONNX**
+  （決定論方策の mean、onnxruntime で実行可能 = 実機ランタイム橋渡し）も書き出す。failure_modes は
+  model_card registry を再利用、safety_limits は下流の joint-space safety guard で強制する旨を記録。
+  weights を埋め込まず参照する **license/容量 safe** 設計。spec/モデル/assembly は依存なしで **CI 検証**
+  （ONNX/checkpoint export は torch）。`validate` の対象に `motion` / `policy` を追加。
+
 ## [0.16.0] - 2026-06-03
 
 text-motion データ入口拡充の節目リリース（pre-alpha）。AMASS/AIST++ に続き、**HumanML3D / BABEL**

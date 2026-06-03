@@ -15,6 +15,8 @@ _SCHEMAS = {
     "manifest": _SPECS / "rd-manifest" / "rd-manifest.schema.json",
     "mir": _SPECS / "rd-mir" / "rd-mir.schema.json",
     "embodiment": _SPECS / "rd-embodiment" / "rd-embodiment.schema.json",
+    "motion": _SPECS / "rd-motion" / "rd-motion.schema.json",
+    "policy": _SPECS / "rd-policy" / "rd-policy.schema.json",
 }
 
 _EXAMPLES = {

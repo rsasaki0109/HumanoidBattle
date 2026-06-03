@@ -50,6 +50,7 @@ Output: Unitree G1 simulation motion + RD-MIR dataset + motion embedding
 | ノイズ除去・in-betweening（双方向 denoiser, §4.2） | `train-denoiser` / `demo-denoise` | masked modeling・補間/中割り |
 | テキスト → モーション生成（text2motion） | `train-text2motion` / `generate-text` | "a backflip" → バックフリップ |
 | RL tracking policy（物理上で参照を追従, §4.5） | `train-tracking` / `demo-track` | PPO・base 非駆動・survival 100% |
+| policy export（RD-Policy + ONNX, §3/§4.5） | `export-policy` / `validate policy` | I/O規約・安全制約・weights参照・実機橋渡し |
 | multi-motion tracking（1 方策で 4 運動を汎化） | `train-tracking --suite` / `demo-track-multi` | reference-conditioned・全運動 survival 100% |
 | temporal smoothing + 2D overlay | `smooth` / `overlay` | jitter 0.099→0.022 |
 | benchmark（motion × robot leaderboard） | `benchmark` | CSV + leaderboard |
@@ -388,7 +389,7 @@ robotdance_viewer/      side-by-side video/motion/robot visualization
 **MuJoCo 物理検証（sim_certificate / PASS・REJECT）+ RL tracking policy baseline（物理上で参照を追従, PPO, base 非駆動, 1 方策で複数運動を汎化）+ joint-space safety guard（位置/速度/加速度/トルク）**、
 **motion × robot benchmark + leaderboard + extraction benchmark（MPJPE/PA-MPJPE/PCK/jitter）**、**Model Card 生成（lineage/license/failure/safety, §7）**、**ROS2 runtime（safety guard: Cartesian + 関節空間 位置/速度/加速度クランプ + motion server + /joint_states, Jazzy）**、
 3D & multi-panel ビューアまで動作
-（`extract`/`import-hmr`/`import-humanml3d`/`import-babel`/`model-card`/`benchmark-extraction`/`video-to-robot`/`build-dataset`/`benchmark`/`serve`/`demo-motion-map`/`train-text-motion`/`search-text`/`train-tokenizer`/`demo-tokenizer`/`train-prior`/`demo-generate`/`train-denoiser`/`demo-denoise`/`train-text2motion`/`generate-text`/`train-tracking`/`demo-track`/`demo-track-multi`/`demo-joint-safety`/`sim-backends`/`retarget-ik`/`demo-runtime`/`overlay`/`smooth`/`demo-*` 他）。
+（`extract`/`import-hmr`/`import-humanml3d`/`import-babel`/`model-card`/`benchmark-extraction`/`video-to-robot`/`build-dataset`/`benchmark`/`serve`/`demo-motion-map`/`train-text-motion`/`search-text`/`train-tokenizer`/`demo-tokenizer`/`train-prior`/`demo-generate`/`train-denoiser`/`demo-denoise`/`train-text2motion`/`generate-text`/`train-tracking`/`demo-track`/`demo-track-multi`/`demo-joint-safety`/`sim-backends`/`export-policy`/`retarget-ik`/`demo-runtime`/`overlay`/`smooth`/`demo-*` 他）。
 次は HumanML3D/BABEL adapter（データ入口拡充）・Isaac Lab backend 実装・policy export（実機橋渡し）・高度な RL tracking（AMP/実機転移）。詳細は [`docs/ROADMAP.md`](docs/ROADMAP.md)。
 
 ## License
