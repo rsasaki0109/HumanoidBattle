@@ -27,7 +27,9 @@ tokenizer, encoder, diffusion/autoregressive model, policy training — Motion E
   **倒れずに追従する方策**を小型 **PPO** で学習する。学習表現の次にある制御スタックの足場で、
   retarget→sim_certificate の「物理的に妥当か」の判定の先にある「**実際にバランスを取って動かせるか**」を扱う。
   `TrackingPolicy.rollout()` が物理ロールアウトを RD-Motion（`control_mode="policy"`）として返し、
-  viewer / sim_certificate / ROS2 の既存パイプラインに流せる。
+  viewer / sim_certificate / ROS2 の既存パイプラインに流せる。`train_multi_tracking_policy` +
+  [`MultiTrackingEnv`](../robotdance_sim/) で参照スイートを **1 方策に汎化**（round-robin・
+  reference-conditioned 観測）。
 
 ```bash
 pip install -e ".[learn]"          # torch を入れる
@@ -52,7 +54,9 @@ robotdance generate-text "a person doing a backflip" --gif backflip.gif
 
 # RL tracking policy（参照を物理上で追従, §4.5）— sim + learn extra が必要
 robotdance train-tracking -o tracking_policy.pt --iterations 40
-robotdance demo-track --iterations 40 -o tracking.gif    # 参照 vs 物理追従 を side-by-side
+robotdance demo-track --iterations 40 -o tracking.gif         # 参照 vs 物理追従 を side-by-side
+robotdance train-tracking --suite -o tracking_multi.pt        # 1 方策で複数運動を汎化
+robotdance demo-track-multi --iterations 60 -o tracking_multi.gif  # スイートを横並び描画
 ```
 
 ```python
@@ -83,7 +87,10 @@ model.search("flipping backwards in the air", suite)   # → backflip が top-1
 > - **RL tracking policy**: base 非駆動の物理 env で PPO を学習し、gentle 参照を **survival 100%** で
 >   追従（pose RMSE ~0.37）・物理ロールアウトを RD-Motion で返すことを示す。短い feasible クリップでは
 >   関節 PD だけで概ねバランスするため、v0 の残差 PPO は **PD を壊さず追従する足場**であって PD 超えの
->   tracking 精度を主張しない。多様 motion 汎化・摂動頑健性・AMP/敵対報酬・実機転移は今後。
+>   tracking 精度を主張しない。摂動頑健性・AMP/敵対報酬・実機転移は今後。
+> - **multi-motion tracking**: `MultiTrackingEnv`（round-robin 参照切替）+ `train_multi_tracking_policy` で
+>   **1 つの方策**が合成 4 運動スイート（gentle/normal/fast dance + idle）を **全運動 survival 100%** で
+>   追従できることを示す（reference-conditioned 観測）。実 motion データ規模での汎化は今後。
 >
 > weights は repo に同梱しない（`robotdance-*` weight family の方針）。motion foundation model・
 > 高度な RL tracking（AMP/摂動/実機転移）・contrastive **video**-text-motion は今後。

@@ -26,7 +26,7 @@ import torch.nn as nn
 from robotdance_core.rd_motion import RdMotion, Skeleton
 from robotdance_core.skeleton import JOINT_NAMES, PARENTS
 from robotdance_retarget.embodiment import RobotMorphology
-from robotdance_sim.tracking_env import TrackingEnv
+from robotdance_sim.tracking_env import MultiTrackingEnv, TrackingEnv
 
 
 class ActorCritic(nn.Module):
@@ -51,31 +51,24 @@ class ActorCritic(nn.Module):
         return self.mu(h), std, self.value(h).squeeze(-1)
 
 
-def train_tracking_policy(
-    reference: RdMotion,
-    morphology: RobotMorphology,
+def _ppo_train(
+    env: TrackingEnv,
+    ac: ActorCritic,
+    opt: "torch.optim.Optimizer",
     *,
-    iterations: int = 40,
-    steps_per_iter: int = 1024,
-    gamma: float = 0.97,
-    lam: float = 0.95,
-    clip: float = 0.2,
-    lr: float = 3e-4,
-    epochs: int = 6,
-    hidden: int = 128,
-    device: Optional[str] = None,
-    seed: int = 0,
-    out_path: Optional[str | Path] = None,
-) -> tuple["TrackingPolicy", dict[str, Any]]:
-    """PPO で tracking 方策を学習し、(TrackingPolicy, info) を返す。"""
-    dev = device or ("cuda" if torch.cuda.is_available() else "cpu")
-    torch.manual_seed(seed)
-    np.random.seed(seed)
+    iterations: int,
+    steps_per_iter: int,
+    gamma: float,
+    lam: float,
+    clip: float,
+    epochs: int,
+    dev: str,
+) -> tuple[list[float], list[float]]:
+    """PPO の収集→GAE→clip 更新を回し、(return_history, rmse_history) を返す。
 
-    env = TrackingEnv(reference, morphology)
-    ac = ActorCritic(env.obs_dim, env.action_dim, hidden=hidden).to(dev)
-    opt = torch.optim.Adam(ac.parameters(), lr=lr)
-
+    env は `reset()` / `step(action)` を備えれば単一・複数参照のどちらでもよい
+    （`MultiTrackingEnv` は reset でエピソードごとに参照を切り替える）。
+    """
     return_hist: list[float] = []
     rmse_hist: list[float] = []
     for _ in range(iterations):
@@ -144,6 +137,51 @@ def train_tracking_policy(
 
         return_hist.append(float(np.mean(ep_returns)) if ep_returns else ep_ret)
         rmse_hist.append(float(np.mean(ep_rmse)) if ep_rmse else float("nan"))
+    return return_hist, rmse_hist
+
+
+def _save_checkpoint(ac: ActorCritic, env: TrackingEnv, hidden: int, out_path: str | Path) -> str:
+    out_path = Path(out_path)
+    torch.save(
+        {
+            "state_dict": ac.state_dict(),
+            "obs_dim": env.obs_dim,
+            "action_dim": env.action_dim,
+            "hidden": hidden,
+        },
+        out_path,
+    )
+    return str(out_path)
+
+
+def train_tracking_policy(
+    reference: RdMotion,
+    morphology: RobotMorphology,
+    *,
+    iterations: int = 40,
+    steps_per_iter: int = 1024,
+    gamma: float = 0.97,
+    lam: float = 0.95,
+    clip: float = 0.2,
+    lr: float = 3e-4,
+    epochs: int = 6,
+    hidden: int = 128,
+    device: Optional[str] = None,
+    seed: int = 0,
+    out_path: Optional[str | Path] = None,
+) -> tuple["TrackingPolicy", dict[str, Any]]:
+    """単一参照を追従する PPO 方策を学習し、(TrackingPolicy, info) を返す。"""
+    dev = device or ("cuda" if torch.cuda.is_available() else "cpu")
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+
+    env = TrackingEnv(reference, morphology)
+    ac = ActorCritic(env.obs_dim, env.action_dim, hidden=hidden).to(dev)
+    opt = torch.optim.Adam(ac.parameters(), lr=lr)
+    return_hist, rmse_hist = _ppo_train(
+        env, ac, opt, iterations=iterations, steps_per_iter=steps_per_iter,
+        gamma=gamma, lam=lam, clip=clip, epochs=epochs, dev=dev,
+    )
 
     policy = TrackingPolicy(ac, env, dev)
     info = {
@@ -157,17 +195,56 @@ def train_tracking_policy(
         "rmse_history": rmse_hist,
     }
     if out_path is not None:
-        out_path = Path(out_path)
-        torch.save(
-            {
-                "state_dict": ac.state_dict(),
-                "obs_dim": env.obs_dim,
-                "action_dim": env.action_dim,
-                "hidden": hidden,
-            },
-            out_path,
-        )
-        info["checkpoint"] = str(out_path)
+        info["checkpoint"] = _save_checkpoint(ac, env, hidden, out_path)
+    return policy, info
+
+
+def train_multi_tracking_policy(
+    references: list[RdMotion],
+    morphology: RobotMorphology,
+    *,
+    iterations: int = 60,
+    steps_per_iter: int = 1024,
+    gamma: float = 0.97,
+    lam: float = 0.95,
+    clip: float = 0.2,
+    lr: float = 3e-4,
+    epochs: int = 6,
+    hidden: int = 128,
+    device: Optional[str] = None,
+    seed: int = 0,
+    out_path: Optional[str | Path] = None,
+) -> tuple["TrackingPolicy", dict[str, Any]]:
+    """**複数参照スイート**を 1 つの方策で追従する汎化 PPO を学習する（v0.8）。
+
+    `MultiTrackingEnv` がエピソードごとに参照を round-robin 切替するので、reference-conditioned な
+    観測（次フレームへの姿勢誤差）を頼りに 1 方策が運動に応じて追従することを学ぶ。
+    """
+    dev = device or ("cuda" if torch.cuda.is_available() else "cpu")
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+
+    env = MultiTrackingEnv(references, morphology)
+    ac = ActorCritic(env.obs_dim, env.action_dim, hidden=hidden).to(dev)
+    opt = torch.optim.Adam(ac.parameters(), lr=lr)
+    return_hist, rmse_hist = _ppo_train(
+        env, ac, opt, iterations=iterations, steps_per_iter=steps_per_iter,
+        gamma=gamma, lam=lam, clip=clip, epochs=epochs, dev=dev,
+    )
+
+    policy = TrackingPolicy(ac, env, dev)
+    info = {
+        "device": dev,
+        "obs_dim": env.obs_dim,
+        "action_dim": env.action_dim,
+        "actuated_dofs": env.n_act,
+        "num_references": len(references),
+        "iterations": iterations,
+        "return_history": return_hist,
+        "rmse_history": rmse_hist,
+    }
+    if out_path is not None:
+        info["checkpoint"] = _save_checkpoint(ac, env, hidden, out_path)
     return policy, info
 
 
@@ -180,10 +257,13 @@ class TrackingPolicy:
         self.device = device
 
     @torch.no_grad()
-    def rollout(self) -> tuple[RdMotion, dict[str, Any]]:
-        """方策（平均行動）で物理ロールアウトし、追従結果を RD-Motion で返す。"""
+    def rollout(self, idx: Optional[int] = None) -> tuple[RdMotion, dict[str, Any]]:
+        """方策（平均行動）で物理ロールアウトし、追従結果を RD-Motion で返す。
+
+        idx を与えると `MultiTrackingEnv` の指定参照を追従する（単一 env では無視）。
+        """
         env = self.env
-        o = env.reset()
+        o = env.reset(idx) if isinstance(env, MultiTrackingEnv) else env.reset()
         kps = [env.current_keypoints()]
         errs: list[float] = []
         survived = 0

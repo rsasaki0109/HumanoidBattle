@@ -435,14 +435,35 @@ def _demo_generate(out: Path, prior_ckpt: Path | None, epochs: int, temperature:
     return 0
 
 
-def _train_tracking(out: Path, robot: str, iterations: int, device: str | None) -> int:
-    """RL tracking policy（§4.5）を学習する。"""
+def _train_tracking(out: Path, robot: str, iterations: int, device: str | None,
+                    suite: bool) -> int:
+    """RL tracking policy（§4.5）を学習する。--suite で複数運動を 1 方策に汎化。"""
     from robotdance_core.synthetic import generate_dance
-    from robotdance_models.tracking_policy import train_tracking_policy
+    from robotdance_models.tracking_policy import (
+        train_multi_tracking_policy,
+        train_tracking_policy,
+    )
     from robotdance_retarget.kinematic import retarget
     from robotdance_unitree import get_morphology
 
     morph = get_morphology(robot)
+    if suite:
+        items = _tracking_suite(morph)
+        refs = [r for _, r in items]
+        policy, info = train_multi_tracking_policy(refs, morph, iterations=iterations,
+                                                   device=device, out_path=out)
+        rh = info["return_history"]
+        print(f"✓ multi-motion RL tracking policy 学習完了: {out}")
+        print(f"  robot={robot} device={info['device']} iterations={iterations} "
+              f"refs={info['num_references']} obs={info['obs_dim']} act={info['action_dim']}（base 非駆動）")
+        print(f"  episode return: {rh[0]:.2f} → {rh[-1]:.2f}（PPO, round-robin）")
+        for i, (name, _r) in enumerate(items):
+            m = policy.rollout(i)[1]
+            print(f"  {name:7s}: 生存 {m['survived_frames']}/{m['reference_frames']} "
+                  f"(survival {m['survival_ratio']:.0%}) / pose RMSE {m['mean_pose_rmse']:.3f}")
+        print("  ⚠️ v0 baseline: 1 方策が運動に応じ追従。PD 超え精度・摂動/実機転移は今後。")
+        return 0
+
     ref = retarget(generate_dance(duration=2.0, arm_amp=0.6, sway_amp=0.08), morph)
     policy, info = train_tracking_policy(ref, morph, iterations=iterations,
                                          device=device, out_path=out)
@@ -487,6 +508,49 @@ def _demo_track(out: Path, robot: str, iterations: int, stride: int) -> int:
                                   (f"survival {m['survival_ratio']:.0%}", "#d62728")])
     print(f"✓ tracking デモ GIF: {out}")
     print("  ⚠️ v0 baseline: PD 残差を PPO で学習。倒れずに追従する足場で、SOTA tracking ではない。")
+    return 0
+
+
+def _tracking_suite(morph):  # noqa: ANN001, ANN201
+    """multi-motion tracking 用の参照スイート（gentle/normal/fast dance + idle）を作る。"""
+    from robotdance_core.synthetic import generate_dance
+    from robotdance_retarget.kinematic import retarget
+
+    specs = [
+        ("gentle", dict(arm_amp=0.6, sway_amp=0.08)),
+        ("normal", dict(arm_amp=1.6, sway_amp=0.18)),
+        ("fast", dict(beats_per_second=1.6, arm_amp=1.6, sway_amp=0.22)),
+        ("idle", dict(beats_per_second=0.5, arm_amp=0.15, sway_amp=0.03)),
+    ]
+    return [(name, retarget(generate_dance(duration=2.0, **kw), morph)) for name, kw in specs]
+
+
+def _demo_track_multi(out: Path, robot: str, iterations: int, stride: int) -> int:
+    """1 つの方策で参照スイート（4 運動）を物理追従し、横並び描画する（§4.5 汎化）。"""
+    from robotdance_models.tracking_policy import train_multi_tracking_policy
+    from robotdance_unitree import get_morphology
+    from robotdance_viewer.skeleton_view import render_side_by_side
+
+    morph = get_morphology(robot)
+    suite = _tracking_suite(morph)
+    refs = [r for _, r in suite]
+    print(f"🤹 1 つの RL 方策で {len(suite)} 運動スイートを追従学習中"
+          f"（{robot}, PPO {iterations} iters, round-robin）...")
+    policy, info = train_multi_tracking_policy(refs, morph, iterations=iterations)
+    print(f"  episode return: {info['return_history'][0]:.2f} → {info['return_history'][-1]:.2f}")
+
+    colors = ["#1f77b4", "#2ca02c", "#d62728", "#9467bd"]
+    panels, verdicts = [], []
+    for i, (name, _ref) in enumerate(suite):
+        motion, m = policy.rollout(i)
+        print(f"  {name:7s}: 生存 {m['survived_frames']}/{m['reference_frames']} "
+              f"(survival {m['survival_ratio']:.0%}) / pose RMSE {m['mean_pose_rmse']:.3f}")
+        panels.append((motion.keypoints_3d_array(), name, colors[i % len(colors)]))
+        verdicts.append((f"{name} {m['survival_ratio']:.0%}", colors[i % len(colors)]))
+    render_side_by_side(panels, out, stride=stride, verdicts=verdicts)
+    print(f"✓ multi-motion tracking デモ GIF: {out}")
+    print("  ⚠️ v0 baseline: 1 方策が運動に応じ追従（reference-conditioned）。"
+          "短い feasible クリップでは PD でも概ねバランスするため PD 超えは主張しない。")
     return 0
 
 
@@ -860,6 +924,7 @@ def main(argv: list[str] | None = None) -> int:
     p_trk.add_argument("-o", "--out", type=Path, default=Path("tracking_policy.pt"))
     p_trk.add_argument("--robot", default="unitree_g1")
     p_trk.add_argument("--iterations", type=int, default=40)
+    p_trk.add_argument("--suite", action="store_true", help="複数運動を 1 方策に汎化（multi-motion）")
     p_trk.add_argument("--device", default=None, help="cpu / cuda（既定: 自動）")
 
     p_dtrk = sub.add_parser("demo-track", help="参照を RL policy で物理追従し side-by-side 描画")
@@ -867,6 +932,13 @@ def main(argv: list[str] | None = None) -> int:
     p_dtrk.add_argument("--robot", default="unitree_g1")
     p_dtrk.add_argument("--iterations", type=int, default=40)
     p_dtrk.add_argument("--stride", type=int, default=2)
+
+    p_dtrkm = sub.add_parser("demo-track-multi",
+                             help="1 方策で運動スイート（4 運動）を物理追従し横並び描画")
+    p_dtrkm.add_argument("-o", "--out", type=Path, default=Path("tracking_multi.gif"))
+    p_dtrkm.add_argument("--robot", default="unitree_g1")
+    p_dtrkm.add_argument("--iterations", type=int, default=60)
+    p_dtrkm.add_argument("--stride", type=int, default=2)
 
     args = parser.parse_args(argv)
     if args.command == "validate":
@@ -888,9 +960,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "demo-safety":
         return _demo_safety(args.out, args.robot, args.stride)
     if args.command == "train-tracking":
-        return _train_tracking(args.out, args.robot, args.iterations, args.device)
+        return _train_tracking(args.out, args.robot, args.iterations, args.device, args.suite)
     if args.command == "demo-track":
         return _demo_track(args.out, args.robot, args.iterations, args.stride)
+    if args.command == "demo-track-multi":
+        return _demo_track_multi(args.out, args.robot, args.iterations, args.stride)
     if args.command == "serve":
         return _serve(args.rdmotion, args.speed, args.ros2, args.allow_uncertified)
     if args.command == "demo-runtime":

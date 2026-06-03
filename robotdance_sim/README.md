@@ -13,6 +13,8 @@ Isaac Lab / MuJoCo / Genesis-style backend adapters — 物理シミュレーシ
   駆動 DOF は関節空間 PD（参照 qpos へアンカー）+ 方策の残差トルク（`qfrc_applied[6:]`）。
   報酬 = 姿勢追従 + 直立 + 生存 − 制御コスト、転倒で終了。学習は
   [`robotdance_models.tracking_policy`](../robotdance_models/) の PPO で行う。
+  `MultiTrackingEnv(references, morphology)` は**参照スイート**を保持し、エピソードごとに参照を
+  round-robin で切り替える（`reset(idx)` で `ref_qpos`/`T` を rebind）→ **1 方策が複数運動を追従**。
 
 検証する物理量（受動 forward sim は判別力がないため、**参照運動の実現可能性**を検証）:
 

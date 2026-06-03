@@ -17,9 +17,12 @@ pytest.importorskip("torch")
 import jsonschema  # noqa: E402
 
 from robotdance_core.synthetic import generate_dance  # noqa: E402
-from robotdance_models.tracking_policy import train_tracking_policy  # noqa: E402
+from robotdance_models.tracking_policy import (  # noqa: E402
+    train_multi_tracking_policy,
+    train_tracking_policy,
+)
 from robotdance_retarget.kinematic import retarget  # noqa: E402
-from robotdance_sim.tracking_env import TrackingEnv  # noqa: E402
+from robotdance_sim.tracking_env import MultiTrackingEnv, TrackingEnv  # noqa: E402
 from robotdance_unitree import get_morphology  # noqa: E402
 
 
@@ -80,6 +83,46 @@ def test_ppo_trains_and_rolls_out_valid_motion() -> None:
         .read_text(encoding="utf-8")
     )
     jsonschema.Draft202012Validator(schema).validate(motion.to_dict())
+
+
+def test_multi_motion_env_switches_references() -> None:
+    """MultiTrackingEnv は reset(idx) で参照を切り替え、各々を物理上で扱える。"""
+    morph = get_morphology("unitree_g1")
+    refs = [
+        retarget(generate_dance(duration=1.0, arm_amp=0.6, sway_amp=0.08), morph),
+        retarget(generate_dance(duration=1.0, arm_amp=1.6, sway_amp=0.18), morph),
+    ]
+    env = MultiTrackingEnv(refs, morph)
+    assert len(env.references) == 2
+    # 各参照を選んで reset し、対応する qpos 列が束縛される。
+    for i in range(2):
+        env.reset(i)
+        assert env.cur_idx == i
+        assert env.T == len(refs[i].keypoints_3d_array())
+    # round-robin（idx 省略）でも回る。
+    env.reset()
+    env.reset()
+
+
+def test_multi_motion_policy_tracks_suite() -> None:
+    """1 つの方策が複数参照を追従でき、各参照のロールアウトが有効な RD-Motion になる。"""
+    morph = get_morphology("unitree_g1")
+    refs = [
+        retarget(generate_dance(duration=1.0, arm_amp=0.6, sway_amp=0.08), morph),
+        retarget(generate_dance(duration=1.0, arm_amp=1.6, sway_amp=0.18), morph),
+    ]
+    policy, info = train_multi_tracking_policy(
+        refs, morph, iterations=5, steps_per_iter=256, seed=0
+    )
+    assert info["num_references"] == 2
+    assert all(np.isfinite(info["return_history"]))
+    for i in range(2):
+        motion, metrics = policy.rollout(i)
+        assert motion.control_mode == "policy"
+        assert motion.num_frames > 0
+        assert 0.0 <= metrics["survival_ratio"] <= 1.0
+        assert metrics["survival_ratio"] > 0.3
+        assert np.isfinite(metrics["mean_pose_rmse"])
 
 
 def test_checkpoint_saved(tmp_path: Path) -> None:

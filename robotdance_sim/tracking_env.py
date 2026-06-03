@@ -77,6 +77,7 @@ class TrackingEnv:
         self.n_act = self.nv - 6  # free joint の 6-DOF を除く駆動 DOF 数
         self.action_dim = self.n_act
         self.root_id = self.model.body("root").id
+        self.fall_height_ratio = fall_height_ratio
         self.fall_height = fall_height_ratio * float(self.ref_qpos[0, 2])
 
         # sim qpos → canonical keypoints 復元用（各 bone の終点 = 子 joint 位置）。
@@ -165,3 +166,46 @@ class TrackingEnv:
             rmat = self.data.xmat[bid].reshape(3, 3)
             kp[j] = self.data.xpos[bid] + rmat @ self._endpoint[j]
         return kp
+
+
+class MultiTrackingEnv(TrackingEnv):
+    """**複数参照**を 1 つの方策で追従するための環境（汎化 baseline）。
+
+    v0.7 の `TrackingEnv` は単一参照専用だった。本 env は参照スイート（例: gentle/normal/fast
+    dance + idle）を保持し、エピソードごとに参照を round-robin で切り替える。観測には「次フレーム
+    への姿勢誤差」が含まれる（reference-conditioned）ので、1 つの方策が運動に応じて追従できる。
+
+    `step` / `_make_obs` は `self.ref_qpos` / `self.T` を参照するので、`reset(idx)` でこれらを
+    選択参照へ rebind するだけで基底クラスの物理・報酬ロジックをそのまま再利用できる。
+    """
+
+    def __init__(self, references, morphology, **kw) -> None:  # noqa: ANN001
+        refs = list(references)
+        if not refs:
+            raise ValueError("references が空です")
+        # 基底 __init__ が refs[0] でモデル構築 + obs_dim 確定（その reset 時は単一として振る舞う）。
+        super().__init__(refs[0], morphology, **kw)
+        self.references = refs
+        self._ref_qpos_all = [self.ref_qpos]
+        for r in refs[1:]:
+            kps = r.keypoints_3d_array()
+            self._ref_qpos_all.append(
+                np.stack([self._pose_to_qpos_frame(kps[f]) for f in range(len(kps))])
+            )
+        self._ep = 0
+        self.cur_idx = 0
+
+    def _pose_to_qpos_frame(self, kp) -> np.ndarray:  # noqa: ANN001
+        return _pose_to_qpos(self.model, self.morph, kp)
+
+    def reset(self, idx: int | None = None) -> np.ndarray:  # type: ignore[override]
+        if hasattr(self, "_ref_qpos_all"):
+            if idx is None:
+                idx = self._ep % len(self.references)
+                self._ep += 1
+            self.cur_idx = idx
+            self.ref_qpos = self._ref_qpos_all[idx]
+            self.T = int(self.ref_qpos.shape[0])
+            self.reference = self.references[idx]
+            self.fall_height = self.fall_height_ratio * float(self.ref_qpos[0, 2])
+        return super().reset()
