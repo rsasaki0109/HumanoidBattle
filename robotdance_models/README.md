@@ -16,6 +16,9 @@ tokenizer, encoder, diffusion/autoregressive model, policy training — Motion E
   符号化し、EMA codebook の最近傍コードに量子化して**離散トークン列**にする。decoder で復元。
   `MotionTokenizer.encode(mir) -> tokens` / `decode_to_mir(tokens) -> RD-MIR`。将来の生成・補完・
   テキスト条件付け（VLA 接続）の足場。dead-code 復活 + データ依存初期化で codebook collapse を回避。
+- `prior.py` — **Motion token prior**（GPT 風 causal Transformer）。VQ-VAE トークン列上で next-token
+  予測を学習し、`MotionGenerator.generate()` で**新規モーション生成**、`complete()` で**補完**を行う。
+  tokenizer（符号化⇄復号）と prior（並びの確率モデル）が揃って初めて生成が動く。
 
 ```bash
 pip install -e ".[learn]"          # torch を入れる
@@ -29,6 +32,10 @@ robotdance search-text "a person doing a backflip" --checkpoint text_motion.pt
 # モーション → 離散トークン（VQ-VAE）
 robotdance train-tokenizer -o motion_tokenizer.pt --epochs 150
 robotdance demo-tokenizer --checkpoint motion_tokenizer.pt -o tokenizer_recon.gif
+
+# トークン生成 prior でモーション生成・補完
+robotdance train-prior --tokenizer motion_tokenizer.pt -o motion_prior.pt --epochs 300
+robotdance demo-generate --checkpoint motion_prior.pt -o generated.gif
 ```
 
 ```python
@@ -49,8 +56,11 @@ model.search("flipping backwards in the air", suite)   # → backflip が top-1
 >   caption→motion を **action 群レベル top-1 100%**（exact は variant が可換なため低い）で引けることを示す。
 >   実キャプション・データ規模・CLIP/sentence-transformers への差し替えは今後。
 > - **motion VQ-VAE**: 合成 corpus で再構成 MSE が下がり（例: 0.055→0.0007）・codebook が健全に使われる
->   （collapse 回避）ことを示す。本モジュールは符号化⇄復号のみで、**トークン列の生成 prior（言語モデル）は別途**。
->   residual VQ・可変長・テキスト条件生成は今後。
+>   （collapse 回避）ことを示す。本モジュールは符号化⇄復号のみ。
+> - **motion token prior**: VQ-VAE トークン列で next-token 精度 ~92% に達し、生成（滑らかな新規モーション,
+>   jitter ~0.03）・補完（prefix を保持して継続）が動くことを示す。小さな合成 corpus のため**多様性・
+>   新規性は限定的**で、テキスト条件付け（caption → トークン列）は今後。**生成物は物理的に妥当とは
+>   限らない** — retarget → sim_certificate（MuJoCo）の安全パイプラインを必ず通す。
 >
 > weights は repo に同梱しない（`robotdance-*` weight family の方針）。motion foundation model・
 > RL tracking・contrastive **video**-text-motion は今後。

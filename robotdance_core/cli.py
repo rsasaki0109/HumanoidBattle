@@ -352,6 +352,56 @@ def _demo_tokenizer(out: Path, checkpoint: Path | None, epochs: int, stride: int
     return 0
 
 
+def _train_prior(tokenizer: Path, out: Path, epochs: int, device: str | None) -> int:
+    from robotdance_models.prior import train_prior
+
+    res = train_prior(tokenizer_ckpt=tokenizer, out_path=out, epochs=epochs, device=device)
+    h = res["loss_history"]
+    print(f"✓ motion token prior 学習完了: {out}")
+    print(f"  sequences={res['sequences']} vocab={res['vocab']} device={res['device']} epochs={epochs}")
+    print(f"  next-token loss: {h[0]:.4f} → {h[-1]:.4f}  /  精度: {100 * res['next_token_acc']:.0f}%")
+    return 0
+
+
+def _demo_generate(out: Path, prior_ckpt: Path | None, epochs: int, temperature: float,
+                   stride: int) -> int:
+    """token prior でモーションを生成・補完する（§4.2）。"""
+    import numpy as np
+
+    from robotdance_core.synthetic import generate_dance
+    from robotdance_models.prior import MotionGenerator, train_prior
+    from robotdance_models.tokenizer import train_tokenizer
+    from robotdance_viewer.skeleton_view import render_side_by_side
+
+    pri = prior_ckpt
+    if pri is None:
+        tok = out.with_name("demo_tokenizer.pt")
+        pri = out.with_suffix(".pt")
+        train_tokenizer(out_path=tok, epochs=epochs)
+        train_prior(tokenizer_ckpt=tok, out_path=pri, epochs=2 * epochs)
+    gen = MotionGenerator(pri)
+
+    print("🎲 token prior による生成（BOS から自己回帰サンプリング）:")
+    panels = []
+    colors = ["#9467bd", "#2ca02c", "#e377c2"]
+    for i, sd in enumerate((0, 1, 2)):
+        m = gen.generate(length=16, temperature=temperature, seed=sd)
+        kp = m.keypoints_3d_array()
+        jit = float(np.linalg.norm(np.diff(kp, n=2, axis=0), axis=2).mean())
+        print(f"  sample seed={sd}: frames={m.num_frames} jitter={jit:.4f}")
+        panels.append((kp, f"generated #{sd}", colors[i]))
+    render_side_by_side(panels, out, stride=stride,
+                        verdicts=[("from token prior", "#9467bd")] * len(panels))
+    print(f"✓ 生成デモ GIF: {out}")
+
+    # 補完: 元 dance の先頭を残して続きを生成。
+    dance = generate_dance(beats_per_second=1.0)
+    comp, toks = gen.complete(dance, keep=4, temperature=temperature, seed=0)
+    print(f"  補完: 先頭 4 トークンを残し続きを生成 → {len(toks)} tokens / {comp.num_frames} frames")
+    print("  ⚠️ 生成物は物理的に妥当とは限らない — retarget → sim_certificate（validate-sim）で必ず検証する。")
+    return 0
+
+
 def _search_text(query: str, checkpoint: Path, k: int) -> int:
     """テキスト query から合成モーション・スイートを意味検索する（§4.2 デモ）。"""
     from robotdance_core.synthetic import generate_backflip, generate_dance
@@ -644,6 +694,21 @@ def main(argv: list[str] | None = None) -> int:
     p_dtok.add_argument("--epochs", type=int, default=150)
     p_dtok.add_argument("--stride", type=int, default=2)
 
+    p_pri = sub.add_parser("train-prior", help="VQ-VAE トークン列の生成 prior を学習する")
+    p_pri.add_argument("--tokenizer", type=Path, default=Path("motion_tokenizer.pt"),
+                       help="train-tokenizer の .pt")
+    p_pri.add_argument("-o", "--out", type=Path, default=Path("motion_prior.pt"))
+    p_pri.add_argument("--epochs", type=int, default=300)
+    p_pri.add_argument("--device", default=None, help="cpu / cuda（既定: 自動）")
+
+    p_dgen = sub.add_parser("demo-generate", help="token prior でモーションを生成・補完")
+    p_dgen.add_argument("-o", "--out", type=Path, default=Path("generated.gif"))
+    p_dgen.add_argument("--checkpoint", type=Path, default=None,
+                        help="train-prior の .pt（省略時はその場で学習）")
+    p_dgen.add_argument("--epochs", type=int, default=150)
+    p_dgen.add_argument("--temperature", type=float, default=1.0)
+    p_dgen.add_argument("--stride", type=int, default=2)
+
     p_build = sub.add_parser("build-dataset", help="RD-Manifest から RD-MIR を構築（license firewall）")
     p_build.add_argument("manifest", type=Path, help="manifest JSON（配列 or 単体）")
     p_build.add_argument("--data-root", type=Path, default=Path("."), help="ローカル source の基準ディレクトリ")
@@ -727,6 +792,10 @@ def main(argv: list[str] | None = None) -> int:
         return _train_tokenizer(args.out, args.epochs, args.codes, args.device)
     if args.command == "demo-tokenizer":
         return _demo_tokenizer(args.out, args.checkpoint, args.epochs, args.stride)
+    if args.command == "train-prior":
+        return _train_prior(args.tokenizer, args.out, args.epochs, args.device)
+    if args.command == "demo-generate":
+        return _demo_generate(args.out, args.checkpoint, args.epochs, args.temperature, args.stride)
     if args.command == "build-dataset":
         return _build_dataset(args.manifest, args.data_root, args.out, args.dedupe)
     if args.command == "smooth":

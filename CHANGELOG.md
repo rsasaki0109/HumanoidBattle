@@ -14,6 +14,12 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   **データ依存初期化 + dead-code 復活**で codebook collapse を回避し、合成 corpus で再構成 MSE
   0.055→0.0007・codebook 使用率 ~49%・再構成 RMSE ~0.03（正規化空間）を達成。
   v0 は符号化⇄復号のみ（トークン列の生成 prior は別途・residual VQ / 可変長は今後）。
+- **Motion token prior / 生成・補完**（`train-prior` / `demo-generate`,
+  `robotdance_models.prior`, torch）: VQ-VAE トークン列上で **GPT 風 causal Transformer** を
+  next-token 予測で学習し、`MotionGenerator.generate()` で BOS から**新規モーション生成**、
+  `complete()` で prefix を保持した**補完**を行う。tokenizer と prior が揃って生成が動く。
+  合成 corpus で next-token 精度 ~92%・生成は滑らか（jitter ~0.03）。v0 は多様性/新規性が限定的・
+  テキスト条件付けは今後。**生成物は物理的に妥当とは限らず** retarget → sim_certificate で検証する。
 
 ## [0.4.0] - 2026-06-03
 
