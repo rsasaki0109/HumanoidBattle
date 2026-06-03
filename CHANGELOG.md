@@ -5,6 +5,11 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-06-03
+
+データ系統・学習・実機忠実度の深化リリース（pre-alpha）。v0.1.0 のエンドツーエンド骨格に、
+実データ adapter・学習 encoder・実 URDF 取り込みを積み増した。
+
 ### Added
 - **AIST++ dataset adapter**（`load_aist_pkl`）: ダンス mocap（SMPL .pkl, 60fps）→ canonical RD-MIR。
   AMASS と同じ skeleton-first 経路（SMPL model file 不要）。`dataset://aist/...` で manifest 指定可。
@@ -17,6 +22,8 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   マスク再構成で自己教師あり学習（`train-encoder`）。手作りと同じ前処理・`embed` interface で
   `MotionIndex(embed_fn=...)` に差し込める（`demo-motion-map --checkpoint`）。合成 corpus で
   loss 低下・クラス分離を実証（v0 は基盤提供であり手作り baseline 超えは主張しない）。
+
+[0.2.0]: https://github.com/rsasaki0109/RobotDance/releases/tag/v0.2.0
 
 ## [0.1.0] - 2026-06-03
 
