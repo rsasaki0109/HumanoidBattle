@@ -42,6 +42,7 @@ Output: Unitree G1 simulation motion + RD-MIR dataset + motion embedding
 | MuJoCo 物理検証（安全な運動だけ通す） | `validate-sim` / `demo-safety` | Demo 4: unsafe rejected |
 | motion embeddings + 類似検索 + Motion Map | `demo-motion-map` | Demo 3 |
 | テキスト → モーション意味検索（contrastive） | `train-text-motion` / `search-text` | group top-1 100% |
+| モーション → 離散トークン（VQ-VAE） | `train-tokenizer` / `demo-tokenizer` | 4× 圧縮・再構成 RMSE ~0.03 |
 | temporal smoothing + 2D overlay | `smooth` / `overlay` | jitter 0.099→0.022 |
 | benchmark（motion × robot leaderboard） | `benchmark` | CSV + leaderboard |
 | ROS2 安全再生（Jazzy, safety guard） | `serve --ros2` / `demo-runtime` | RViz 可視化 |
@@ -346,12 +347,12 @@ robotdance_viewer/      side-by-side video/motion/robot visualization
 **local 動画 → RD-MIR（MediaPipe Pose）+ smoothing + 2D overlay**、
 **AMASS ローダ + RD-Manifest license firewall（Data Bill of Materials）**、
 **motion embeddings + 類似検索 + Motion Map + 重複除去（+ 学習 encoder option）**、
-**テキスト → モーション意味検索（contrastive text-motion）**、
+**テキスト → モーション意味検索（contrastive text-motion）**、**モーション → 離散トークン（VQ-VAE）**、
 **G1/H1 への kinematic retarget（multi-embodiment）+ アクチュエータ空間 IK（実 G1 関節角）**、
 **MuJoCo 物理検証（sim_certificate / PASS・REJECT）**、
 **motion × robot benchmark + leaderboard**、**ROS2 runtime（safety guard + motion server + /joint_states, Jazzy）**、
 3D & multi-panel ビューアまで動作
-（`extract`/`video-to-robot`/`build-dataset`/`benchmark`/`serve`/`demo-motion-map`/`train-text-motion`/`search-text`/`retarget-ik`/`demo-runtime`/`overlay`/`smooth`/`demo-*` 他）。
+（`extract`/`video-to-robot`/`build-dataset`/`benchmark`/`serve`/`demo-motion-map`/`train-text-motion`/`search-text`/`train-tokenizer`/`demo-tokenizer`/`retarget-ik`/`demo-runtime`/`overlay`/`smooth`/`demo-*` 他）。
 次は HMR adapter（4DHumans/GVHMR）・motion tokenizer/VQ-VAE・RL tracking baseline・Isaac Lab backend。詳細は [`docs/ROADMAP.md`](docs/ROADMAP.md)。
 
 ## License

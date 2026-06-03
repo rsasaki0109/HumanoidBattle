@@ -12,6 +12,10 @@ tokenizer, encoder, diffusion/autoregressive model, policy training — Motion E
 - `contrastive.py` — **Contrastive text-motion アライメント**（CLIP 風）。motion encoder と text MLP を
   共有埋め込み空間に射影し、(motion, caption) を multi-positive InfoNCE で整合させる。学習後は
   `embed_text` / `embed_motion` が同じ単位球面に乗り、**テキスト → モーション検索**が可能。
+- `tokenizer.py` — **Motion VQ-VAE**（離散トークナイザ）。motion window を時間方向に圧縮した潜在列に
+  符号化し、EMA codebook の最近傍コードに量子化して**離散トークン列**にする。decoder で復元。
+  `MotionTokenizer.encode(mir) -> tokens` / `decode_to_mir(tokens) -> RD-MIR`。将来の生成・補完・
+  テキスト条件付け（VLA 接続）の足場。dead-code 復活 + データ依存初期化で codebook collapse を回避。
 
 ```bash
 pip install -e ".[learn]"          # torch を入れる
@@ -21,6 +25,10 @@ robotdance demo-motion-map --checkpoint motion_encoder.pt -o map_learned.png
 # テキスト → モーション検索（contrastive）
 robotdance train-text-motion -o text_motion.pt --epochs 200
 robotdance search-text "a person doing a backflip" --checkpoint text_motion.pt
+
+# モーション → 離散トークン（VQ-VAE）
+robotdance train-tokenizer -o motion_tokenizer.pt --epochs 150
+robotdance demo-tokenizer --checkpoint motion_tokenizer.pt -o tokenizer_recon.gif
 ```
 
 ```python
@@ -40,6 +48,9 @@ model.search("flipping backwards in the air", suite)   # → backflip が top-1
 > - **contrastive text-motion**: 小さな合成 corpus・ハッシュ n-gram テキスト特徴（**事前学習言語モデルなし**）で
 >   caption→motion を **action 群レベル top-1 100%**（exact は variant が可換なため低い）で引けることを示す。
 >   実キャプション・データ規模・CLIP/sentence-transformers への差し替えは今後。
+> - **motion VQ-VAE**: 合成 corpus で再構成 MSE が下がり（例: 0.055→0.0007）・codebook が健全に使われる
+>   （collapse 回避）ことを示す。本モジュールは符号化⇄復号のみで、**トークン列の生成 prior（言語モデル）は別途**。
+>   residual VQ・可変長・テキスト条件生成は今後。
 >
-> weights は repo に同梱しない（`robotdance-*` weight family の方針）。tokenizer / VQ-VAE・
-> foundation model・RL tracking・contrastive **video**-text-motion は今後。
+> weights は repo に同梱しない（`robotdance-*` weight family の方針）。motion foundation model・
+> RL tracking・contrastive **video**-text-motion は今後。

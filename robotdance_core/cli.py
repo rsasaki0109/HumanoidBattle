@@ -298,6 +298,60 @@ def _train_text_motion(out: Path, epochs: int, device: str | None) -> int:
     return 0
 
 
+def _train_tokenizer(out: Path, epochs: int, codes: int, device: str | None) -> int:
+    from robotdance_models.tokenizer import train_tokenizer
+
+    res = train_tokenizer(out_path=out, epochs=epochs, num_codes=codes, device=device)
+    h = res["loss_history"]
+    print(f"✓ motion VQ-VAE 学習完了: {out}")
+    print(f"  windows={res['windows']} device={res['device']} epochs={epochs}")
+    print(f"  loss: {h[0]:.4f} → {h[-1]:.4f}  /  再構成 MSE(正規化): {res['recon_mse']:.5f}")
+    print(f"  codebook 使用率: {res['codes_used']}/{res['num_codes']} "
+          f"({100 * res['codebook_usage']:.0f}%)  /  tokens/window: {res['tokens_per_window']}")
+    return 0
+
+
+def _demo_tokenizer(out: Path, checkpoint: Path | None, epochs: int, stride: int) -> int:
+    """モーションを離散トークン化し、圧縮率・再構成・codebook を実演する（§4.2）。"""
+    import numpy as np
+
+    from robotdance_core.synthetic import generate_backflip, generate_dance
+    from robotdance_models.tokenizer import MotionTokenizer, train_tokenizer
+
+    ckpt = checkpoint
+    if ckpt is None:
+        ckpt = out.with_suffix(".pt")
+        train_tokenizer(out_path=ckpt, epochs=epochs)
+    tok = MotionTokenizer(ckpt)
+
+    suite = {
+        "dance_1.0": generate_dance(beats_per_second=1.0),
+        "dance_1.6": generate_dance(beats_per_second=1.6),
+        "backflip": generate_backflip(),
+    }
+    print("🔤 motion → 離散トークン（VQ-VAE）:")
+    for name, m in suite.items():
+        ids = tok.encode(m)
+        orig, rec = tok.reconstruct(m)
+        rmse = float(np.sqrt(((orig - rec) ** 2).mean()))
+        frames = orig.shape[0]  # タイルでカバーされる実フレーム数
+        ratio = frames / max(len(ids), 1)
+        print(f"  {name:10s} {frames:3d}f → {len(ids):2d} tokens（{ratio:.0f}× 圧縮, "
+              f"uniq={len(set(ids.tolist()))}） 再構成 RMSE={rmse:.4f}")
+
+    # dance を元 vs トークン再構成で side-by-side GIF 化。
+    orig, rec = tok.reconstruct(suite["dance_1.0"])
+    from robotdance_viewer.skeleton_view import render_side_by_side
+
+    render_side_by_side(
+        [(orig, "original", "#1f77b4"), (rec, "VQ reconstruction", "#d62728")],
+        out, stride=stride,
+        verdicts=[("source motion", "#1f77b4"), ("from discrete tokens", "#d62728")],
+    )
+    print(f"✓ 再構成デモ GIF: {out}")
+    return 0
+
+
 def _search_text(query: str, checkpoint: Path, k: int) -> int:
     """テキスト query から合成モーション・スイートを意味検索する（§4.2 デモ）。"""
     from robotdance_core.synthetic import generate_backflip, generate_dance
@@ -577,6 +631,19 @@ def main(argv: list[str] | None = None) -> int:
                       help="train-text-motion の .pt")
     p_st.add_argument("-k", type=int, default=5)
 
+    p_tok = sub.add_parser("train-tokenizer", help="motion VQ-VAE（離散トークナイザ）を学習する")
+    p_tok.add_argument("-o", "--out", type=Path, default=Path("motion_tokenizer.pt"))
+    p_tok.add_argument("--epochs", type=int, default=150)
+    p_tok.add_argument("--codes", type=int, default=128, help="codebook サイズ")
+    p_tok.add_argument("--device", default=None, help="cpu / cuda（既定: 自動）")
+
+    p_dtok = sub.add_parser("demo-tokenizer", help="motion をトークン化し圧縮・再構成を実演")
+    p_dtok.add_argument("-o", "--out", type=Path, default=Path("tokenizer_recon.gif"))
+    p_dtok.add_argument("--checkpoint", type=Path, default=None,
+                        help="train-tokenizer の .pt（省略時はその場で学習）")
+    p_dtok.add_argument("--epochs", type=int, default=150)
+    p_dtok.add_argument("--stride", type=int, default=2)
+
     p_build = sub.add_parser("build-dataset", help="RD-Manifest から RD-MIR を構築（license firewall）")
     p_build.add_argument("manifest", type=Path, help="manifest JSON（配列 or 単体）")
     p_build.add_argument("--data-root", type=Path, default=Path("."), help="ローカル source の基準ディレクトリ")
@@ -656,6 +723,10 @@ def main(argv: list[str] | None = None) -> int:
         return _train_text_motion(args.out, args.epochs, args.device)
     if args.command == "search-text":
         return _search_text(args.query, args.checkpoint, args.k)
+    if args.command == "train-tokenizer":
+        return _train_tokenizer(args.out, args.epochs, args.codes, args.device)
+    if args.command == "demo-tokenizer":
+        return _demo_tokenizer(args.out, args.checkpoint, args.epochs, args.stride)
     if args.command == "build-dataset":
         return _build_dataset(args.manifest, args.data_root, args.out, args.dedupe)
     if args.command == "smooth":
