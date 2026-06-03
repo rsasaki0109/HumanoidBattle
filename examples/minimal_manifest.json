@@ -1,0 +1,15 @@
+{
+  "manifest_version": "0",
+  "clip_id": "demo-aist-gBR-0001",
+  "source_type": "dataset",
+  "source_uri": "dataset://aist++/gBR_sBM_c01_d04_mBR0_ch01",
+  "license_declared": "creativeCommon",
+  "derived_motion_allowed": true,
+  "training_allowed": true,
+  "commercial_allowed": false,
+  "rebuild_method": "manual_download",
+  "privacy_flags": { "face_visible": true, "minor_risk": false },
+  "quality_seed": 42,
+  "extractor_profile": "vitpose-h+hmr2.0",
+  "status": "active"
+}

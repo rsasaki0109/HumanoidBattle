@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://robotdance.dev/specs/rd-embodiment/v0/rd-embodiment.schema.json",
+  "title": "RD-Embodiment",
+  "description": "ロボット形態の記述 (v0, draft)。retarget の対象となる embodiment（joint, limits, morphology, contact surface, runtime adapter）を定義する。",
+  "type": "object",
+  "required": ["rd_embodiment_version", "robot_name", "urdf_ref", "joint_names"],
+  "additionalProperties": false,
+  "properties": {
+    "rd_embodiment_version": { "type": "string", "const": "0" },
+    "robot_name": {
+      "type": "string",
+      "description": "例: unitree_g1, unitree_h1, digit, figure"
+    },
+    "urdf_ref": { "type": "string", "description": "URDF/SDF/MJCF への参照" },
+    "joint_names": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "joint_limits": {
+      "type": "object",
+      "description": "joint ごとの position / velocity / torque 制限",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "position": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
+          "velocity": { "type": "number" },
+          "torque": { "type": "number" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "link_lengths": {
+      "type": "object",
+      "description": "morphology（link 長）",
+      "additionalProperties": { "type": "number" }
+    },
+    "end_effectors": {
+      "type": "array",
+      "description": "feet, hands",
+      "items": { "type": "string" }
+    },
+    "contact_surfaces": {
+      "type": "object",
+      "description": "sole geometry 等の接地面定義",
+      "additionalProperties": true
+    },
+    "control_modes": {
+      "type": "array",
+      "items": { "type": "string", "enum": ["position", "velocity", "torque", "policy"] }
+    },
+    "nominal_pose": {
+      "type": "array",
+      "items": { "type": "number" },
+      "description": "default standing pose（joint_names と同順）"
+    },
+    "safety_limits": {
+      "type": "object",
+      "description": "allowed motion envelope",
+      "additionalProperties": true
+    },
+    "runtime_adapter": {
+      "type": "string",
+      "description": "ROS2 / SDK2 / simulator backend",
+      "enum": ["ros2", "unitree_sdk2", "ros2_control", "isaac_lab", "mujoco"]
+    }
+  }
+}

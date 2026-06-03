@@ -1,0 +1,59 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+.python-version
+
+# Test / lint caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# ROS2 / colcon
+build/
+install/
+log/
+
+# === RobotDance: 権利物・大容量データは絶対にコミットしない ===
+# raw video を repo に置かない（README/設計方針のライセンス安全性ルール）
+*.mp4
+*.mov
+*.mkv
+*.webm
+*.avi
+# 派生 motion / 重みは LFS / 外部配布。雛形段階では追跡しない
+*.rdmir
+*.rdmotion
+*.npz
+*.pt
+*.pth
+*.ckpt
+*.onnx
+# SMPL/SMPL-X body model file は repo に含めない（個別取得の plugin 方式）
+*.pkl
+models_smpl/
+body_models/
+# ローカルにビルドした動画クリップ・データセット
+data/
+datasets/
+cache/
+outputs/
+assets/readme/*.mp4
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

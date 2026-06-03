@@ -1,0 +1,27 @@
+{
+  "rd_mir_version": "0",
+  "motion_id": "rdmir-demo-0001-3f2a9c",
+  "source_ref": {
+    "dataset_name": "aist++",
+    "platform_id": "gBR_sBM_c01_d04_mBR0_ch01",
+    "provenance_hash": "3f2a9c1b"
+  },
+  "license_state": "research_only",
+  "fps": 30.0,
+  "duration": 2.0,
+  "world_frame": { "up_axis": "z", "forward_axis": "x", "handedness": "right" },
+  "skeleton": {
+    "joint_names": ["pelvis", "left_hip", "right_hip", "spine", "left_knee", "right_knee"],
+    "parents": [-1, 0, 0, 0, 1, 2]
+  },
+  "joint_rotations": {
+    "representation": "quaternion",
+    "data": []
+  },
+  "contacts": {
+    "left_foot": [true, true, false],
+    "right_foot": [false, true, true]
+  },
+  "privacy_flags": { "face_visible": true, "consented": false },
+  "extractor_versions": { "pose_2d": "vitpose-h", "hmr": "hmr2.0", "smoothing": "savgol-v1" }
+}

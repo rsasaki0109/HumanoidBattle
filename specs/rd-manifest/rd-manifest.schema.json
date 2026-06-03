@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://robotdance.dev/specs/rd-manifest/v0/rd-manifest.schema.json",
+  "title": "RD-Manifest",
+  "description": "URL-only dataset を扱うための manifest (v0, draft)。manifest は動画そのものではなく、『どの動画の・どの時間範囲を・どの条件で・どの処理で再構築するか』を記述する。raw video は repo に置かない。",
+  "type": "object",
+  "required": [
+    "manifest_version",
+    "clip_id",
+    "source_type",
+    "source_uri",
+    "rebuild_method",
+    "status"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "manifest_version": { "type": "string", "const": "0" },
+    "clip_id": { "type": "string", "description": "stable ID" },
+    "source_type": {
+      "type": "string",
+      "enum": ["youtube", "tiktok", "instagram", "local", "dataset", "synthetic"]
+    },
+    "source_uri": { "type": "string", "description": "URL or local placeholder" },
+    "source_platform_id": { "type": "string", "description": "YouTube video ID 等" },
+    "start_time": { "type": "number", "minimum": 0, "description": "clip 開始 [s]" },
+    "end_time": { "type": "number", "minimum": 0, "description": "clip 終了 [s]" },
+    "license_declared": {
+      "type": "string",
+      "enum": ["creativeCommon", "standard", "custom", "unknown"]
+    },
+    "license_verified_at": { "type": "string", "format": "date-time" },
+    "redistribution_allowed": { "type": "boolean", "description": "raw video の再配布可否" },
+    "derived_motion_allowed": { "type": "boolean", "description": "pose/SMPL/embedding の再配布可否" },
+    "training_allowed": { "type": "boolean", "description": "model training への利用可否" },
+    "commercial_allowed": { "type": "boolean", "description": "commercial model use 可否" },
+    "api_terms": {
+      "type": "string",
+      "description": "適用される API 規約（YouTube API, TikTok Research API, Meta API 等）"
+    },
+    "rebuild_method": {
+      "type": "string",
+      "description": "再構築経路。非公式 downloader を primary path にしない。",
+      "enum": ["official_api", "manual_download", "local_file", "prohibited"]
+    },
+    "privacy_flags": {
+      "type": "object",
+      "description": "face, minor-risk, crowd, private-space 等",
+      "additionalProperties": { "type": "boolean" }
+    },
+    "quality_seed": { "type": "integer", "description": "deterministic sampling seed" },
+    "extractor_profile": { "type": "string", "description": "pose/HMR model version" },
+    "expected_hash": {
+      "type": "string",
+      "description": "optional。許可される場合のみ。raw 再配布が許可されない source では設定しない。"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active", "deleted", "unavailable", "license_changed"]
+    }
+  }
+}

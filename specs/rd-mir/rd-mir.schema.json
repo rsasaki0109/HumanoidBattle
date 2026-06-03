@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://robotdance.dev/specs/rd-mir/v0/rd-mir.schema.json",
+  "title": "RD-MIR",
+  "description": "RobotDance Motion Intermediate Representation (v0, draft). RobotDance の中核標準。人間動画・mocap・合成データを一つの canonical な運動表現に集約する。skeleton-first: canonical skeleton + contacts + root trajectory を第一級表現とし、SMPL は optional。",
+  "type": "object",
+  "required": [
+    "rd_mir_version",
+    "motion_id",
+    "source_ref",
+    "license_state",
+    "fps",
+    "duration",
+    "world_frame",
+    "skeleton"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "rd_mir_version": {
+      "type": "string",
+      "const": "0",
+      "description": "schema version"
+    },
+    "motion_id": {
+      "type": "string",
+      "description": "安定 ID。source URL に依存しすぎない UUID + provenance hash"
+    },
+    "source_ref": {
+      "type": "object",
+      "description": "URL, platform ID, local path, dataset name",
+      "properties": {
+        "uri": { "type": "string" },
+        "platform_id": { "type": "string" },
+        "local_path": { "type": "string" },
+        "dataset_name": { "type": "string" },
+        "provenance_hash": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "license_state": {
+      "type": "string",
+      "description": "派生 motion の利用可否。unknown の派生 motion は公開しない。",
+      "enum": [
+        "redistributable",
+        "trainable",
+        "commercial_allowed",
+        "research_only",
+        "unknown"
+      ]
+    },
+    "fps": {
+      "type": "number",
+      "description": "canonical fps（30/60 Hz 推奨）",
+      "exclusiveMinimum": 0
+    },
+    "duration": {
+      "type": "number",
+      "description": "clip duration [s]",
+      "exclusiveMinimum": 0
+    },
+    "world_frame": {
+      "type": "object",
+      "description": "座標規約（例: z-up, x-forward）",
+      "properties": {
+        "up_axis": { "type": "string", "enum": ["x", "y", "z"], "default": "z" },
+        "forward_axis": { "type": "string", "enum": ["x", "y", "z"], "default": "x" },
+        "handedness": { "type": "string", "enum": ["right", "left"], "default": "right" }
+      },
+      "additionalProperties": false
+    },
+    "root_trajectory": {
+      "type": "object",
+      "description": "pelvis/root の world position, orientation, velocity（frame 数 = round(fps * duration)）",
+      "properties": {
+        "position": { "$ref": "#/$defs/seqVec3" },
+        "orientation": { "$ref": "#/$defs/seqQuat" },
+        "linear_velocity": { "$ref": "#/$defs/seqVec3" },
+        "angular_velocity": { "$ref": "#/$defs/seqVec3" }
+      },
+      "additionalProperties": false
+    },
+    "skeleton": {
+      "type": "object",
+      "description": "canonical human skeleton の定義",
+      "required": ["joint_names"],
+      "properties": {
+        "joint_names": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "parents": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": -1 },
+          "description": "各 joint の親 index（root は -1）"
+        }
+      },
+      "additionalProperties": false
+    },
+    "joint_rotations": {
+      "type": "object",
+      "description": "joint 回転。表現は quaternion / 6D / axis-angle のいずれか",
+      "properties": {
+        "representation": { "type": "string", "enum": ["quaternion", "rotation_6d", "axis_angle"] },
+        "data": { "type": "array", "description": "[T][J][k] の入れ子配列" }
+      },
+      "additionalProperties": false
+    },
+    "smpl_params": {
+      "type": ["object", "null"],
+      "description": "optional。SMPL/SMPL-X は plugin 扱い（core 必須依存にしない）",
+      "default": null
+    },
+    "keypoints_2d": {
+      "description": "optional。reprojection check 用 [T][J][2 or 3(conf)]",
+      "type": ["array", "null"]
+    },
+    "keypoints_3d": {
+      "description": "canonical 3D joints [T][J][3]",
+      "type": ["array", "null"]
+    },
+    "contacts": {
+      "type": "object",
+      "description": "left/right foot, toe, heel, hand の接地 [T] bool / 確率",
+      "additionalProperties": { "type": "array" }
+    },
+    "confidence": {
+      "type": "object",
+      "description": "frame-level / joint-level confidence",
+      "properties": {
+        "frame": { "type": "array", "items": { "type": "number" } },
+        "joint": { "type": "array" }
+      },
+      "additionalProperties": false
+    },
+    "camera": {
+      "type": ["object", "null"],
+      "description": "intrinsic/extrinsic or estimated camera motion"
+    },
+    "quality_metrics": {
+      "type": "object",
+      "description": "occlusion, foot skating, smoothness, pose confidence 等",
+      "additionalProperties": true
+    },
+    "semantics": {
+      "type": "object",
+      "description": "action label, text caption, music tempo, style tag",
+      "additionalProperties": true
+    },
+    "privacy_flags": {
+      "type": "object",
+      "description": "minor-risk, face-visible, consented, synthetic, public-domain-like",
+      "additionalProperties": { "type": "boolean" }
+    },
+    "extractor_versions": {
+      "type": "object",
+      "description": "pose model, HMR model, smoothing version 等の再現性メタ",
+      "additionalProperties": { "type": "string" }
+    },
+    "retarget_certificates": {
+      "type": "array",
+      "description": "robot 別の feasibility result（RD-Motion / RD-Embodiment と連携）",
+      "items": { "type": "object" }
+    }
+  },
+  "$defs": {
+    "seqVec3": {
+      "type": "array",
+      "items": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 }
+    },
+    "seqQuat": {
+      "type": "array",
+      "items": { "type": "array", "items": { "type": "number" }, "minItems": 4, "maxItems": 4 }
+    }
+  }
+}
