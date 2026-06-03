@@ -5,6 +5,12 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-06-03
+
+sim スタック汎用化の節目リリース（pre-alpha）。物理検証 backend を **pluggable** にする
+`SimBackend` 抽象 + registry を追加し、MuJoCo 一択から Isaac Lab/Genesis 等へ差し替え可能な
+土台を整えた（MuJoCo 参照実装 + Isaac Lab scaffold、本体は license/容量 safe のため非同梱）。
+
 ### Added
 - **Sim backend 抽象 + registry（§4.3）**（`sim-backends`, `validate-sim --backend`,
   `robotdance_sim.backend`）: sim_certificate の物理 backend を **pluggable** にする。`SimBackend`
@@ -14,6 +20,8 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   なら導入手順を示す明示エラー）。dispatch 時に契約キーを検証。registry/contract/scaffold は依存なしで
   **CI でも検証**。**Isaac Lab 本体（NVIDIA Omniverse 依存・大容量）は同梱・実行しない**（license/容量
   safe）— 実装は利用者環境で contract に従って行う。Isaac Lab/Genesis 実装・GPU 並列 sim は今後。
+
+[0.15.0]: https://github.com/rsasaki0109/RobotDance/releases/tag/v0.15.0
 
 ## [0.14.0] - 2026-06-03
 
