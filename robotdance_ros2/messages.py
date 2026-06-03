@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Optional
 
 import numpy as np
 
@@ -29,6 +30,8 @@ class MotionFrame:
     base_position: np.ndarray    # [3] base/pelvis 位置
     contacts: dict[str, bool] = field(default_factory=dict)
     phase: float = 0.0           # 0..1 の再生位相
+    joint_names: list[str] = field(default_factory=list)       # アクチュエータ名（あれば）
+    joint_angles: Optional[np.ndarray] = None                  # [n_act] 関節角 rad（あれば）
 
 
 @dataclass

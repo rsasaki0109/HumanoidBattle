@@ -18,6 +18,7 @@ from pathlib import Path
 import rclpy
 from geometry_msgs.msg import Point
 from rclpy.node import Node
+from sensor_msgs.msg import JointState
 from std_msgs.msg import Bool, String
 from visualization_msgs.msg import Marker, MarkerArray
 
@@ -56,6 +57,8 @@ class MotionServerNode(Node):
         self.robot_name = motion.robot_name
         self._skel_pub = self.create_publisher(MarkerArray, "/robotdance/skeleton", 10)
         self._safety_pub = self.create_publisher(String, "/robotdance/safety", 10)
+        # 実 G1 関節角があれば /joint_states へ配信（robot_state_publisher + 実 URDF で RViz 表示）。
+        self._joint_pub = self.create_publisher(JointState, "/joint_states", 10)
         self.create_subscription(Bool, "/robotdance/estop", self._on_estop, 10)
 
         pre = self.server.precheck()
@@ -87,6 +90,12 @@ class MotionServerNode(Node):
             self.get_logger().info("再生完了")
             raise SystemExit(0) from None
         self._skel_pub.publish(frame_to_marker_array(frame, robot_name=self.robot_name))
+        if frame.joint_angles is not None:
+            js = JointState()
+            js.header.stamp = self.get_clock().now().to_msg()
+            js.name = list(frame.joint_names)
+            js.position = [float(a) for a in frame.joint_angles]
+            self._joint_pub.publish(js)
         self._publish_safety(state)
 
 

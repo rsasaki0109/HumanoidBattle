@@ -18,10 +18,15 @@ from robotdance_ros2.safety_guard import SafetyGuard, SafetyLimits
 from robotdance_unitree import get_morphology
 
 
-def _certified(passed: bool) -> RdMotion:
+def _certified(passed: bool, *, with_joints: bool = False) -> RdMotion:
     motion = retarget(generate_dance(duration=1.0), get_morphology("unitree_g1"))
     motion.sim_certificate = {"passed": passed, "verdict": "PASS" if passed else "REJECT",
                               "reasons": [] if passed else ["airborne"]}
+    if with_joints:
+        n = motion.num_frames
+        names = [f"j{i}" for i in range(23)]
+        motion.joint_rotations = {"actuated_joint_names": names,
+                                  "angles_rad": np.zeros((n, 23)).tolist()}
     return motion
 
 
@@ -89,6 +94,15 @@ def test_server_streams_certified() -> None:
     assert all(f.keypoints.shape == (NUM_JOINTS, 3) for f, _ in frames)
 
 
+def test_server_carries_joint_angles() -> None:
+    """actuator IK の関節角が MotionFrame に載って流れる。"""
+    server = MotionServer(_certified(True, with_joints=True))
+    frames = server.export_frames()
+    f0, _ = frames[0]
+    assert f0.joint_angles is not None and f0.joint_angles.shape == (23,)
+    assert len(f0.joint_names) == 23
+
+
 def test_server_blocks_uncertified() -> None:
     motion = retarget(generate_dance(duration=1.0), get_morphology("unitree_g1"))
     assert MotionServer(motion).export_frames() == []
@@ -132,6 +146,46 @@ def test_ros2_node_publishes() -> None:
             except SystemExit:
                 break
         assert got["skel"] >= 5
+        node.destroy_node()
+        listener.destroy_node()
+    finally:
+        rclpy.shutdown()
+
+
+def test_ros2_node_publishes_joint_states() -> None:
+    """actuator 関節角を持つ motion は /joint_states を配信する（robot_state_publisher 連携）。"""
+    rclpy = pytest.importorskip("rclpy")
+    from rclpy.executors import SingleThreadedExecutor
+    from sensor_msgs.msg import JointState
+
+    from robotdance_ros2.motion_server_node import MotionServerNode
+
+    motion = _certified(True, with_joints=True)
+    motion.keypoints_3d = motion.keypoints_3d[:8]
+    motion.joint_rotations["angles_rad"] = motion.joint_rotations["angles_rad"][:8]
+    motion.duration = 8 / motion.fps
+
+    rclpy.init()
+    try:
+        node = MotionServerNode(motion)
+        listener = rclpy.node.Node("js_listener")
+        got = {"js": [], "names": 0}
+
+        def on_js(m: "JointState") -> None:
+            got["js"].append(m)
+            got["names"] = len(m.name)
+
+        listener.create_subscription(JointState, "/joint_states", on_js, 10)
+        exe = SingleThreadedExecutor()
+        exe.add_node(node)
+        exe.add_node(listener)
+        for _ in range(40):
+            try:
+                exe.spin_once(timeout_sec=0.05)
+            except SystemExit:
+                break
+        assert len(got["js"]) >= 3
+        assert got["names"] == 23
         node.destroy_node()
         listener.destroy_node()
     finally:

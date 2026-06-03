@@ -140,8 +140,10 @@ dance(PASS)      cert=PASS   → motion_server: 再生（120 frames）
 backflip(REJECT) cert=REJECT → motion_server: 遮断（ABORT）（0 frames）
 ```
 
+- **実 G1 を RViz で動かす**: `retarget-ik` の実関節角を `/joint_states` で配信 →
+  `robot_state_publisher` + 実 URDF → RViz で本物の G1 メッシュが動く（launch ファイル付属）。
 - core（safety guard / motion server）は **ROS2 非依存で完全テスト可能**。ノードは **ROS2 Jazzy**（primary target）。
-- topic: `/robotdance/skeleton`（MarkerArray, RViz）、`/robotdance/safety`、`/robotdance/estop`。
+- topic: `/joint_states`（実関節角）、`/robotdance/skeleton`（MarkerArray）、`/robotdance/safety`、`/robotdance/estop`。
 - **sim-first** — 実機 bridge は安全レビュー後（[`robotdance_ros2`](robotdance_ros2/)）。
 
 ## Benchmark — motion × robot leaderboard

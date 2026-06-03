@@ -105,5 +105,6 @@ class SafetyGuard:
         safe = MotionFrame(
             index=target.index, time=target.time, keypoints=kp,
             base_position=target.base_position, contacts=target.contacts, phase=target.phase,
+            joint_names=target.joint_names, joint_angles=target.joint_angles,
         )
         return safe, SafetyState(status, self.speed_scale, reasons)

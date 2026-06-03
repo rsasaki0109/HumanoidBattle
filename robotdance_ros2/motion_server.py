@@ -26,6 +26,12 @@ class MotionServer:
         self._kps = motion.keypoints_3d_array()  # [T, J, 3]
         self._pelvis = index_of("pelvis")
         self.paused = False
+        # アクチュエータ関節角（actuator-space IK の出力があれば）。
+        jr = motion.joint_rotations or {}
+        self._joint_names: list[str] = list(jr.get("actuated_joint_names", []))
+        self._joint_angles = (
+            np.asarray(jr["angles_rad"], dtype=np.float64) if jr.get("angles_rad") else None
+        )
 
     def _frame_at(self, i: int) -> MotionFrame:
         cs = self.motion.contact_schedule or {}
@@ -40,6 +46,8 @@ class MotionServer:
             base_position=self._kps[i, self._pelvis],
             contacts=contacts,
             phase=i / max(self._kps.shape[0] - 1, 1),
+            joint_names=self._joint_names,
+            joint_angles=self._joint_angles[i] if self._joint_angles is not None else None,
         )
 
     def precheck(self) -> SafetyState:
