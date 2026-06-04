@@ -134,6 +134,37 @@ def test_safety_limits_from_actuated_limits_wires_real_per_joint() -> None:
     assert lim_m.joint_position_limits["left_knee_joint"][0] == -0.087 + 0.05
 
 
+def test_per_joint_speed_limits_clamp_independently() -> None:
+    """per-joint 速度上限: 速い関節は高速を通し、遅い関節は実上限へクランプする。"""
+    dt = 1.0 / 30.0
+    # 2 関節を同じ大角速度（~15 rad/s）で動かす。j0 は速い(30)、j1 は遅い(9)。
+    raw = np.zeros((20, 2))
+    raw[:, 0] = np.linspace(0.0, 10.0, 20)  # ~15 rad/s 相当
+    raw[:, 1] = np.linspace(0.0, 10.0, 20)
+    limits = SafetyLimits(
+        max_joint_speed=30.0, max_joint_accel=1e9, enforce_torque_limit=False,
+        default_joint_range=100.0,
+        joint_speed_limits={"fast": 30.0, "slow": 9.0},
+    )
+    safe, _ = clamp_joint_trajectory(raw, dt, limits, ["fast", "slow"])
+    v_fast = float(np.abs(np.diff(safe[:, 0]) / dt).max())
+    v_slow = float(np.abs(np.diff(safe[:, 1]) / dt).max())
+    assert v_slow <= 9.0 + 1e-6, f"遅い関節が上限 9 を超過: {v_slow}"
+    assert v_fast > 9.0, f"速い関節まで 9 にクランプされた（per-joint でない）: {v_fast}"
+
+
+def test_from_actuated_limits_wires_per_joint_speed() -> None:
+    """from_actuated_limits は per-joint 速度上限を埋め、scalar 既定は最厳（min）にする。"""
+    actuated = {
+        "left_hip_pitch_joint": {"position": [-2.5, 2.9], "velocity": 32.0, "torque": 88.0},
+        "left_ankle_pitch_joint": {"position": [-0.87, 0.52], "velocity": 9.0, "torque": 35.0},
+    }
+    lim = SafetyLimits.from_actuated_limits(actuated)
+    assert lim.joint_speed_limits["left_hip_pitch_joint"] == 32.0
+    assert lim.joint_speed_limits["left_ankle_pitch_joint"] == 9.0
+    assert lim.max_joint_speed == 9.0  # scalar 既定は最厳（未収載関節のフォールバック）
+
+
 def test_guard_clamps_knee_reverse_bend_to_real_limit() -> None:
     """実 limit から作った guard は、膝の逆屈コマンドを実下限へクランプする（generic は素通し）。"""
     actuated = {"left_knee_joint": {"position": [-0.087, 2.880], "velocity": 20.0, "torque": 139.0}}

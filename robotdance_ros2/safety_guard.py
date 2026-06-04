@@ -46,6 +46,9 @@ class SafetyLimits:
     default_joint_range: float = float(np.pi)  # 位置 limit 未指定時の対称範囲 ±rad
     # actuator 名 → (lower, upper) rad。未指定なら ±default_joint_range。
     joint_position_limits: Optional[dict[str, tuple[float, float]]] = field(default=None)
+    # actuator 名 → 角速度上限 rad/s。未指定の関節は max_joint_speed（scalar）にフォールバック。
+    # 実機は関節ごとに速度上限が大きく異なる（G1: 足首 30 vs 股 32, H1: 足首 9 vs 股 23）。
+    joint_speed_limits: Optional[dict[str, float]] = field(default=None)
 
     # --- アクチュエータ トルク limit（§5.6, 実機モデル）---
     # 必要トルク ≈ I_eff·θ̈ + 重力負荷 を見積もり、トルク上限から加速度上限を導いてクランプする。
@@ -72,23 +75,25 @@ class SafetyLimits:
         """
         pos: dict[str, tuple[float, float]] = {}
         tau: dict[str, float] = {}
-        vels: list[float] = []
+        spd: dict[str, float] = {}
         for name, lim in actuated.items():
             lo, hi = float(lim["position"][0]), float(lim["position"][1])
             pos[name] = (lo + position_margin, hi - position_margin)
             if lim.get("torque"):
                 tau[name] = float(lim["torque"])
             if lim.get("velocity"):
-                vels.append(float(lim["velocity"]))
+                spd[name] = float(lim["velocity"])
         kw: dict = {
             "joint_position_limits": pos or None,
             "joint_torque_limits": tau or None,
+            "joint_speed_limits": spd or None,           # per-joint の実速度上限
         }
         if tau:
             kw["max_joint_torque"] = min(tau.values())  # 最弱 actuator を generic 既定に
-        if vels:
-            kw["max_joint_speed"] = min(vels)           # 最も厳しい関節に合わせる（保守）
-            kw["warn_joint_speed"] = round(min(vels) * 0.7, 2)
+        if spd:
+            # scalar 既定は最厳（未収載関節のフォールバック）。各関節は joint_speed_limits が効く。
+            kw["max_joint_speed"] = min(spd.values())
+            kw["warn_joint_speed"] = round(min(spd.values()) * 0.7, 2)
         kw.update(overrides)
         return cls(**kw)
 
@@ -127,6 +132,17 @@ def _limit_arrays(
     return lo, hi
 
 
+def _speed_array(limits: SafetyLimits, joint_names: Optional[list[str]], n: int) -> np.ndarray:
+    """関節順に並べた角速度上限 v_max[n]。未指定の関節は max_joint_speed（scalar）。"""
+    v = np.full(n, limits.max_joint_speed, dtype=np.float64)
+    sl = limits.joint_speed_limits
+    if sl and joint_names:
+        for i, name in enumerate(joint_names[:n]):
+            if name in sl:
+                v[i] = sl[name]
+    return v
+
+
 def _torque_arrays(
     limits: SafetyLimits, joint_names: Optional[list[str]], n: int
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -157,7 +173,8 @@ def _accel_cap(limits: SafetyLimits, joint_names: Optional[list[str]], n: int) -
 
 def _limit_step(
     prev_ang: np.ndarray, prev_vel: np.ndarray, target: np.ndarray,
-    pos_lo: np.ndarray, pos_hi: np.ndarray, v_max: float, a_max: "float | np.ndarray", dt: float,
+    pos_lo: np.ndarray, pos_hi: np.ndarray, v_max: "float | np.ndarray",
+    a_max: "float | np.ndarray", dt: float,
 ) -> tuple[np.ndarray, np.ndarray, bool, bool, bool]:
     """1 ステップの関節 limit 整形: 加速度 → 速度 → 積分 → 位置 limit の順にクランプ。
 
@@ -194,6 +211,7 @@ def clamp_joint_trajectory(
         raise ValueError(f"angles は [T, n] が必要: {angles.shape}")
     t_len, n = angles.shape
     pos_lo, pos_hi = _limit_arrays(limits, joint_names, n)
+    v_cap = _speed_array(limits, joint_names, n)            # per-joint 角速度上限
     a_cap = _accel_cap(limits, joint_names, n)              # トルク由来も織り込んだ per-joint 上限
     tau_max, inertia, grav = _torque_arrays(limits, joint_names, n)
 
@@ -205,7 +223,7 @@ def clamp_joint_trajectory(
     for t in range(1, t_len):
         ang, vel, ph, vc, ac = _limit_step(
             prev_ang, prev_vel, angles[t], pos_lo, pos_hi,
-            limits.max_joint_speed, a_cap, dt,
+            v_cap, a_cap, dt,
         )
         out[t] = ang
         prev_ang, prev_vel = ang, vel
@@ -355,6 +373,7 @@ class SafetyGuard:
         """1 フレームの関節角を位置/速度/加速度/トルク limit へクランプ（stateful）。"""
         n = angles.shape[0]
         pos_lo, pos_hi = _limit_arrays(self.limits, names, n)
+        v_cap = _speed_array(self.limits, names, n)  # per-joint 角速度上限
         a_cap = _accel_cap(self.limits, names, n)  # トルク上限由来も込みの加速度 cap
         if self._prev_joint_ang is None or self._prev_joint_ang.shape[0] != n:
             ang = np.clip(angles, pos_lo, pos_hi)
@@ -370,7 +389,7 @@ class SafetyGuard:
                             and np.any(a_cap < self.limits.max_joint_accel - 1e-9))
         ang, vel, ph, vc, ac = _limit_step(
             self._prev_joint_ang, self._prev_joint_vel, angles, pos_lo, pos_hi,
-            self.limits.max_joint_speed, a_cap, dt,
+            v_cap, a_cap, dt,
         )
         if ph:
             reasons.append("関節 位置 limit クランプ")

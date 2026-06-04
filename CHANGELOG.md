@@ -5,6 +5,19 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-06-04
+
+実データ深掘り（safety guard の per-joint 化を完成, pre-alpha）。guard は位置・トルクが per-joint
+実値だったが、角速度だけ単一スカラー（全関節を最厳の min で一律クランプ）だった。実機は関節ごとに
+速度上限が大きく異なる（H1: 足首 9 vs 股 23 rad/s）ため、速度も per-joint 化した。
+
+### Fixed
+- **safety guard の角速度クランプを per-joint へ**（`robotdance_ros2.safety_guard`）:
+  `SafetyLimits.joint_speed_limits`（actuator 名 → rad/s）を追加し、`clamp_joint_trajectory` /
+  フレーム clamp が関節ごとの実速度上限で整形する。`from_actuated_limits` が URDF の実速度を
+  per-joint に流す（未収載関節は scalar 既定にフォールバック）。これで速い関節（肩 37）に不要な
+  低速クランプをかけず、遅い関節（足首 9）は実上限で抑える。位置・速度・トルクが全て per-joint に。
+
 ## [0.37.0] - 2026-06-04
 
 実データ深掘り（実 URDF 慣性テンソル取り込み, pre-alpha）。sim の bone 慣性は capsule 形状から
