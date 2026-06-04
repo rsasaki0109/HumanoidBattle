@@ -18,30 +18,63 @@ from robotdance_retarget.embodiment import RobotMorphology
 # 足 bone（ankle→foot）。接地 box を付与する。
 _FOOT_CHILD_JOINTS = {JOINT_NAMES.index("left_foot"), JOINT_NAMES.index("right_foot")}
 
-# 固定質量（kg）: pelvis 根の球ハブ + 接地用の足 box（各）。
-# これらは bone 長比配分とは別枠の固定質点だが、**total_mass に含める**（実機相当の
-# 総質量を sim で再現するため）。差し引かないと宣言質量より +3.6kg 重い robot を sim して
-# しまう（実証: G1 宣言35→実38.6kg, +10.3%）。よって bone 配分予算から必ず差し引く。
-_PELVIS_HUB_MASS = 3.0
-_FOOT_BOX_MASS = 0.3
+# セグメント質量比（総質量に対する割合）。出典: Winter, D.A., "Biomechanics and Motor
+# Control of Human Movement"（人体計測の標準セグメント質量比）。
+# canonical 19-joint の各 bone（親→子, key=子 joint 名）へ写像する。pelvis(=root) はハブに割当。
+#
+# なぜ bone 長比をやめるか: 旧実装の「質量 ∝ bone 長」は物理的根拠が無く、長い腕 bone に
+# 過大な質量を与えていた（実証: H1 は腕 32% > 胴体 19% という非物理分布）。人体もロボットも
+# （電池・計算機・アクチュエータが胴体集中）**胴体が最重量部位**。本テーブルで胴体重心の
+# 物理的に妥当な分布にする。比は body proportion 不変なので G1/H1 で共通（総質量のみ機種差）。
+# 注: 実機 URDF の <inertial> そのものではない（mesh/URDF 本体は license 上同梱しない）人体
+# 近似プライアだが、bone 長比より桁違いに妥当。実 URDF 慣性の取り込みは将来 spec。
+_SEGMENT_MASS_WEIGHT: dict[str, float] = {
+    "pelvis": 0.142,         # 骨盤（root ハブへ）
+    "spine": 0.139,          # 腹部 abdomen（pelvis→spine bone）
+    "chest": 0.216,          # 胸郭 thorax（spine→chest bone）
+    "neck": 0.012,           # 頸部
+    "head": 0.069,           # 頭部（head+neck 計 0.081 を頸/頭へ分割）
+    "left_shoulder": 0.008,  # 肩甲帯 girdle（chest→shoulder の連結 bone）
+    "left_elbow": 0.028,     # 上腕 upper arm（shoulder→elbow）
+    "left_wrist": 0.022,     # 前腕+手 forearm+hand（elbow→wrist）
+    "right_shoulder": 0.008,
+    "right_elbow": 0.028,
+    "right_wrist": 0.022,
+    "left_hip": 0.008,       # 骨盤→股関節の連結 bone（小）
+    "left_knee": 0.100,      # 大腿 thigh（hip→knee）
+    "left_ankle": 0.0465,    # 下腿 shank（knee→ankle）
+    "left_foot": 0.0145,     # 足部 foot（ankle→toe）
+    "right_hip": 0.008,
+    "right_knee": 0.100,
+    "right_ankle": 0.0465,
+    "right_foot": 0.0145,
+}
+# 正規化（連結 bone を足したので合計 ≈1.03）。これで Σ=1 → 総質量を厳密保存。
+_W_SUM = sum(_SEGMENT_MASS_WEIGHT.values())
+_SEGMENT_MASS_FRACTION = {k: v / _W_SUM for k, v in _SEGMENT_MASS_WEIGHT.items()}
+# 足部質量は capsule（中足）と接地 box（踵/接地）で 50/50 に分ける。
+_FOOT_BOX_SHARE = 0.5
 
 
 def build_mjcf(morphology: RobotMorphology, *, total_mass: float = 35.0, ground: bool = True) -> str:
     """morphology から MJCF 文字列を生成する。
 
     total_mass: robot の総質量（kg, 実機相当）。G1≈35, H1≈47 程度。
-        pelvis ハブ + 足 box の固定質量を差し引いた残りを全 bone へ長さ比で配分するので、
-        生成 MJCF の総質量は total_mass に一致する（宣言質量＝実質量を保証）。
+        Winter 人体計測のセグメント質量比（_SEGMENT_MASS_FRACTION, Σ=1）で各部位へ配分するので、
+        生成 MJCF の総質量は total_mass に厳密一致し（宣言質量＝実質量）、かつ胴体重心の
+        物理的に妥当な質量分布になる（旧 bone 長比は腕>胴体の非物理分布だった）。
     ground: 地面 plane を含めるか。逆動力学（mj_inverse）では接触力が混入して
             内部トルクを汚染するため、トルク/COM 計算では ground=False（純浮遊多体）にする。
     """
     rest = morphology.rest_pose
-    bone_len = morphology.bone_lengths
-    len_sum = float(sum(bone_len[j] for j in range(len(JOINT_NAMES)) if PARENTS[j] >= 0)) or 1.0
-    # 固定質量（pelvis ハブ + 足 box×2）を差し引いた残りが bone 配分予算。
-    # こうして「pelvis/足が total_mass の上乗せになる」質量超過バグを防ぐ。
-    n_feet = len(_FOOT_CHILD_JOINTS)
-    bone_budget = max(total_mass - _PELVIS_HUB_MASS - n_feet * _FOOT_BOX_MASS, 0.1)
+    pelvis_hub_mass = total_mass * _SEGMENT_MASS_FRACTION["pelvis"]
+
+    def _bone_mass(j: int) -> float:
+        """bone j（親→子 joint）のセグメント質量（kg）。足部は box と按分。"""
+        frac = _SEGMENT_MASS_FRACTION[JOINT_NAMES[j]]
+        if j in _FOOT_CHILD_JOINTS:
+            frac *= 1.0 - _FOOT_BOX_SHARE  # capsule 側（残りは接地 box へ）
+        return max(total_mass * frac, 0.01)
 
     # 各 joint の子 bone リスト（MJCF ネストは joint 親子ツリーと一致）。
     children: dict[int, list[int]] = {i: [] for i in range(len(JOINT_NAMES))}
@@ -55,7 +88,7 @@ def build_mjcf(morphology: RobotMorphology, *, total_mass: float = 35.0, ground:
         # body_j 原点 = bone j の始点（= joint p）。親 body 原点（joint gp）からの相対 pos。
         pos = (rest[p] - rest[gp]) if p > 0 else np.zeros(3)
         endpoint = rest[j] - rest[p]  # 自 frame での bone 終点（= o_j）
-        mass = max(bone_budget * bone_len[j] / len_sum, 0.05)
+        mass = _bone_mass(j)
         pad = "  " * indent
         s = f'{pad}<body name="body_{j}" pos="{_v(pos)}">\n'
         s += f'{pad}  <joint name="jnt_{j}" type="ball"/>\n'
@@ -64,10 +97,11 @@ def build_mjcf(morphology: RobotMorphology, *, total_mass: float = 35.0, ground:
             f'size="0.04" mass="{mass:.4f}"/>\n'
         )
         if j in _FOOT_CHILD_JOINTS:
-            # 接地用の足 box（前方に伸ばす）。
+            # 接地用の足 box（前方に伸ばす）。足部質量の box 側按分。
+            box_mass = total_mass * _SEGMENT_MASS_FRACTION[JOINT_NAMES[j]] * _FOOT_BOX_SHARE
             s += (
                 f'{pad}  <geom type="box" pos="{_v(endpoint)}" size="0.08 0.04 0.02" '
-                f'mass="{_FOOT_BOX_MASS}" friction="1 0.05 0.01"/>\n'
+                f'mass="{box_mass:.4f}" friction="1 0.05 0.01"/>\n'
             )
         for c in children[j]:
             s += emit_body(c, indent + 1)
@@ -77,7 +111,7 @@ def build_mjcf(morphology: RobotMorphology, *, total_mass: float = 35.0, ground:
     # root = pelvis（free joint）。pelvis 自体に小球の geom。
     body = '    <body name="root" pos="0 0 1">\n'
     body += '      <freejoint name="root"/>\n'
-    body += f'      <geom type="sphere" size="0.06" mass="{_PELVIS_HUB_MASS}"/>\n'
+    body += f'      <geom type="sphere" size="0.06" mass="{pelvis_hub_mass:.4f}"/>\n'
     for c in children[0]:
         body += emit_body(c, 3)
     body += "    </body>\n"

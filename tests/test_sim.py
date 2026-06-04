@@ -12,8 +12,66 @@ pytest.importorskip("mujoco")
 from robotdance_core.synthetic import generate_backflip, generate_dance  # noqa: E402
 from robotdance_retarget.kinematic import retarget  # noqa: E402
 from robotdance_sim.mjcf import build_mjcf  # noqa: E402
-from robotdance_sim.mujoco_backend import certify, simulate_certificate  # noqa: E402
+from robotdance_sim.mujoco_backend import _zmp_in_support, certify, simulate_certificate  # noqa: E402
 from robotdance_unitree import get_morphology  # noqa: E402
+
+import numpy as np  # noqa: E402
+
+
+@pytest.mark.parametrize("robot", ["unitree_g1", "unitree_h1"])
+def test_mass_distribution_is_trunk_heavy_anthropometric(robot: str) -> None:
+    """質量分布が人体計測（Winter）相当: 胴体が最重量で、腕は胴体より軽い。
+
+    旧実装は質量 ∝ bone 長で配分しており、長い腕 bone に過大質量を与え、H1 では
+    腕 32% > 胴体 19% という非物理分布だった（人もロボットも胴体が最重量部位）。
+    Winter 比で配分し直し、胴体~58% / 腕~10% / 脚~32% 相当になることを担保する。
+    """
+    import mujoco
+
+    from robotdance_core.skeleton import JOINT_NAMES
+
+    morph = get_morphology(robot)
+    model = mujoco.MjModel.from_xml_string(build_mjcf(morph, total_mass=morph.sim_defaults.total_mass))
+    groups = {
+        "trunk": ("pelvis", "spine", "chest", "neck", "head"),
+        "arms": ("shoulder", "elbow", "wrist"),
+        "legs": ("hip", "knee", "ankle", "foot"),
+    }
+    g = {"trunk": float(model.body_mass[model.body("root").id]), "arms": 0.0, "legs": 0.0}
+    for j, name in enumerate(JOINT_NAMES):
+        try:
+            mm = float(model.body_mass[model.body(f"body_{j}").id])
+        except Exception:
+            continue
+        for grp, keys in groups.items():
+            if any(k in name for k in keys):
+                g[grp] += mm
+                break
+    tot = sum(g.values())
+    trunk, arms = g["trunk"] / tot, g["arms"] / tot
+    assert trunk > 0.45, f"{robot}: 胴体が軽すぎる({trunk:.0%})—人体計測では最重量(~58%)"
+    assert arms < trunk, f"{robot}: 腕({arms:.0%})が胴体({trunk:.0%})より重い非物理分布"
+    assert arms < 0.2, f"{robot}: 腕が重すぎる({arms:.0%})—人体計測では~10%"
+
+
+def test_zmp_support_uses_polygon_not_per_foot_circles() -> None:
+    """支持判定は足点の凸包（支持多角形）で行う。広い脚幅でも中心 ZMP を支持と認める。
+
+    旧実装は各足点を半径 margin の円で覆う近似で、脚幅が広い機種（H1: 足点 y=±0.26）では
+    両足の中間（バランスの取れた ZMP の定位置）がどの足点からも margin 超になり、
+    正しく立っているのに転倒判定していた。凸包内なら距離0で支持とするのが正しい。
+    """
+    # H1 相当の広い両足支持多角形（ankle + toe, y=±0.26）。
+    feet = np.array([[0.06, 0.26], [0.06, -0.26], [0.16, 0.26], [0.16, -0.26]])
+    centered = np.array([0.09, 0.0])  # 両足の中間 = バランス点
+    assert _zmp_in_support(centered, feet, margin=0.05), "広い脚幅で中心 ZMP が支持外と誤判定"
+    # 多角形から十分外（margin 超）は支持外。
+    far_out = np.array([0.09, 0.6])
+    assert not _zmp_in_support(far_out, feet, margin=0.12), "明らかに支持外の ZMP を支持と誤判定"
+    # 単一足（線分）でも近ければ支持、遠ければ支持外。
+    one_foot = np.array([[0.06, 0.26], [0.16, 0.26]])
+    assert _zmp_in_support(np.array([0.11, 0.30]), one_foot, margin=0.1)
+    assert not _zmp_in_support(np.array([0.11, 0.60]), one_foot, margin=0.1)
 
 
 @pytest.mark.parametrize("robot,total_mass", [("unitree_g1", 35.0), ("unitree_h1", 47.0)])

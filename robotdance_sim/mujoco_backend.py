@@ -211,6 +211,61 @@ def certify(motion: RdMotion, morphology: RobotMorphology, **kwargs: Any) -> RdM
 
 
 def _zmp_in_support(zmp_xy: np.ndarray, foot_pts: np.ndarray, margin: float) -> bool:
-    """ZMP が接地足の点群から margin 以内にあるか（各足点を半径 margin の円で覆う近似）。"""
-    d = np.linalg.norm(foot_pts - zmp_xy[None, :], axis=1)
-    return bool(d.min() <= margin)
+    """ZMP が接地足の**支持多角形（足点の凸包）**の内側、または辺から margin 以内か。
+
+    旧実装は「各足点を半径 margin の円で覆う」近似で、足点の集合との最近傍距離 ≤ margin を
+    支持とみなしていた。これは脚幅が広い機種で破綻する: 両足の中間（＝バランスの取れた ZMP の
+    定位置）がどの足点からも margin 超になり、**正しく立っているのに転倒判定**された
+    （実証: H1 は股幅0.52mで足点 y=±0.26 → 中心の ZMP が全フレーム支持外、balance_viol=1.0)。
+    正しくは凸包内なら距離0で支持、margin は接地点より外側（有限の足サイズ分）への許容とする。
+    """
+    pts = np.unique(np.round(np.asarray(foot_pts, dtype=float), 6), axis=0)
+    if len(pts) == 1:
+        return bool(np.linalg.norm(pts[0] - zmp_xy) <= margin)
+    if len(pts) == 2:
+        return bool(_dist_point_segment(zmp_xy, pts[0], pts[1]) <= margin)
+    return bool(_dist_point_to_convex_polygon(zmp_xy, _convex_hull_2d(pts)) <= margin)
+
+
+def _dist_point_segment(p: np.ndarray, a: np.ndarray, b: np.ndarray) -> float:
+    """点 p と線分 ab の距離。"""
+    ab = b - a
+    denom = float(ab @ ab)
+    t = 0.0 if denom == 0.0 else float(np.clip((p - a) @ ab / denom, 0.0, 1.0))
+    return float(np.linalg.norm(p - (a + t * ab)))
+
+
+def _convex_hull_2d(pts: np.ndarray) -> np.ndarray:
+    """2D 点群の凸包を CCW 順で返す（Andrew monotone chain）。"""
+    pts = pts[np.lexsort((pts[:, 1], pts[:, 0]))]
+
+    def _cross(o: np.ndarray, a: np.ndarray, b: np.ndarray) -> float:
+        return float((a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]))
+
+    lower: list[np.ndarray] = []
+    for pt in pts:
+        while len(lower) >= 2 and _cross(lower[-2], lower[-1], pt) <= 0:
+            lower.pop()
+        lower.append(pt)
+    upper: list[np.ndarray] = []
+    for pt in pts[::-1]:
+        while len(upper) >= 2 and _cross(upper[-2], upper[-1], pt) <= 0:
+            upper.pop()
+        upper.append(pt)
+    return np.array(lower[:-1] + upper[:-1])
+
+
+def _dist_point_to_convex_polygon(p: np.ndarray, hull: np.ndarray) -> float:
+    """点 p と CCW 凸多角形 hull の距離（内側なら 0）。"""
+    inside = True
+    for i in range(len(hull)):
+        a, b = hull[i], hull[(i + 1) % len(hull)]
+        # CCW 凸包では内側の点は全辺の左側（cross ≥ 0）。
+        if (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]) < 0:
+            inside = False
+            break
+    if inside:
+        return 0.0
+    return min(
+        _dist_point_segment(p, hull[i], hull[(i + 1) % len(hull)]) for i in range(len(hull))
+    )
