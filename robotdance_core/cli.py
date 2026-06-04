@@ -744,8 +744,12 @@ def _demo_denoise(out: Path, denoiser_ckpt: Path | None, epochs: int, stride: in
 
 
 def _train_tracking(out: Path, robot: str, iterations: int, device: str | None,
-                    suite: bool) -> int:
-    """RL tracking policy（§4.5）を学習する。--suite で複数運動を 1 方策に汎化。"""
+                    suite: bool, real_inertia: bool = False) -> int:
+    """RL tracking policy（§4.5）を学習する。--suite で複数運動を 1 方策に汎化。
+
+    real_inertia: 実 URDF 慣性テンソルで学習する（既定 capsule）。v0.37 では実慣性で PPO が崩壊
+        したが、v0.47 で reference の twist を時間連続化したので安定して学習できる（v0.51/v0.54 実証）。
+    """
     from robotdance_core.synthetic import generate_dance
     from robotdance_models.tracking_policy import (
         train_multi_tracking_policy,
@@ -754,7 +758,9 @@ def _train_tracking(out: Path, robot: str, iterations: int, device: str | None,
     from robotdance_retarget.kinematic import retarget
     from robotdance_unitree import get_morphology
 
-    morph = get_morphology(robot)
+    morph = get_morphology(robot, real_inertia=real_inertia)
+    if real_inertia:
+        print("  慣性: 実 URDF テンソル（real_inertia）")
     if suite:
         items = _tracking_suite(morph)
         refs = [r for _, r in items]
@@ -1461,6 +1467,8 @@ def main(argv: list[str] | None = None) -> int:
     p_trk.add_argument("--robot", default="unitree_g1")
     p_trk.add_argument("--iterations", type=int, default=40)
     p_trk.add_argument("--suite", action="store_true", help="複数運動を 1 方策に汎化（multi-motion）")
+    p_trk.add_argument("--real-inertia", action="store_true",
+                       help="実 URDF 慣性テンソルで学習（既定 capsule。v0.47 clean reference で安定）")
     p_trk.add_argument("--device", default=None, help="cpu / cuda（既定: 自動）")
 
     p_dtrk = sub.add_parser("demo-track", help="参照を RL policy で物理追従し side-by-side 描画")
@@ -1506,7 +1514,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "demo-safety":
         return _demo_safety(args.out, args.robot, args.stride)
     if args.command == "train-tracking":
-        return _train_tracking(args.out, args.robot, args.iterations, args.device, args.suite)
+        return _train_tracking(args.out, args.robot, args.iterations, args.device, args.suite,
+                               args.real_inertia)
     if args.command == "demo-track":
         return _demo_track(args.out, args.robot, args.iterations, args.stride)
     if args.command == "demo-track-multi":

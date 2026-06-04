@@ -115,6 +115,24 @@ def test_ppo_trains_and_rolls_out_valid_motion() -> None:
     jsonschema.Draft202012Validator(schema).validate(motion.to_dict())
 
 
+def test_ppo_trains_stably_with_real_inertia() -> None:
+    """PPO は **実 URDF 慣性**でも安定して学習・追従する（v0.37 の崩壊は v0.47 clean reference で解消）。
+
+    v0.37 では実慣性で PPO tracking が崩壊（survival ~0.03）したため慣性を opt-in に留めた。原因は
+    当時の reference qpos が twist アーティファクトで関節速度スパイクを持ち、実慣性のダイナミクスで
+    コントローラが発散したこと。v0.47 で reference を twist 連続化したので、実慣性でも return は有限・
+    survival は健全（capsule と同等）。本テストは実慣性 PPO 学習の回帰ガード。
+    """
+    morph = get_morphology("unitree_g1", real_inertia=True)
+    assert morph.inertia_tensors  # 実テンソルが装着されている
+    ref = retarget(generate_dance(duration=1.0, arm_amp=0.6, sway_amp=0.08), morph)
+    policy, info = train_tracking_policy(ref, morph, iterations=5, steps_per_iter=256, seed=0)
+    assert all(np.isfinite(info["return_history"]))   # 発散 / NaN なし
+    metrics = policy.rollout()[1]
+    assert metrics["survival_ratio"] > 0.3            # 崩壊しない（v0.37 は ~0.03 だった）
+    assert np.isfinite(metrics["mean_pose_rmse"])
+
+
 def test_multi_motion_env_switches_references() -> None:
     """MultiTrackingEnv は reset(idx) で参照を切り替え、各々を物理上で扱える。"""
     morph = get_morphology("unitree_g1")

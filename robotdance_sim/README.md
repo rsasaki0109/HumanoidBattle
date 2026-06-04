@@ -59,7 +59,8 @@ robotdance validate-sim dance.rdmir.json --backend mujoco
 > **tracking/PPO 経路は本フラグの影響を受けず capsule のまま**（baseline 退行回避）。出力は
 > "physically-informed feasibility" であって**実機保証ではない**。`pip install -e ".[sim]"` で mujoco。
 >
-> **TrackingEnv（v0 baseline）注意:** 近似質量・素朴な報酬/終了条件の **baseline 足場**であり、
-> SOTA tracking（DeepMimic/AMP 等）ではない。短い feasible クリップでは関節 PD だけで概ねバランス
-> するため、v0 の PPO 残差は PD を**壊さず追従する**ことを学ぶ（PD 超えの tracking 精度・多様 motion
-> 汎化・摂動頑健性・実機転移は今後）。`[sim]` + `[learn]` extra が必要。
+> **TrackingEnv（v0 baseline）注意:** 素朴な報酬/終了条件の **baseline 足場**であり、SOTA tracking
+> （DeepMimic/AMP 等）ではない。短い feasible クリップでは関節 PD だけで概ねバランスするため、v0 の
+> PPO 残差は PD を**壊さず追従する**ことを学ぶ（PD 超えの tracking 精度・多様 motion 汎化・摂動頑健性・
+> 実機転移は今後）。既定は capsule 慣性だが `train-tracking --real-inertia` で実 URDF 慣性でも安定して
+> 学習できる（v0.37 の崩壊は v0.47 の reference twist 連続化で解消, v0.54 実証）。`[sim]` + `[learn]` extra が必要。

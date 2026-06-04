@@ -5,6 +5,24 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.54.0] - 2026-06-05
+
+実データ深掘り（PPO tracking を実慣性で安定化, pre-alpha）。v0.37 で「実慣性を入れると PPO tracking が
+崩壊（survival ~0.03）」したため慣性を opt-in に留めていた最後の宿題。原因は当時の reference qpos が
+twist アーティファクトで関節速度スパイクを持ち、実慣性のダイナミクスでコントローラが発散したこと。
+**v0.47 で reference を twist 連続化したので、実慣性でも PPO は安定して学習・追従する**ことを実証した。
+
+### Added
+- CLI `train-tracking --real-inertia`: 実 URDF 慣性テンソルで RL tracking policy を学習する
+  （`get_morphology(robot, real_inertia=True)`）。既定は capsule（v0 baseline 互換）。
+- tests: 実慣性 PPO 学習が安定（return 有限・survival>0.3, 実測 capsule と同等 survival 1.0 /
+  rmse 0.372）であることを担保（v0.37 崩壊の回帰ガード）。
+
+### Notes
+- v0.37 の「実慣性で controller 再チューニングが必要」は **reference 品質（v0.47 twist 連続化）の
+  問題であり、controller 自体の再チューニングは不要**だった。capsule と実慣性で PPO 学習結果は同等。
+  深掘りスレッドの最後の宿題が解け、「近似→実 URDF データ」が retarget/sim/safety/品質/tracking 全経路で完了。
+
 ## [0.53.0] - 2026-06-05
 
 実データ深掘り（三軸 feasibility を Model Card に明示, pre-alpha）。v0.50 で velocity を certificate の
