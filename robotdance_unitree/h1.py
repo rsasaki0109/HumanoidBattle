@@ -74,6 +74,27 @@ H1_MASS_FRACTION: dict[str, float] = {
     "right_hip": 0.1453, "right_knee": 0.083, "right_ankle": 0.0473, "right_foot": 0.0121,
 }
 
+# 実 h1.urdf の <inertial> 由来の canonical bone 慣性（質量 / COM=親 joint 相対 / fullinertia=
+# COM まわり世界軸）。capsule 近似と違い実機の三軸非対称を反映（spine=torso は 17.8kg と重く慣性大）。
+# 数値のみで license-safe。test_real_h1_urdf が実 URDF と一致を検証。
+# ⚠️ opt-in（g1.py の G1_INERTIA_TENSORS 参照）: 既定は capsule 慣性で controller baseline を安定維持。
+H1_INERTIA_TENSORS: dict[str, dict] = {
+    "pelvis": {"mass": 5.983, "com": [-0.0004, 4e-05, -0.04686], "fullinertia": [0.049168, 0.009026, 0.053156, -2e-05, -4.8e-05, 3e-06]},
+    "spine": {"mass": 17.789, "com": [0.00049, 0.0028, 0.20484], "fullinertia": [0.4873, 0.40963, 0.12785, -0.000538, 0.002028, -0.000746]},
+    "left_elbow": {"mass": 2.856, "com": [0.00304, 0.05819, -0.10897], "fullinertia": [0.050418, 0.05058, 0.002765, -2.6e-05, 0.000955, 0.000787]},
+    "left_wrist": {"mass": 0.745, "com": [0.16486, 0.00012, -0.01573], "fullinertia": [0.000424, 0.006006, 0.006002, -3.6e-05, 0.000293, 5e-06]},
+    "right_elbow": {"mass": 2.856, "com": [0.00304, -0.05819, -0.10897], "fullinertia": [0.050418, 0.05058, 0.002765, 2.6e-05, 0.000955, -0.000787]},
+    "right_wrist": {"mass": 0.745, "com": [0.16486, -0.00012, -0.01573], "fullinertia": [0.000424, 0.006006, 0.006002, 3.6e-05, 0.000293, -5e-06]},
+    "left_hip": {"mass": 5.68, "com": [-0.01572, 0.08102, -0.17022], "fullinertia": [0.008745, 0.022427, 0.020798, 0.002013, 0.000154, -0.000145]},
+    "left_knee": {"mass": 4.953, "com": [0.00764, -0.0293, -0.08267], "fullinertia": [0.096269, 0.095312, 0.008309, -0.000853, 0.004521, 0.010678]},
+    "left_ankle": {"mass": 2.824, "com": [0.00341, -0.00528, -0.1437], "fullinertia": [0.023792, 0.024505, 0.003236, -0.000202, 0.001348, 0.000343]},
+    "left_foot": {"mass": 0.725, "com": [0.04254, 0.0, -0.04167], "fullinertia": [0.000237, 0.003296, 0.003146, 0.0, 0.000197, 0.0]},
+    "right_hip": {"mass": 5.68, "com": [-0.01572, -0.08102, -0.17022], "fullinertia": [0.008745, 0.022427, 0.020798, -0.002013, 0.000154, 0.000145]},
+    "right_knee": {"mass": 4.953, "com": [0.00764, 0.0293, -0.08267], "fullinertia": [0.096269, 0.095312, 0.008309, 0.000853, 0.004521, -0.010678]},
+    "right_ankle": {"mass": 2.824, "com": [0.00341, 0.00528, -0.1437], "fullinertia": [0.023792, 0.024505, 0.003236, 0.000202, 0.001348, -0.000343]},
+    "right_foot": {"mass": 0.725, "com": [0.04254, -0.0, -0.04167], "fullinertia": [0.000237, 0.003296, 0.003146, 0.0, 0.000197, 0.0]},
+}
+
 MORPHOLOGY = RobotMorphology(
     name=ROBOT_NAME,
     rest_pose=H1_REST,
@@ -81,6 +102,7 @@ MORPHOLOGY = RobotMorphology(
     runtime_adapter="unitree_sdk2",
     per_joint_limits=H1_JOINT_LIMITS,
     mass_distribution=H1_MASS_FRACTION,
+    # inertia_tensors は opt-in（H1_INERTIA_TENSORS の ⚠️ 参照）。既定は capsule 慣性。
     # H1 は G1 より背が高く（1.66m）重い → 高い kd が必須（kd=6 では PD 振動で転倒）。
     # total_mass は実 h1.urdf 総質量（59.34kg, 旧 47 は実機より過小だった）。
     sim_defaults=SimDefaults(total_mass=59.34, kp=200.0, kd=10.0, torque_limit=160.0),

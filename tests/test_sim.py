@@ -99,6 +99,43 @@ def test_foot_footprint_has_real_width_for_single_support() -> None:
     assert _zmp_in_support(lateral, corners, margin=0.0), "片足 footprint の横幅内が支持外と誤判定"
 
 
+def test_build_mjcf_uses_real_inertia_tensors_when_present() -> None:
+    """inertia_tensors を持つ morphology は capsule 近似でなく実テンソルを MJCF に使う（frame 正）。
+
+    opt-in capability: 既定 morphology は capsule（controller baseline 安定のため）だが、
+    inertia_tensors を渡すと explicit <inertial> で実機慣性を使う。MuJoCo の body_inertia
+    （principal）が埋め込みテンソルの固有値に一致し、総質量も保存することを担保する。
+    """
+    import dataclasses
+
+    import mujoco
+
+    from robotdance_core.skeleton import JOINT_NAMES
+    from robotdance_unitree.g1 import G1_INERTIA_TENSORS
+
+    base = get_morphology("unitree_g1")
+    morph = dataclasses.replace(base, inertia_tensors=G1_INERTIA_TENSORS)
+    tm = base.sim_defaults.total_mass
+    model = mujoco.MjModel.from_xml_string(build_mjcf(morph, total_mass=tm, ground=False))
+    # 総質量は保存。
+    assert model.body_mass.sum() == pytest.approx(tm, abs=1e-3)
+    # 代表 bone の MuJoCo 主慣性が埋め込みテンソルの固有値に一致（フレーム変換が正しい）。
+    for name in ("left_knee", "chest", "left_ankle"):
+        j = JOINT_NAMES.index(name)
+        bid = model.body(f"body_{j}").id
+        f = G1_INERTIA_TENSORS[name]["fullinertia"]
+        mat = np.array([[f[0], f[3], f[4]], [f[3], f[1], f[5]], [f[4], f[5], f[2]]])
+        scale = tm / 34.13  # 埋め込みは実 URDF 総質量基準
+        src_eig = np.sort(np.linalg.eigvalsh(mat)) * scale
+        mj_eig = np.sort(model.body_inertia[bid])
+        assert np.allclose(mj_eig, src_eig, atol=2e-3), f"{name}: {mj_eig} vs {src_eig}"
+    # capsule 既定（inertia_tensors 無し）とは主慣性が異なる（実テンソルが効いている）。
+    cap = mujoco.MjModel.from_xml_string(build_mjcf(base, total_mass=tm, ground=False))
+    jc = JOINT_NAMES.index("chest")
+    assert not np.allclose(model.body_inertia[model.body(f"body_{jc}").id],
+                           cap.body_inertia[cap.body(f"body_{jc}").id], atol=1e-3)
+
+
 @pytest.mark.parametrize("robot", ["unitree_g1", "unitree_h1"])
 def test_mjcf_total_mass_is_conserved(robot: str) -> None:
     """生成 MJCF の総質量が宣言 total_mass（embodiment 既定＝実 URDF 総質量）に一致する。

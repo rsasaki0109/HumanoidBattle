@@ -122,6 +122,39 @@ def test_h1_embedded_mass_distribution_matches_real_urdf() -> None:
 
 
 @_skip
+def test_g1_embedded_inertia_tensors_match_real_urdf() -> None:
+    """g1.py の G1_INERTIA_TENSORS が実 g1_23dof URDF 由来の集約テンソルと一致する（drift 検出）。"""
+    import numpy as np
+
+    from robotdance_unitree.g1 import G1_INERTIA_TENSORS
+    from robotdance_unitree.urdf_import import canonical_inertia_tensors
+
+    derived = canonical_inertia_tensors(_URDF)
+    assert set(derived) == set(G1_INERTIA_TENSORS)
+    for name, e in derived.items():
+        emb = G1_INERTIA_TENSORS[name]
+        assert abs(e["mass"] - emb["mass"]) < 1e-3, name
+        assert np.allclose(e["com"], emb["com"], atol=1e-3), name
+        assert np.allclose(e["fullinertia"], emb["fullinertia"], atol=1e-3), name
+
+
+@_skip_h1
+def test_h1_embedded_inertia_tensors_match_real_urdf() -> None:
+    """h1.py の H1_INERTIA_TENSORS が実 h1.urdf 由来の集約テンソルと一致する。"""
+    import numpy as np
+
+    from robotdance_unitree.h1 import H1_INERTIA_TENSORS
+    from robotdance_unitree.urdf_import import H1_LINK_MAP, canonical_inertia_tensors
+
+    derived = canonical_inertia_tensors(_H1_URDF, link_map=H1_LINK_MAP)
+    assert set(derived) == set(H1_INERTIA_TENSORS)
+    for name, e in derived.items():
+        emb = H1_INERTIA_TENSORS[name]
+        assert abs(e["mass"] - emb["mass"]) < 1e-3, name
+        assert np.allclose(e["fullinertia"], emb["fullinertia"], atol=1e-3), name
+
+
+@_skip
 def test_embodiment_sim_defaults_mass_matches_real_urdf_total() -> None:
     """各 embodiment の sim_defaults.total_mass が実 URDF 総質量に一致する（隠れ取り違え防止）。"""
     from robotdance_unitree import get_morphology

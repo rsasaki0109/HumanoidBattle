@@ -5,6 +5,27 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.37.0] - 2026-06-04
+
+実データ深掘り（実 URDF 慣性テンソル取り込み, pre-alpha）。sim の bone 慣性は capsule 形状から
+MuJoCo が自動算出する軸対称近似（棒）で、実機の三軸非対称な分布（胴体は太い箱で慣性 2-5 倍）を
+表せなかった。実 URDF の `<inertial>` テンソルを canonical bone へ集約して MJCF の explicit
+`<inertial>` に使う capability を追加した。
+
+⚠️ **opt-in**: 実慣性は物理的に正しいが PPO tracking baseline（capsule 慣性で調整済み）を不安定化
+させるため、既定 morphology は capsule のまま（controller 再チューニングは別途）。`inertia_tensors`
+を設定するか URDF-import 経由で実慣性 sim を使える。
+
+### Added
+- `urdf_import.canonical_inertia_tensors` / `parse_link_inertia_tensors`: 各 link の慣性テンソルを
+  世界 COM 最近傍の canonical bone へ割当て、剛体合成（並進・回転＋平行軸の定理）で bone ごとの
+  (質量, COM=親 joint 相対, 世界軸 fullinertia) にまとめる。root link は pelvis ハブへ明示ルート。
+- `RobotMorphology.inertia_tensors` フィールド + `build_mjcf` の explicit `<inertial>` 対応
+  （あれば capsule 近似でなく実テンソル。総質量へスケールし宣言＝実質量を保存、退化 bone は floor）。
+- `g1.G1_INERTIA_TENSORS` / `h1.H1_INERTIA_TENSORS`: 実 URDF 由来の bone 慣性定数（数値のみ,
+  license-safe, opt-in）。`urdf_to_morphology` は自動で inertia_tensors を取り込む。
+  `test_real_g1_urdf` が実 URDF からの算出値・MuJoCo body_inertia との一致を検証。
+
 ## [0.36.0] - 2026-06-04
 
 実データ深掘り（joint limit × 質量スレッドの交点, pre-alpha）。sim のトルク判定・クランプは単一

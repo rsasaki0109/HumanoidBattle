@@ -55,6 +55,9 @@ class RobotMorphology:
     # canonical 関節名 → 質量割合（実 URDF inertial 由来, Σ≈1）。sim の MJCF 質量配分に使う。
     # None なら sim 側で Winter 人体計測比へフォールバック。
     mass_distribution: dict[str, float] | None = None
+    # canonical 関節名 → {mass, com[3], fullinertia[6]}（実 URDF 由来の bone 慣性, 世界軸/COM まわり）。
+    # あれば sim が capsule 近似でなく実機慣性テンソルを MJCF の explicit <inertial> に使う。
+    inertia_tensors: dict[str, Any] | None = None
     sim_defaults: SimDefaults = field(default_factory=SimDefaults)
 
     def __post_init__(self) -> None:

@@ -169,6 +169,100 @@ def parse_link_inertials(path: str | Path) -> dict[str, tuple[float, np.ndarray]
     return out
 
 
+def parse_link_inertia_tensors(path: str | Path) -> dict[str, tuple[float, np.ndarray, np.ndarray]]:
+    """各 link の (質量, link frame の COM xyz, link frame の慣性テンソル 3x3) を返す。
+
+    URDF の <inertia> は inertial origin（COM, rpy 回転後の frame）まわりの値。rpy で link frame
+    へ回しておく（COM まわり・link 軸）。
+    """
+    root = ET.parse(Path(path)).getroot()
+    out: dict[str, tuple[float, np.ndarray, np.ndarray]] = {}
+    for link in root.findall("link"):
+        inj = link.find("inertial")
+        if inj is None:
+            continue
+        m = inj.find("mass")
+        it = inj.find("inertia")
+        if m is None or it is None or m.get("value") is None:
+            continue
+        o = inj.find("origin")
+        com = _vec(o.get("xyz") if o is not None else None)
+        rpy = _vec(o.get("rpy") if o is not None else None)
+
+        def g(k: str) -> float:
+            return float(it.get(k, 0.0))
+
+        inertia = np.array([
+            [g("ixx"), g("ixy"), g("ixz")],
+            [g("ixy"), g("iyy"), g("iyz")],
+            [g("ixz"), g("iyz"), g("izz")],
+        ])
+        r = Rot.from_euler("xyz", rpy).as_matrix()
+        inertia = r @ inertia @ r.T  # inertial frame → link frame（COM まわり）
+        out[link.get("name")] = (float(m.get("value")), com, inertia)
+    return out
+
+
+def canonical_inertia_tensors(
+    path: str | Path, *, link_map: Optional[dict[str, str]] = None
+) -> dict[str, dict[str, object]]:
+    """URDF から canonical 19-joint の各 bone の (質量, COM, 慣性テンソル) を集約して返す。
+
+    各 link を世界 COM 最近傍の canonical bone（or pelvis）へ割当て、剛体合成（平行軸の定理）で
+    bone ごとに **その bone の合成 COM まわり・世界軸**の慣性テンソルにまとめる。返り値は
+    {canonical_joint_name: {"mass": kg, "com": [x,y,z] world, "fullinertia": [ixx,iyy,izz,ixy,ixz,iyz]}}。
+    MJCF の explicit <inertial>（capsule 近似ではなく実機慣性）に使う。
+    """
+    lmap = link_map or G1_LINK_MAP
+    joints, root_link = parse_urdf(path)
+    frames = link_world_frames(joints, root_link)
+    rest = build_rest_pose(link_world_positions(joints, root_link), lmap)
+    tensors = parse_link_inertia_tensors(path)
+
+    segments = [(j, rest[PARENTS[j]], rest[j]) for j in range(len(JOINT_NAMES)) if PARENTS[j] >= 0]
+    groups: dict[str, list[tuple[float, np.ndarray, np.ndarray]]] = {n: [] for n in JOINT_NAMES}
+    for link, (m, com_local, inertia_local) in tensors.items():
+        if link not in frames:
+            continue
+        pos, rot = frames[link]
+        com_w = pos + rot @ com_local
+        inertia_w = rot @ inertia_local @ rot.T  # link 軸 → 世界軸
+        if link == root_link:
+            best_name = "pelvis"  # root link（骨盤本体）は必ず pelvis ハブへ
+        else:
+            best_name, best_d = "pelvis", float(np.linalg.norm(com_w - rest[0]))
+            for j, a, b in segments:
+                d = _point_segment_distance(com_w, a, b)
+                if d < best_d:
+                    best_name, best_d = JOINT_NAMES[j], d
+        groups[best_name].append((m, com_w, inertia_w))
+
+    out: dict[str, dict[str, object]] = {}
+    for name, items in groups.items():
+        if not items:
+            continue
+        mass = sum(m for m, _, _ in items)
+        com = sum(m * c for m, c, _ in items) / mass
+        inertia = np.zeros((3, 3))
+        for m, c, iw in items:
+            d = c - com
+            inertia += iw + m * (float(d @ d) * np.eye(3) - np.outer(d, d))  # 平行軸
+        # COM は bone の body 原点（= 親 joint。pelvis は自身）相対で持つ。これにより rest pose の
+        # 全体並進（URDF FK frame ↔ 接地シフトした embodiment rest）に不変になる。慣性テンソルは
+        # 世界軸・COM まわりで並進不変なのでそのまま。
+        idx = JOINT_NAMES.index(name)
+        origin = rest[PARENTS[idx]] if PARENTS[idx] >= 0 else rest[0]
+        com_rel = com - origin
+        out[name] = {
+            "mass": round(float(mass), 5),
+            "com": [round(float(x), 5) for x in com_rel],
+            "fullinertia": [round(float(v), 6) for v in (
+                inertia[0, 0], inertia[1, 1], inertia[2, 2],
+                inertia[0, 1], inertia[0, 2], inertia[1, 2])],
+        }
+    return out
+
+
 def _point_segment_distance(p: np.ndarray, a: np.ndarray, b: np.ndarray) -> float:
     """点 p と線分 ab の距離。"""
     ab = b - a
@@ -268,13 +362,15 @@ def urdf_to_morphology(
     per_joint = canonical_joint_limits(parse_actuated_limits(path))
     try:
         mass_dist, _ = canonical_mass_distribution(path, link_map=lmap)
+        inertia = canonical_inertia_tensors(path, link_map=lmap)
     except ValueError:
-        mass_dist = None  # <inertial> 無し URDF（合成 fixture 等）は質量分布なし
+        mass_dist = inertia = None  # <inertial> 無し URDF（合成 fixture 等）
     return RobotMorphology(
         name=name, rest_pose=rest,
         urdf_ref=urdf_ref or str(path), runtime_adapter="unitree_sdk2",
         per_joint_limits=per_joint or None,
         mass_distribution=mass_dist,
+        inertia_tensors=inertia or None,
     )
 
 

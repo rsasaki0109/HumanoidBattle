@@ -152,6 +152,49 @@ def test_canonical_mass_distribution_symmetric_and_normalized(tmp_path: Path) ->
     assert legs > arms
 
 
+def test_canonical_inertia_tensors_symmetric_psd(tmp_path: Path) -> None:
+    """URDF inertial → canonical bone 慣性が左右対称・正定値・total 質量保存で返る。"""
+    from robotdance_unitree.urdf_import import canonical_inertia_tensors
+
+    def link(name, parent, xyz, mass, ixx, iyy, izz):
+        j = (f'<joint name="{name}_j" type="revolute"><parent link="{parent}"/>'
+             f'<child link="{name}"/><origin xyz="{xyz}" rpy="0 0 0"/>'
+             f'<limit lower="-1" upper="1" effort="1" velocity="1"/></joint>') if parent else ""
+        return (f'<link name="{name}"><inertial><mass value="{mass}"/><origin xyz="0 0 0"/>'
+                f'<inertia ixx="{ixx}" iyy="{iyy}" izz="{izz}" ixy="0" ixz="0" iyz="0"/>'
+                f'</inertial></link>' + j)
+
+    parts = ['<robot name="g1_fixture">', link("pelvis", None, None, 3.0, 0.01, 0.01, 0.01)]
+    for side, sgn in (("left", 1), ("right", -1)):
+        y = 0.06 * sgn
+        parts += [
+            link(f"{side}_hip_pitch_link", "pelvis", f"0 {y} -0.10", 2.0, 0.02, 0.02, 0.005),
+            link(f"{side}_knee_link", f"{side}_hip_pitch_link", "0 0 -0.30", 1.5, 0.03, 0.03, 0.004),
+            link(f"{side}_ankle_pitch_link", f"{side}_knee_link", "0 0 -0.30", 0.6, 0.01, 0.01, 0.002),
+        ]
+    parts.append("</robot>")
+    urdf = tmp_path / "inertia.urdf"
+    urdf.write_text("\n".join(parts), encoding="utf-8")
+
+    leg_map = {"pelvis": "pelvis",
+               "left_hip": "left_hip_pitch_link", "right_hip": "right_hip_pitch_link",
+               "left_knee": "left_knee_link", "right_knee": "right_knee_link",
+               "left_ankle": "left_ankle_pitch_link", "right_ankle": "right_ankle_pitch_link"}
+    it = canonical_inertia_tensors(urdf, link_map=leg_map)
+    assert "pelvis" in it
+    total = sum(e["mass"] for e in it.values())
+    assert abs(total - (3.0 + 2 * (2.0 + 1.5 + 0.6))) < 1e-3
+    for name, e in it.items():
+        f = e["fullinertia"]
+        mat = np.array([[f[0], f[3], f[4]], [f[3], f[1], f[5]], [f[4], f[5], f[2]]])
+        assert float(np.linalg.eigvalsh(mat).min()) > 0, f"{name} 非PD"
+    # 左右対称（主慣性が一致）。
+    for seg in ("knee", "ankle"):
+        lf = np.array(it[f"left_{seg}"]["fullinertia"])
+        rf = np.array(it[f"right_{seg}"]["fullinertia"])
+        assert np.allclose(lf[:3], rf[:3], atol=1e-6)  # 対角は対称
+
+
 def test_canonical_envelope_aggregates_multi_dof_limb() -> None:
     """1 canonical 関節に複数 DOF がある場合、位置は最広・速度/トルクは最小に集約される。"""
     from robotdance_unitree.urdf_import import canonical_joint_limits

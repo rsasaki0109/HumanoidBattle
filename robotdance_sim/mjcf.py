@@ -61,6 +61,8 @@ _W_SUM = sum(_SEGMENT_MASS_WEIGHT.values())
 _SEGMENT_MASS_FRACTION = {k: v / _W_SUM for k, v in _SEGMENT_MASS_WEIGHT.items()}
 # 足部質量は capsule（中足）と接地 box（踵/接地）で 50/50 に分ける。
 _FOOT_BOX_SHARE = 0.5
+# 実慣性テンソルパスで、割当 link の無い bone に与える floor 質量（kg, 0 質量 body 回避）。
+_INERTIA_FLOOR_MASS = 0.02
 
 
 def build_mjcf(
@@ -82,6 +84,16 @@ def build_mjcf(
     raw = mass_fraction or getattr(morphology, "mass_distribution", None) or _SEGMENT_MASS_FRACTION
     fsum = sum(raw.get(name, 0.0) for name in JOINT_NAMES) or 1.0
     frac = {name: raw.get(name, 0.0) / fsum for name in JOINT_NAMES}  # Σ=1 へ再正規化
+
+    # 実 URDF 由来の per-bone 慣性テンソルがあれば、capsule 近似でなく explicit <inertial> を使う。
+    # mass_fraction を明示した場合は質量配分の上書き意図なので慣性は使わない。
+    itens = None if mass_fraction is not None else getattr(morphology, "inertia_tensors", None)
+    if itens:
+        # 慣性は実機の絶対値。total_mass へ合うようスケール（無割当 bone は floor 質量）。
+        raw_mass = {n: float(itens[n]["mass"]) if n in itens else _INERTIA_FLOOR_MASS
+                    for n in JOINT_NAMES}
+        iscale = total_mass / sum(raw_mass.values())
+
     pelvis_hub_mass = total_mass * frac["pelvis"]
 
     def _bone_mass(j: int) -> float:
@@ -90,6 +102,23 @@ def build_mjcf(
         if j in _FOOT_CHILD_JOINTS:
             f *= 1.0 - _FOOT_BOX_SHARE  # capsule 側（残りは接地 box へ）
         return max(total_mass * f, 0.01)
+
+    def _inertial_xml(name: str, pad: str) -> str:
+        """bone/pelvis の explicit <inertial>（質量・COM・実慣性テンソル, total_mass へスケール）。"""
+        m = raw_mass[name] * iscale
+        e = itens.get(name)
+        iso = max(m * 1e-3, 1e-6)
+        floor = f'{pad}<inertial pos="0 0 0" mass="{m:.6f}" diaginertia="{iso:.7f} {iso:.7f} {iso:.7f}"/>\n'
+        if e is None:  # 割当 link 無し → 原点に微小等方慣性（0 質量 body 回避）。
+            return floor
+        f = [v * iscale for v in e["fullinertia"]]  # [ixx,iyy,izz,ixy,ixz,iyz]
+        mat = np.array([[f[0], f[3], f[4]], [f[3], f[1], f[5]], [f[4], f[5], f[2]]])
+        if float(np.linalg.eigvalsh(mat).min()) <= 1e-9:
+            return floor  # 退化テンソル（微小 bone 等）は MuJoCo の正定値要件のため floor へ
+        # e["com"] は既に body 原点（親 joint）相対。body frame は rest で世界軸なのでそのまま pos に。
+        com = np.asarray(e["com"], dtype=np.float64)
+        return (f'{pad}<inertial pos="{_v(com)}" mass="{m:.6f}" '
+                f'fullinertia="{f[0]:.7f} {f[1]:.7f} {f[2]:.7f} {f[3]:.7f} {f[4]:.7f} {f[5]:.7f}"/>\n')
 
     # 各 joint の子 bone リスト（MJCF ネストは joint 親子ツリーと一致）。
     children: dict[int, list[int]] = {i: [] for i in range(len(JOINT_NAMES))}
@@ -103,21 +132,24 @@ def build_mjcf(
         # body_j 原点 = bone j の始点（= joint p）。親 body 原点（joint gp）からの相対 pos。
         pos = (rest[p] - rest[gp]) if p > 0 else np.zeros(3)
         endpoint = rest[j] - rest[p]  # 自 frame での bone 終点（= o_j）
-        mass = _bone_mass(j)
         pad = "  " * indent
         s = f'{pad}<body name="body_{j}" pos="{_v(pos)}">\n'
         s += f'{pad}  <joint name="jnt_{j}" type="ball"/>\n'
-        s += (
-            f'{pad}  <geom type="capsule" fromto="0 0 0 {_v(endpoint)}" '
-            f'size="0.04" mass="{mass:.4f}"/>\n'
-        )
+        # 慣性: 実テンソルがあれば explicit <inertial>、無ければ capsule geom 質量から自動算出。
+        if itens:
+            s += _inertial_xml(JOINT_NAMES[j], pad + "  ")
+            geom_mass = ""
+        else:
+            geom_mass = f' mass="{_bone_mass(j):.4f}"'
+        s += f'{pad}  <geom type="capsule" fromto="0 0 0 {_v(endpoint)}" size="0.04"{geom_mass}/>\n'
         if j in _FOOT_CHILD_JOINTS:
-            # 接地用の足 box（前方に伸ばす）。足部質量の box 側按分。
-            box_mass = total_mass * frac[JOINT_NAMES[j]] * _FOOT_BOX_SHARE
+            # 接地用の足 box（前方に伸ばす）。慣性パスでは質量は inertial 側、geom は接地形状のみ。
             box_size = f"{FOOT_BOX_HALF_LENGTH} {FOOT_BOX_HALF_WIDTH} {_FOOT_BOX_HALF_HEIGHT}"
+            box_mass = "" if itens else \
+                f' mass="{total_mass * frac[JOINT_NAMES[j]] * _FOOT_BOX_SHARE:.4f}"'
             s += (
-                f'{pad}  <geom type="box" pos="{_v(endpoint)}" size="{box_size}" '
-                f'mass="{box_mass:.4f}" friction="1 0.05 0.01"/>\n'
+                f'{pad}  <geom type="box" pos="{_v(endpoint)}" size="{box_size}"{box_mass} '
+                f'friction="1 0.05 0.01"/>\n'
             )
         for c in children[j]:
             s += emit_body(c, indent + 1)
@@ -127,7 +159,11 @@ def build_mjcf(
     # root = pelvis（free joint）。pelvis 自体に小球の geom。
     body = '    <body name="root" pos="0 0 1">\n'
     body += '      <freejoint name="root"/>\n'
-    body += f'      <geom type="sphere" size="0.06" mass="{pelvis_hub_mass:.4f}"/>\n'
+    if itens:
+        body += _inertial_xml("pelvis", "      ")
+        body += '      <geom type="sphere" size="0.06"/>\n'
+    else:
+        body += f'      <geom type="sphere" size="0.06" mass="{pelvis_hub_mass:.4f}"/>\n'
     for c in children[0]:
         body += emit_body(c, 3)
     body += "    </body>\n"
