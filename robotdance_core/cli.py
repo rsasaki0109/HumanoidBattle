@@ -1096,22 +1096,36 @@ def _sim_backends() -> int:
     return 0
 
 
-def _validate_sim(path: Path, robot: str, out: Path | None, backend: str = "mujoco") -> int:
+def _validate_sim(
+    path: Path, robot: str, out: Path | None, backend: str = "mujoco",
+    clamp_flexion: bool = False,
+) -> int:
+    from .model_card import build_motion_card
     from .rd_mir import RdMir
     from robotdance_retarget.kinematic import retarget
     from robotdance_sim.backend import certify
     from robotdance_unitree import get_morphology
 
     morph = get_morphology(robot)
-    motion = retarget(RdMir.load(path), morph)
+    motion = retarget(RdMir.load(path), morph, clamp_flexion=clamp_flexion)
     certify(motion, morph, backend=backend)
     cert = motion.sim_certificate or {}
-    print(f"{'✅' if cert.get('passed') else '⛔'} {robot}: {cert.get('verdict')}")
+    print(f"{'✅' if cert.get('passed') else '⛔'} {robot}: {cert.get('verdict')}"
+          f"{'（clamp_flexion 補正後）' if clamp_flexion else ''}")
     for k, v in (cert.get("metrics") or {}).items():
         print(f"    {k} = {v}")
     for r in cert.get("reasons") or []:
         print(f"    ⚠️ {r}")
     print(f"    {cert.get('note')}")
+
+    # 動的＋運動学的を集約した実行可否サマリ。
+    ex = build_motion_card(motion)["executability"]
+    flag = {True: "✅ yes", False: "❌ no", None: "❔ unknown"}[ex["executable"]]
+    print(f"  executable: {flag}（checked: {', '.join(ex['checked_axes']) or '—'}）")
+    rom_blocked = any("可動域" in b or "ROM" in b for b in ex.get("blockers", []))
+    if rom_blocked and not clamp_flexion:
+        print("  💡 --clamp-flexion を付けて再検証すると可動域内へ補正できます。")
+
     if out is not None:
         motion.save(out)
         print(f"  → sim_certificate 付き RD-Motion を保存: {out}")
@@ -1421,6 +1435,8 @@ def main(argv: list[str] | None = None) -> int:
     p_vsim.add_argument("--robot", default="unitree_g1")
     p_vsim.add_argument("--backend", default="mujoco", help="sim backend（mujoco / isaaclab …）")
     p_vsim.add_argument("-o", "--out", type=Path, default=None, help="certificate 付き .rdmotion 保存先")
+    p_vsim.add_argument("--clamp-flexion", action="store_true",
+                        help="膝・肘を実機可動域へ補正してから検証（ROM 違反の remedy）")
 
     sub.add_parser("sim-backends", help="登録済み sim backend と利用可否を表示（§4.3）")
 
@@ -1481,7 +1497,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "demo-multi":
         return _demo_multi(args.out, args.robots, args.stride)
     if args.command == "validate-sim":
-        return _validate_sim(args.path, args.robot, args.out, args.backend)
+        return _validate_sim(args.path, args.robot, args.out, args.backend, args.clamp_flexion)
     if args.command == "sim-backends":
         return _sim_backends()
     if args.command == "demo-pipeline":

@@ -198,6 +198,18 @@ def test_cli_retarget_clamp_flexion_flag(tmp_path: Path) -> None:
     assert jf["clamp"]["corrected_frame_ratio"] > 0.0
 
 
+def test_cli_validate_sim_clamp_remedies_rom(tmp_path: Path) -> None:
+    """CLI validate-sim: overbend は ROM 超過で rc=1、--clamp-flexion で rc=0（remedy）。"""
+    pytest.importorskip("mujoco")
+    from robotdance_core.cli import main
+    from robotdance_core.synthetic import generate_overbend
+
+    src = tmp_path / "ob.rdmir.json"
+    generate_overbend().save(src)
+    assert main(["validate-sim", str(src), "--robot", "unitree_g1"]) == 1
+    assert main(["validate-sim", str(src), "--robot", "unitree_g1", "--clamp-flexion"]) == 0
+
+
 def test_clamp_flexion_noop_without_per_joint_limits() -> None:
     """per_joint_limits が無い morphology では clamp は no-op（屈曲メトリクス自体も出ない）。"""
     import dataclasses

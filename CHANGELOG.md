@@ -5,6 +5,18 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.46.0] - 2026-06-04
+
+実データ深掘り（executability を CLI に露出, pre-alpha）。v0.45 で Model Card に追加した統合
+executability サマリを CLI でも見えるようにし、ユーザーが `validate-sim` だけで実行可否と
+remedy を確認できるようにした。
+
+### Added
+- CLI `validate-sim`（`robotdance_core.cli`）: 動的＋運動学的を集約した `executable: ✅/❌/❔`
+  サマリを出力。ROM が blocker のときは `--clamp-flexion` での補正を誘導。
+- CLI `validate-sim --clamp-flexion`: 膝・肘を実機可動域へ補正してから検証（ROM 違反の remedy）。
+  overbend G1 は補正なしで rc=1（REJECT）、`--clamp-flexion` で rc=0（PASS）。
+
 ## [0.45.0] - 2026-06-04
 
 実データ深掘り（Model Card に統合 executability サマリ, pre-alpha）。v0.44 で動的＋運動学的

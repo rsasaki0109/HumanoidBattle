@@ -334,7 +334,8 @@ robotdance validate     mir dance.rdmir.json                              # v0 s
 robotdance view         dance.rdmir.json -o dance.gif                     # 3D スケルトン GIF
 robotdance retarget     dance.rdmir.json -o h1.rdmotion.json --robot unitree_h1
 robotdance view-pair    dance.rdmir.json h1.rdmotion.json -o pair.gif     # human | robot
-robotdance validate-sim dance.rdmir.json --robot unitree_g1               # MuJoCo 物理検証
+robotdance validate-sim dance.rdmir.json --robot unitree_g1               # MuJoCo 物理検証（executable: yes/no）
+robotdance validate-sim dance.rdmir.json --robot unitree_g1 --clamp-flexion  # ROM 違反を補正して再検証
 ```
 
 > ここで使う動画は**合成データ**で、pose 推定や物理 sim は**まだ含みません**。
