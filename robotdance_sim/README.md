@@ -39,7 +39,9 @@ Isaac Lab / MuJoCo / Genesis-style backend adapters — 物理シミュレーシ
 > 偽 twist スパイク（実測 ~80 rad/s）が出ない。bone 方向は厳密再現で位置・COM・トルクは不変。これにより
 > RL tracking の reference 速度・PD 追従誤差や export 軌道など qpos を差分する全経路が clean に保たれる。
 > 効果の定量比較は [`docs/sim/REFERENCE_QUALITY.md`](../docs/sim/REFERENCE_QUALITY.md)（overbend 20×・
-> backflip 5-7× の偽スパイク除去）。`python3 -m robotdance_sim.reference_quality` で再生成。
+> backflip 5-7× の偽スパイク除去）。さらに **追従可能性** も判定: 偽スパイクは reference を実機の
+> アクチュエータ速度上限（v0.38 の `per_joint_limits.velocity`）を最大 2.4× 超える untrackable な軌道に
+> するが、時系列復元は全 motion で速度包絡内（untrackable 0%）。`python3 -m robotdance_sim.reference_quality` で再生成。
 
 ```python
 from robotdance_sim.backend import certify, backend_status

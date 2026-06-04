@@ -25,3 +25,27 @@ verdict は不変**で、差はすべて不可観測な twist アーティファ
 > per-frame と temporal が一致する motion（spike factor ≈ 1）は反平行付近に滞在する bone が
 > 無く特異点を踏まないため。overbend のような過屈曲でのみ偽スパイクが顕在化する。
 
+## 追従可能性（実機アクチュエータ速度上限 vs reference 要求速度）
+
+reference が要求する関節角速度を、その関節の**実 URDF 速度上限**（v0.38 取り込みの
+`per_joint_limits.velocity`）と比較する。上限超過は物理的に追従不能＝コントローラが原理的に
+再現できない reference を意味する。単フレーム復元の偽 twist スパイクは速度上限を大きく超え
+reference を untrackable にするが、時系列復元は **全 motion で速度包絡内（untrackable 0%）**。
+コントローラ学習・PD 追従に渡せる trackable な reference を保証する。
+
+| robot | motion | per-frame untrackable | per-frame max demand | temporal untrackable | temporal max demand |
+| --- | --- | ---: | ---: | ---: | ---: |
+| unitree_g1 | dance_normal | 0.0% | 0.1× | 0.0% | 0.1× |
+| unitree_g1 | dance_fast | 0.0% | 0.2× | 0.0% | 0.2× |
+| unitree_g1 | idle | 0.0% | 0.0× | 0.0% | 0.0× |
+| unitree_g1 | backflip | 10.6% | 1.8× | 0.0% | 0.2× |
+| unitree_g1 | overbend | 6.8% | 2.2× | 0.0% | 0.1× |
+| unitree_h1 | dance_normal | 0.0% | 0.2× | 0.0% | 0.3× |
+| unitree_h1 | dance_fast | 0.0% | 0.4× | 0.0% | 0.4× |
+| unitree_h1 | idle | 0.0% | 0.1× | 0.0% | 0.1× |
+| unitree_h1 | backflip | 10.6% | 2.4× | 0.0% | 0.3× |
+| unitree_h1 | overbend | 0.0% | 0.3× | 0.0% | 0.3× |
+
+> max demand = max(要求速度 / 実速度上限)。>1.0 で追従不能。backflip は per-frame だと実機の
+> アクチュエータ速度を最大 2.4× 超える要求を 10% のフレームで出すが、temporal は ≤0.4× に収まる。
+

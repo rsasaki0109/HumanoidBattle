@@ -337,6 +337,39 @@ def test_reference_velocity_temporal_never_worse_than_per_frame() -> None:
         assert r["temporal_max_rad_s"] <= r["per_frame_max_rad_s"] + 0.5, name
 
 
+def test_reference_trackability_temporal_within_real_velocity_limits() -> None:
+    """偽 twist スパイクは実機速度上限を超え reference を追従不能にするが、時系列復元は包絡内。
+
+    backflip は per-frame 復元だと実 URDF アクチュエータ速度上限（per_joint_limits.velocity）を
+    超える要求を一部フレームで出す（untrackable>0）。時系列復元（v0.47）はその偽要求を消し、
+    全フレームで速度上限内（untrackable=0, max demand<1）= コントローラに渡せる trackable な reference。
+    """
+    from robotdance_sim.reference_quality import reference_trackability_report
+
+    morph = get_morphology("unitree_g1")
+    t = reference_trackability_report(retarget(generate_backflip(), morph), morph)
+    # per-frame は実速度上限超過（追従不能フレームあり）。
+    assert t["per_frame_untrackable_ratio"] > 0.0
+    assert t["per_frame_max_demand_ratio"] > 1.0
+    # 時系列復元は全フレームで速度包絡内。
+    assert t["temporal_untrackable_ratio"] == 0.0
+    assert t["temporal_max_demand_ratio"] < 1.0
+
+
+def test_reference_trackability_temporal_trackable_across_suite() -> None:
+    """スイート全 motion で時系列復元 reference は実機速度上限内（追従不能フレーム 0）。"""
+    from robotdance_benchmarks.suite import default_motion_suite
+    from robotdance_sim.reference_quality import reference_trackability_report
+
+    for rob in ("unitree_g1", "unitree_h1"):
+        morph = get_morphology(rob)
+        for name, mir in default_motion_suite().items():
+            t = reference_trackability_report(retarget(mir, morph), morph)
+            # 時系列復元 reference は全フレームで実機速度上限内（追従可能）。
+            assert t["temporal_untrackable_ratio"] == 0.0, f"{rob}/{name}"
+            assert t["temporal_max_demand_ratio"] < 1.0, f"{rob}/{name}"
+
+
 def test_certificate_rejects_rom_violation_and_clamp_remedies() -> None:
     """動的に安定でも実機 ROM 超過なら統合 verdict は REJECT、clamp_flexion で PASS になる。
 

@@ -19,6 +19,8 @@ import numpy as np
 from robotdance_core.rd_motion import RdMotion
 from robotdance_retarget.embodiment import RobotMorphology
 
+from robotdance_core.skeleton import JOINT_NAMES
+
 from .mjcf import build_mjcf
 from .mujoco_backend import _max_bone_angular_speed, _pose_to_qpos, _poses_to_qpos
 
@@ -44,6 +46,74 @@ def _max_ref_joint_speed(model, qpos: np.ndarray, dt: float) -> float:
         joint_dofs = dq[6:].reshape(-1, 3)
         worst = max(worst, float(np.linalg.norm(joint_dofs, axis=1).max()) / dt)
     return worst
+
+
+def _joint_velocity_limits(model, morphology: RobotMorphology) -> "list[tuple[int, float]]":
+    """各 ball joint の (dof 先頭 index, 実 URDF 速度上限 [rad/s]) のリスト。"""
+    out = []
+    for jid in range(model.njnt):
+        name = model.joint(jid).name
+        if name and name.startswith("jnt_"):
+            j = int(name[4:])
+            adr = int(model.jnt_dofadr[jid])
+            lim = float(morphology.limit_for(JOINT_NAMES[j]).get("velocity") or 0.0)
+            if lim > 0.0:
+                out.append((adr, lim))
+    return out
+
+
+def reference_trackability_report(
+    motion: RdMotion, morphology: RobotMorphology
+) -> dict[str, Any]:
+    """reference qpos が **実機のアクチュエータ速度上限内で追従可能か** を判定する。
+
+    各フレームで reference が要求する関節角速度（tangent 差分 / dt）を、その関節の実 URDF 速度
+    上限（v0.38 で取り込んだ per_joint_limits.velocity）と比較する。上限を超える要求は物理的に
+    追従不能＝コントローラが原理的に再現できない reference を意味する。単フレーム復元の偽 twist
+    スパイクは速度上限を大きく超え（手首 ~80 rad/s ≫ G1 上限 37）reference を untrackable にするが、
+    時系列復元（_poses_to_qpos）は不可観測な twist を注入しないので速度包絡内に収まる。
+
+    返り値（per_frame / temporal それぞれ）:
+      *_untrackable_ratio: いずれかの関節が実速度上限を超えるフレームの割合。
+      *_max_demand_ratio:  全 (frame, joint) での要求速度 / 上限 の最大値（>1 で追従不能）。
+    """
+    import mujoco
+
+    kps = motion.keypoints_3d_array()
+    dt = 1.0 / float(motion.fps)
+    n = kps.shape[0]
+    model = mujoco.MjModel.from_xml_string(
+        build_mjcf(morphology, total_mass=morphology.sim_defaults.total_mass, ground=False)
+    )
+    limits = _joint_velocity_limits(model, morphology)
+    per_frame = np.stack([_pose_to_qpos(model, morphology, kps[f]) for f in range(n)])
+    temporal = _poses_to_qpos(model, morphology, kps)
+
+    def _judge(qpos: np.ndarray) -> "tuple[float, float]":
+        if n < 2 or not limits:
+            return 0.0, 0.0
+        dq = np.zeros(model.nv)
+        bad = 0
+        max_ratio = 0.0
+        for f in range(n - 1):
+            mujoco.mj_differentiatePos(model, dq, 1.0, qpos[f], qpos[f + 1])
+            over = False
+            for adr, lim in limits:
+                ratio = float(np.linalg.norm(dq[adr:adr + 3])) / dt / lim
+                max_ratio = max(max_ratio, ratio)
+                if ratio > 1.0:
+                    over = True
+            bad += int(over)
+        return bad / (n - 1), max_ratio
+
+    pf_ratio, pf_max = _judge(per_frame)
+    tm_ratio, tm_max = _judge(temporal)
+    return {
+        "per_frame_untrackable_ratio": pf_ratio,
+        "per_frame_max_demand_ratio": pf_max,
+        "temporal_untrackable_ratio": tm_ratio,
+        "temporal_max_demand_ratio": tm_max,
+    }
 
 
 def reference_velocity_report(
@@ -98,7 +168,8 @@ def reference_quality_table(
         for name, mir in suite.items():
             motion = retarget(mir, morph)
             r = reference_velocity_report(motion, morph)
-            rows.append((rob, name, r))
+            t = reference_trackability_report(motion, morph)
+            rows.append((rob, name, r, t))
 
     out = [
         "# Reference qpos 品質（twist 安定化の効果）",
@@ -113,7 +184,7 @@ def reference_quality_table(
         "| robot | motion | per-frame [rad/s] | temporal [rad/s] | bone-truth [rad/s] | spike factor |",
         "| --- | --- | ---: | ---: | ---: | ---: |",
     ]
-    for rob, name, r in rows:
+    for rob, name, r, _t in rows:
         sf = r["spike_factor"]
         sf_s = "∞" if sf == float("inf") else f"{sf:.1f}×"
         out.append(
@@ -126,6 +197,33 @@ def reference_quality_table(
     )
     out.append(
         "> 無く特異点を踏まないため。overbend のような過屈曲でのみ偽スパイクが顕在化する。"
+    )
+    out += [
+        "",
+        "## 追従可能性（実機アクチュエータ速度上限 vs reference 要求速度）",
+        "",
+        "reference が要求する関節角速度を、その関節の**実 URDF 速度上限**（v0.38 取り込みの",
+        "`per_joint_limits.velocity`）と比較する。上限超過は物理的に追従不能＝コントローラが原理的に",
+        "再現できない reference を意味する。単フレーム復元の偽 twist スパイクは速度上限を大きく超え",
+        "reference を untrackable にするが、時系列復元は **全 motion で速度包絡内（untrackable 0%）**。",
+        "コントローラ学習・PD 追従に渡せる trackable な reference を保証する。",
+        "",
+        "| robot | motion | per-frame untrackable | per-frame max demand | temporal untrackable | temporal max demand |",
+        "| --- | --- | ---: | ---: | ---: | ---: |",
+    ]
+    for rob, name, _r, t in rows:
+        out.append(
+            f"| {rob} | {name} | {t['per_frame_untrackable_ratio'] * 100:.1f}% | "
+            f"{t['per_frame_max_demand_ratio']:.1f}× | "
+            f"{t['temporal_untrackable_ratio'] * 100:.1f}% | "
+            f"{t['temporal_max_demand_ratio']:.1f}× |"
+        )
+    out.append("")
+    out.append(
+        "> max demand = max(要求速度 / 実速度上限)。>1.0 で追従不能。backflip は per-frame だと実機の"
+    )
+    out.append(
+        "> アクチュエータ速度を最大 2.4× 超える要求を 10% のフレームで出すが、temporal は ≤0.4× に収まる。"
     )
     out.append("")
     return "\n".join(out)

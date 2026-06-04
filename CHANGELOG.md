@@ -5,6 +5,21 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.49.0] - 2026-06-04
+
+実データ深掘り（reference の追従可能性を実機速度上限で判定, pre-alpha）。v0.48 は reference 速度の
+大きさを測ったが、それが「実機で追従可能か」までは踏み込んでいなかった。本版で reference の要求
+関節速度を**実 URDF アクチュエータ速度上限**（v0.38 取り込みの `per_joint_limits.velocity`）と比較し、
+偽 twist スパイクが reference を物理的に追従不能にしていること、時系列復元がそれを解消することを示した。
+
+### Added
+- `robotdance_sim.reference_quality.reference_trackability_report`: reference の要求関節速度を実機
+  速度上限と比較し `{per_frame, temporal}_untrackable_ratio`（上限超過フレーム率）と `max_demand_ratio`
+  （要求速度/上限の最大）を返す。`>1.0` で追従不能。
+- `docs/sim/REFERENCE_QUALITY.md` に追従可能性テーブルを追加。**backflip は per-frame 復元だと実機の
+  アクチュエータ速度上限を最大 2.4× 超える要求を ~10% のフレームで出す（追従不能）が、時系列復元は
+  全 motion で 0%・≤0.4×**（速度包絡内）。コントローラ学習・PD 追従に渡せる trackable な reference を保証。
+
 ## [0.48.0] - 2026-06-04
 
 実データ深掘り（twist 安定化の効果を定量化, pre-alpha）。v0.47 で reference qpos の twist を時間
