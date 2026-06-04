@@ -5,6 +5,12 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-06-04
+
+spec の質向上の節目リリース（pre-alpha）。自由 dict だった RD-MIR `semantics` を action_label /
+style_tag / captions / segments（連続行動）として構造化し、後方互換を保ったまま型付きの行動・
+テキスト情報を載せられるようにした。
+
 ### Added
 - **RD-MIR semantics の構造化（§3）**（`robotdance_core.semantics`, rd-mir schema）: これまで自由 dict
   だった `RdMir.semantics` を **action_label / style_tag / captions / segments（連続行動
@@ -13,6 +19,8 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   rd-mir schema の `semantics` に構造を文書化（**後方互換のため `additionalProperties: true` を維持**＝
   旧来の自由 dict もそのまま適合）。BABEL adapter が frame_ann を標準 `segments` として出力するよう更新。
   pydantic のみで **CI 検証**。
+
+[0.25.0]: https://github.com/rsasaki0109/RobotDance/releases/tag/v0.25.0
 
 ## [0.24.0] - 2026-06-04
 
