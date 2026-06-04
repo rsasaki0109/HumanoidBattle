@@ -5,6 +5,24 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.41.0] - 2026-06-04
+
+実データ深掘り（joint-flexion 違反の end-to-end 検証, pre-alpha）。v0.39/0.40 で作った屈曲メトリクスが
+「実際に可動域違反を検出し benchmark / Model Card まで伝播する」ことを、過屈曲する合成モーションで
+単離検証した。これまで違反>0 のテストは手組み keypoints のみで、synthetic→retarget→集計の実経路は
+未検証だった。
+
+### Added
+- `robotdance_core.synthetic.generate_overbend()`: 肘を実機可動域上限を超えて折り畳む合成 RD-MIR。
+  脚は接地・直立を保ち「運動学的に可動域だけを超える」ケースを単離。benchmark の `default_motion_suite()`
+  に `overbend` として追加。
+- 統合テスト: synthetic→retarget で肘違反>0（`test_retarget`）、benchmark leaderboard への伝播
+  （`test_benchmark`）、Model Card `kinematic_feasibility` への伝播（`test_model_card`）。
+
+### Notable
+- 同じ overbend モーションが **G1（肘上限 2.09）では屈曲違反 0.25、H1（肘上限 2.61）では 0.00** と
+  embodiment 固有の可動域を区別して検出する。sample leaderboard を再生成して反映。
+
 ## [0.40.0] - 2026-06-04
 
 実データ深掘り（joint-flexion メトリクスを benchmark / Model Card で可視化, pre-alpha）。v0.39 で

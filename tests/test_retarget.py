@@ -120,6 +120,24 @@ def test_joint_flexion_detects_over_bend() -> None:
     assert jf["any_violation_ratio"] == 1.0
 
 
+def test_overbend_synthetic_violates_via_real_retarget() -> None:
+    """合成 overbend を実 retarget に通すと肘が実可動域上限を超え violation_ratio>0。
+
+    手組み keypoints ではなく synthetic→retarget の実経路で違反が出ることを確認する
+    （direction-preserving FK が人間の過屈曲を robot bone にそのまま写すことの検証）。
+    """
+    from robotdance_core.synthetic import generate_overbend
+
+    jf = retarget_to_g1(generate_overbend()).retarget_metrics["joint_flexion"]
+    assert jf["any_violation_ratio"] > 0.0
+    for side in ("left_elbow", "right_elbow"):
+        d = jf["per_joint"][side]
+        assert d["max_flexion_rad"] > d["limit_upper_rad"]  # 上限超過
+        assert d["violation_ratio"] > 0.0
+    # 脚は曲げていない → 膝は違反なし。
+    assert jf["per_joint"]["left_knee"]["violation_ratio"] == 0.0
+
+
 def test_joint_flexion_absent_without_per_joint_limits() -> None:
     """per_joint_limits が無い morphology では屈曲メトリクスは出ない（測れない）。"""
     import dataclasses

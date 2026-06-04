@@ -1,6 +1,6 @@
 # RobotDance Benchmark
 
-motions: **4** × robots: **2** = 8 runs · sim: **on**
+motions: **5** × robots: **2** = 10 runs · sim: **on**
 
 > ⚠️ v0: 近似形態プロキシ + 近似慣性。実機保証ではない（各 README 参照）。
 
@@ -8,8 +8,8 @@ motions: **4** × robots: **2** = 8 runs · sim: **on**
 
 | robot | runs | PASS率 | 平均 bone方向cos | 平均 foot_sliding | 平均 height_scale | 平均 屈曲違反率 |
 | --- | --- | --- | --- | --- | --- | --- |
-| unitree_g1 | 4 | 0.500 | 1.000 | 0.025 | 0.920 | 0.000 |
-| unitree_h1 | 4 | 0.750 | 1.000 | 0.032 | 1.186 | 0.000 |
+| unitree_g1 | 5 | 0.400 | 1.000 | 0.020 | 0.906 | 0.050 |
+| unitree_h1 | 5 | 0.800 | 1.000 | 0.026 | 1.168 | 0.000 |
 
 ## 全 run（motion × robot）
 
@@ -23,3 +23,5 @@ motions: **4** × robots: **2** = 8 runs · sim: **on**
 | idle | dance | unitree_h1 | PASS | 0.000 | 0.000 | 0.339 | 0.770 | 0.002 | 1.000 | 0.000 |
 | backflip | backflip | unitree_g1 | REJECT | 0.875 | 0.938 | 0.414 | 17.200 | 0.089 | 1.000 | 0.000 |
 | backflip | backflip | unitree_h1 | REJECT | 0.875 | 0.938 | 0.453 | 23.720 | 0.116 | 1.000 | 0.000 |
+| overbend | overbend | unitree_g1 | REJECT | 0.000 | 0.000 | 0.193 | 78.840 | 0.000 | 1.000 | 0.250 |
+| overbend | overbend | unitree_h1 | PASS | 0.000 | 0.000 | 0.504 | 3.810 | 0.000 | 1.000 | 0.000 |

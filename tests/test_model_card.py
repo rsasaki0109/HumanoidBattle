@@ -82,6 +82,18 @@ def test_motion_card_surfaces_joint_flexion_feasibility() -> None:
     assert set(feas["tracked_joints"]) >= {"left_knee", "left_elbow"}
 
 
+def test_motion_card_surfaces_overbend_violation_end_to_end() -> None:
+    """overbend synthetic → retarget → Model Card に屈曲違反率>0 が伝播する。"""
+    from robotdance_core.synthetic import generate_overbend
+
+    motion = retarget(generate_overbend(), get_morphology("unitree_g1"))
+    card = build_motion_card(motion)
+    feas = card["safety_limits"]["kinematic_feasibility"]
+    assert feas["joint_flexion_violation_ratio"] > 0.0  # 実機可動域超過が card に出る
+    md = render_markdown(card)
+    assert "kinematic_feasibility" in md  # safety セクションに表出
+
+
 def test_render_markdown_has_required_headers() -> None:
     card = build_motion_card(retarget(_mir(), get_morphology("unitree_g1")))
     md = render_markdown(card)

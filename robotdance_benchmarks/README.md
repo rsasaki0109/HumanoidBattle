@@ -6,7 +6,8 @@ extraction / retarget / sim tracking benchmark — 抽出・retarget・追従の
 
 - `suite.py` — `run_benchmark(motions, robots)`: motion × robot を full pipeline
   （retarget → MuJoCo 物理検証）に通し、既存の全指標を 1 行 = 1 (motion, robot) に集約。
-  `default_motion_suite()` は権利クリーンな合成スイート。`run_from_dir()` で `*.rdmir.json` も可。
+  `default_motion_suite()` は権利クリーンな合成スイート（dance/idle/backflip + **overbend**＝肘を
+  実機可動域上限超で折り `joint_flexion_violation>0` を出す ROM 違反デモ）。`run_from_dir()` で `*.rdmir.json` も可。
 - `report.py` — CSV 出力 + Markdown **leaderboard**（robot 別 PASS率・平均指標）。
 - `extraction.py` — **抽出 adapter benchmark**（§4.1）: MediaPipe / HMR(4DHumans/GVHMR) 等の
   video→RD-MIR 抽出を**共通 GT に対し定量比較**。`extraction_metrics(gt, pred)` が **MPJPE**

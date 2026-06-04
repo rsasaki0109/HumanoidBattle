@@ -133,6 +133,60 @@ def generate_dance(
     )
 
 
+def generate_overbend(
+    *,
+    duration: float = 2.0,
+    fps: float = 30.0,
+    elbow_flexion: float = 2.5,
+    motion_id: str = "rdmir-synth-overbend-0001",
+) -> RdMir:
+    """肘を実機可動域上限を超えて折り畳む合成 RD-MIR（joint-flexion 違反のデモ）。
+
+    肘屈曲角を `elbow_flexion`（rad, 既定 2.5 ≈ 143°）まで折る。G1/H1 の肘上限（~2.09 rad）を
+    超えるため、retarget の `joint_flexion` が violation_ratio>0 を出すべき運動。脚は接地・直立を保ち、
+    sim としては危険ではない（balance/airborne は出ない）ので「運動学的に実機可動域だけを超える」
+    ケースを単離してメトリクス伝播を end-to-end 検証できる。
+    """
+    n_frames = round(fps * duration)
+    t = np.arange(n_frames) / fps
+    phase = 2.0 * np.pi * 0.5 * t  # ゆっくり折り畳む/伸ばす
+
+    i_lel, i_rel = index_of("left_elbow"), index_of("right_elbow")
+    i_lsh, i_rsh = index_of("left_shoulder"), index_of("right_shoulder")
+
+    keypoints = np.zeros((n_frames, NUM_JOINTS, 3))
+    for f in range(n_frames):
+        ph = phase[f]
+        local = [Rot.identity() for _ in range(NUM_JOINTS)]
+        # 肩を軽く前へ出して腕を体の前へ（折り畳みが見えるように）。
+        local[i_lsh] = Rot.from_euler("x", 0.6)
+        local[i_rsh] = Rot.from_euler("x", -0.6)
+        # 肘屈曲: 0..elbow_flexion を行き来（lateral 軸 y 回り ≈ 屈曲角）。上限超過フレームを確実に作る。
+        flex = elbow_flexion * (0.5 + 0.5 * np.sin(ph))
+        local[i_lel] = Rot.from_euler("y", flex)
+        local[i_rel] = Rot.from_euler("y", flex)
+        keypoints[f] = _fk(local, _REST[0].copy())
+
+    contacts = {
+        "left_foot": [True] * n_frames,
+        "right_foot": [True] * n_frames,
+    }
+    return RdMir(
+        motion_id=motion_id,
+        source_ref={"dataset_name": "robotdance-synthetic", "generator": "synthetic.generate_overbend"},
+        license_state="redistributable",
+        fps=fps,
+        duration=duration,
+        skeleton=Skeleton(joint_names=JOINT_NAMES, parents=PARENTS),
+        root_trajectory={"position": keypoints[:, 0, :].tolist()},
+        keypoints_3d=keypoints.tolist(),
+        contacts=contacts,
+        privacy_flags={"synthetic": True, "face_visible": False},
+        semantics={"action_label": "overbend", "style_tag": "synthetic_rom_violation_demo"},
+        extractor_versions={"generator": "robotdance.synthetic.v0"},
+    )
+
+
 def generate_backflip(
     *,
     duration: float = 1.6,

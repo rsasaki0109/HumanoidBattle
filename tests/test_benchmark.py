@@ -15,12 +15,12 @@ from robotdance_benchmarks.suite import default_motion_suite, run_benchmark
 
 def test_default_suite_has_variety() -> None:
     suite = default_motion_suite()
-    assert {"dance_normal", "dance_fast", "idle", "backflip"} <= set(suite)
+    assert {"dance_normal", "dance_fast", "idle", "backflip", "overbend"} <= set(suite)
 
 
 def test_run_benchmark_no_sim_shape() -> None:
     report = run_benchmark(default_motion_suite(), ["unitree_g1", "unitree_h1"], with_sim=False)
-    assert len(report["rows"]) == 4 * 2
+    assert len(report["rows"]) == 5 * 2
     assert report["sim_available"] is False
     # retarget 指標は sim なしでも入る。
     for r in report["rows"]:
@@ -37,12 +37,21 @@ def test_write_csv_and_markdown(tmp_path) -> None:
     md_path = write_markdown(report, tmp_path / "L.md")
     with csv_path.open() as f:
         rows = list(csv.DictReader(f))
-    assert len(rows) == 4
+    assert len(rows) == 5
     assert "motion_id" in rows[0] and "verdict" in rows[0]
     assert "joint_flexion_violation" in rows[0]  # 新列が CSV に出る
     md = md_path.read_text("utf-8")
     assert "Leaderboard" in md and "unitree_g1" in md
     assert "屈曲違反" in md  # leaderboard / 全 run 表に屈曲列が出る
+
+
+def test_overbend_propagates_violation_to_leaderboard() -> None:
+    """overbend motion が benchmark 経由で joint_flexion_violation>0 として leaderboard に伝播。"""
+    report = run_benchmark(default_motion_suite(), ["unitree_g1"], with_sim=False)
+    overbend = next(r for r in report["rows"] if r["motion_id"] == "overbend")
+    dance = next(r for r in report["rows"] if r["motion_id"] == "dance_normal")
+    assert overbend["joint_flexion_violation"] > 0.0   # 実機可動域超過を検出
+    assert dance["joint_flexion_violation"] == 0.0     # 通常ダンスは違反なし
 
 
 def test_aggregate_pass_rate() -> None:

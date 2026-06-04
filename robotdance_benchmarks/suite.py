@@ -49,13 +49,15 @@ def _motion_class(mir: RdMir) -> str:
 
 def default_motion_suite() -> dict[str, RdMir]:
     """合成モーションの標準スイート（権利クリーン・決定的）。"""
-    from robotdance_core.synthetic import generate_backflip, generate_dance
+    from robotdance_core.synthetic import generate_backflip, generate_dance, generate_overbend
 
     suite = {
         "dance_normal": generate_dance(beats_per_second=1.0),
         "dance_fast": generate_dance(beats_per_second=1.6),
         "idle": generate_dance(beats_per_second=0.5, arm_amp=0.15, sway_amp=0.04),
         "backflip": generate_backflip(duration=1.6),
+        # 肘を実機可動域上限を超えて折る → joint_flexion_violation>0 を leaderboard に出す実例。
+        "overbend": generate_overbend(),
     }
     for name, mir in suite.items():
         mir.motion_id = name
