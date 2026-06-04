@@ -5,6 +5,25 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.43.0] - 2026-06-04
+
+実データ深掘り（sim_certificate の角速度を twist アーティファクトから是正, pre-alpha）。clamp の sim
+効果を検証中に、`max_joint_ang_speed` が滑らかな動きに対し偽の巨大スパイク（overbend で ~79 rad/s）を
+出し overbend を誤って REJECT していたことを発見・修正した。
+
+### Fixed
+- `max_joint_ang_speed_rad_s`（`robotdance_sim.mujoco_backend`）: keypoints から再構成した ball-joint
+  quaternion の差分で算出していたが、**bone 軸まわりの twist は keypoints から定まらず**（向きが任意）、
+  手首など leaf joint・極端な屈曲で再構成 quaternion が不連続化し、データに存在しない偽の角速度を
+  生んでいた。bone 方向（2-DOF, twist-free）の変化率から算出する `_max_bone_angular_speed` に置換。
+  backflip の角速度は 17–24→4.0 rad/s に是正（剛体回転中の偽 twist 除去）。verdict 変化は overbend
+  G1 の REJECT→PASS のみで、他の verdict（dance PASS / dance_fast・backflip REJECT）は不変。
+
+### Notable
+- overbend G1 が **sim PASS（動的に安定）かつ joint_flexion 違反 0.25（運動学的に可動域超過）** となり、
+  動的 feasibility（sim_certificate）と運動学的 feasibility（joint_flexion）が**直交・相補的な 2 軸**で
+  あることを leaderboard 上で実証。sample leaderboard を再生成して反映。
+
 ## [0.42.0] - 2026-06-04
 
 実データ深掘り（屈曲違反の検出→自動補正, pre-alpha）。v0.39〜0.41 で「膝・肘の屈曲が実機可動域を

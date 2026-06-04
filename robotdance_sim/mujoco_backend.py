@@ -51,6 +51,26 @@ def _quat_to_mat(q_wxyz: np.ndarray) -> np.ndarray:
     return Rot.from_quat([q_wxyz[1], q_wxyz[2], q_wxyz[3], q_wxyz[0]]).as_matrix()
 
 
+def _max_bone_angular_speed(kps: np.ndarray, dt: float) -> float:
+    """各 bone（親→子）方向の連続フレーム間角度変化率の最大値 [rad/s]。
+
+    keypoints から ball joint の qpos を再構成して差分すると、bone 軸まわりの twist は
+    keypoints に拘束されず（向きが任意に決まる）、再構成 quaternion の不連続が**データに無い
+    偽の角速度スパイク**を生む（特に手首など leaf joint・極端な屈曲で顕著）。bone 方向は 2-DOF で
+    twist を含まないため、その変化率を直接測ることで twist アーティファクトを排した実速度を得る。
+    """
+    if kps.shape[0] < 2:
+        return 0.0
+    par = np.array([max(p, 0) for p in PARENTS])
+    d = kps - kps[:, par, :]                                  # [T, J, 3] 親→子
+    d = d / np.maximum(np.linalg.norm(d, axis=2, keepdims=True), _EPS)
+    dot = (d[:-1] * d[1:]).sum(axis=2)                        # [T-1, J]
+    ang = np.arccos(np.clip(dot, -1.0, 1.0)) / dt
+    root_cols = [j for j, p in enumerate(PARENTS) if p < 0]
+    ang[:, root_cols] = 0.0
+    return float(ang.max())
+
+
 def _pose_to_qpos(model, morphology: RobotMorphology, kps: np.ndarray) -> np.ndarray:
     """1 フレームの keypoints [J, 3] を qpos に厳密復元する。"""
     rest = morphology.rest_pose
@@ -150,10 +170,9 @@ def simulate_certificate(
     gravity_torque = float(np.max([t for t, _ in per_frame_torque])) if per_frame_torque else 0.0
     torque_ratio = float(np.max([r for _, r in per_frame_torque])) if per_frame_torque else 0.0
 
-    # joint 角速度（first-order 差分。ang_speed 用）。
-    qvel = np.zeros((n, model.nv))
-    for f in range(n - 1):
-        mujoco.mj_differentiatePos(model, qvel[f], dt, qpos[f], qpos[f + 1])
+    # joint 角速度: bone 方向の変化率（twist-free, _max_bone_angular_speed 参照）。
+    # 旧来は再構成 qpos の差分だったが、leaf joint の未拘束 twist が偽スパイクを生んでいた。
+    max_joint_ang_speed = _max_bone_angular_speed(kps, dt)
 
     # COM 加速度 → ZMP（平地・総質量点近似, ground z=0）。
     com_acc = np.zeros((n, 3))
@@ -184,7 +203,7 @@ def simulate_certificate(
 
     airborne_ratio = airborne / n
     balance_violation_ratio = unsupported / n
-    max_joint_ang_speed = float(np.abs(qvel[:, 6:]).max()) if n > 1 else 0.0
+    # max_joint_ang_speed は上で bone 方向から算出済み（twist-free）。
     # torque_ratio は per-joint 負荷率の最大（上のループで算出済み）。
 
     reasons: list[str] = []

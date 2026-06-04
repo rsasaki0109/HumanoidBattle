@@ -28,7 +28,7 @@ Isaac Lab / MuJoCo / Genesis-style backend adapters — 物理シミュレーシ
 | torque saturation | 逆動力学 `mj_inverse`（純 RNEA）→ 内部 joint トルク | p50 が actuator 限界超過 |
 | balance / 転倒 | 質量モデルの COM → ZMP vs 接地足の支持多角形 | ZMP が支持外 >30% |
 | 滞空 | contact_schedule に接地なし | airborne >10% |
-| 過大運動 | ball joint 角速度 | >30 rad/s |
+| 過大運動 | bone 方向角速度（twist-free） | >30 rad/s |
 
 ```python
 from robotdance_sim.backend import certify, backend_status

@@ -9,11 +9,16 @@ import pytest
 
 pytest.importorskip("mujoco")
 
-from robotdance_core.synthetic import generate_backflip, generate_dance  # noqa: E402
+from robotdance_core.synthetic import (  # noqa: E402
+    generate_backflip,
+    generate_dance,
+    generate_overbend,
+)
 from robotdance_retarget.kinematic import retarget  # noqa: E402
 from robotdance_sim.mjcf import FOOT_BOX_HALF_WIDTH, build_mjcf  # noqa: E402
 from robotdance_sim.mujoco_backend import (  # noqa: E402
     _foot_footprint,
+    _max_bone_angular_speed,
     _zmp_in_support,
     certify,
     simulate_certificate,
@@ -203,6 +208,38 @@ def test_backflip_is_rejected(robot: str) -> None:
     assert cert["reasons"]  # 理由が付く
     # 滞空（接地なし）を検出している。
     assert cert["metrics"]["airborne_ratio"] > 0.5
+
+
+def test_bone_angular_speed_is_twist_free() -> None:
+    """全 bone を z=0 平面に置き z 軸回りに一定 ω で剛体回転 → 厳密に ω を返す（twist 非依存）。"""
+    from scipy.spatial.transform import Rotation as Rot
+
+    dt = 1.0 / 30.0
+    n, omega = 10, 2.0
+    # 各 joint を z=0 平面の相異なる点に置く（全 bone が非退化・水平 → z 回転で厳密に ω）。
+    base = np.array([[0.1 * (j + 1), 0.02 * j, 0.0] for j in range(19)])
+    kps = np.stack([Rot.from_euler("z", omega * f * dt).apply(base) for f in range(n)])
+    assert _max_bone_angular_speed(kps, dt) == pytest.approx(omega, abs=1e-6)
+
+
+@pytest.mark.parametrize("robot", ["unitree_g1", "unitree_h1"])
+def test_overbend_passes_sim_but_violates_flexion(robot: str) -> None:
+    """過屈曲モーションは動的には安定（sim PASS）だが運動学的に可動域違反 — 2 軸の直交性。
+
+    旧 sim は手首など leaf joint の未拘束 twist が偽の角速度スパイク（~79 rad/s）を生み、
+    overbend を誤って REJECT していた。bone 方向角速度（twist-free）化でこれを是正する。
+    """
+    morph = get_morphology(robot)
+    motion = retarget(generate_overbend(), morph)
+    cert = simulate_certificate(motion, morph)
+    # 偽スパイクが無くなり、滑らかな折り畳みの実速度（<30 rad/s）になる。
+    assert cert["metrics"]["max_joint_ang_speed_rad_s"] < 30.0
+    # 足は接地・直立で動的には安定 → PASS。
+    assert cert["verdict"] == "PASS"
+    assert cert["metrics"]["airborne_ratio"] == 0.0
+    # G1 は肘可動域（~2.09）を超えるので屈曲違反は別軸で検出される。
+    if robot == "unitree_g1":
+        assert motion.retarget_metrics["joint_flexion"]["any_violation_ratio"] > 0.0
 
 
 def test_certify_attaches_to_motion() -> None:
