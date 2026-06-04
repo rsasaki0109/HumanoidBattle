@@ -5,6 +5,19 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.60.0] - 2026-06-05
+
+新展開（合成モーションスイートを拡充, pre-alpha）。4 機種が揃った feasibility 検証を、より多様な運動で
+exercise する。squat（膝 ROM/保持トルク）と march（単脚支持 balance）を追加。
+
+### Added
+- `synthetic.generate_squat`: 両脚対称の深屈曲＋接地保持。膝 ROM と屈曲位の保持トルクを exercise
+  （動的にクリーン → feasible。torque_ratio は機種差: G1 0.28 / H1 0.56 / Apollo 0.40）。
+- `synthetic.generate_march`: その場足踏み（片足を交互に持ち上げ、支持脚上へ root を横移動）。
+  **単脚支持の balance（ZMP vs 支持多角形）**を exercise（airborne ではなく balance 軸で REJECT）。
+- `_ground_and_contacts` ヘルパ（足を接地高さへ z シフト）。両 motion を default_motion_suite に追加。
+  benchmark leaderboard を 7 motion × 4 robot = 28 runs で再生成。
+
 ## [0.59.0] - 2026-06-05
 
 新展開（4 機種目 Apptronik Apollo を追加, pre-alpha）。full-size humanoid（~1.62m / 80.9kg）を実

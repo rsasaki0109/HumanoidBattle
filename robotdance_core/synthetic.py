@@ -236,3 +236,133 @@ def generate_backflip(
         semantics={"action_label": "backflip", "style_tag": "synthetic_unsafe_demo"},
         extractor_versions={"generator": "robotdance.synthetic.v0"},
     )
+
+
+def _ground_and_contacts(keypoints: np.ndarray, ground_z: float = 0.06,
+                         ankle_thresh: float = 0.16) -> dict[str, list[bool]]:
+    """足が地面（min foot z = ground_z）に来るよう全フレームを上下シフトし、接地スケジュールを返す。
+
+    keypoints を in-place で接地高さへ平行移動する（FK は root 並進に等変なので z シフトのみ）。
+    """
+    foot_idx = [t for _a, t in FOOT_JOINTS.values()]
+    for f in range(keypoints.shape[0]):
+        dz = ground_z - keypoints[f, foot_idx, 2].min()
+        keypoints[f, :, 2] += dz
+    contacts: dict[str, list[bool]] = {}
+    for side, (ankle_idx, _toe_idx) in FOOT_JOINTS.items():
+        contacts[f"{side}_foot"] = (keypoints[:, ankle_idx, 2] < ankle_thresh).tolist()
+    return contacts
+
+
+def generate_squat(
+    *,
+    duration: float = 2.0,
+    fps: float = 30.0,
+    depth: float = 1.7,
+    motion_id: str = "rdmir-synth-squat-0001",
+) -> RdMir:
+    """スクワットの合成 RD-MIR（膝 ROM ＋ 保持トルクの判別デモ）。
+
+    両脚を対称に深屈曲（hip/knee）させ、足を接地したまま骨盤を下げる。胴体はほぼ直立、腕は前方へ
+    カウンターバランス。深い膝屈曲で**膝 ROM**を、屈曲位保持で**膝トルク**を試す（弱脚機種は torque で
+    REJECT, 強脚機種は PASS）。両足接地のままなので balance/airborne はクリーン。
+    """
+    n_frames = round(fps * duration)
+    phase = 2.0 * np.pi * (np.arange(n_frames) / fps) / max(duration, 1e-9)  # 1 周期
+    i_lhip, i_rhip = index_of("left_hip"), index_of("right_hip")
+    i_lknee, i_rknee = index_of("left_knee"), index_of("right_knee")
+    i_lsh, i_rsh = index_of("left_shoulder"), index_of("right_shoulder")
+
+    keypoints = np.zeros((n_frames, NUM_JOINTS, 3))
+    for f in range(n_frames):
+        bend = 0.5 - 0.5 * np.cos(phase[f])  # 0(立)→1(最深)→0
+        knee = depth * bend
+        local = [Rot.identity() for _ in range(NUM_JOINTS)]
+        # 股は前傾、膝は折り、足首で代償（接地維持は後段の z シフトで担保）。
+        local[i_lhip] = Rot.from_euler("y", -0.5 * knee)
+        local[i_rhip] = Rot.from_euler("y", -0.5 * knee)
+        local[i_lknee] = Rot.from_euler("y", knee)
+        local[i_rknee] = Rot.from_euler("y", knee)
+        # 腕は前方水平へ（カウンターバランス, x 軸回り）。
+        local[i_lsh] = Rot.from_euler("x", 1.4 * bend)
+        local[i_rsh] = Rot.from_euler("x", -1.4 * bend)
+        keypoints[f] = _fk(local, _REST[0].copy())
+
+    _ground_and_contacts(keypoints)  # z シフトで接地高さへ
+    # 両足接地のスクワット（簡易 FK は足裏を平らに保てず踵が浮くので、接地は常時 ON を明示）。
+    contacts = {"left_foot": [True] * n_frames, "right_foot": [True] * n_frames}
+    return RdMir(
+        motion_id=motion_id,
+        source_ref={"dataset_name": "robotdance-synthetic", "generator": "synthetic.generate_squat"},
+        license_state="redistributable",
+        fps=fps,
+        duration=duration,
+        skeleton=Skeleton(joint_names=JOINT_NAMES, parents=PARENTS),
+        root_trajectory={"position": keypoints[:, 0, :].tolist()},
+        keypoints_3d=keypoints.tolist(),
+        contacts=contacts,
+        privacy_flags={"synthetic": True, "face_visible": False},
+        semantics={"action_label": "squat", "style_tag": "synthetic_demo"},
+        extractor_versions={"generator": "robotdance.synthetic.v0"},
+    )
+
+
+def generate_march(
+    *,
+    duration: float = 2.0,
+    fps: float = 30.0,
+    steps_per_second: float = 1.0,
+    lift: float = 0.9,
+    motion_id: str = "rdmir-synth-march-0001",
+) -> RdMir:
+    """その場足踏み（march）の合成 RD-MIR（単脚支持の balance 判別デモ）。
+
+    左右の脚を交互に持ち上げる（hip 屈曲＋膝曲げ＋足が地面を離れる）。片足支持の局面で**横方向の
+    balance（ZMP vs 支持多角形）**を試す。胴体を支持脚側へ僅かに傾けて荷重移動を表現。前進はしない
+    （その場）。持ち上げ脚は接地スケジュール off。
+    """
+    n_frames = round(fps * duration)
+    t = np.arange(n_frames) / fps
+    phase = 2.0 * np.pi * steps_per_second * t
+    i_spine = index_of("spine")
+    i_lhip, i_rhip = index_of("left_hip"), index_of("right_hip")
+    i_lknee, i_rknee = index_of("left_knee"), index_of("right_knee")
+
+    keypoints = np.zeros((n_frames, NUM_JOINTS, 3))
+    left_down = np.zeros(n_frames, dtype=bool)
+    right_down = np.zeros(n_frames, dtype=bool)
+    for f in range(n_frames):
+        s = np.sin(phase[f])  # >0: 左脚上げ / <0: 右脚上げ
+        local = [Rot.identity() for _ in range(NUM_JOINTS)]
+        l_up = max(s, 0.0)
+        r_up = max(-s, 0.0)
+        local[i_lhip] = Rot.from_euler("y", -lift * l_up)
+        local[i_lknee] = Rot.from_euler("y", 1.2 * lift * l_up)
+        local[i_rhip] = Rot.from_euler("y", -lift * r_up)
+        local[i_rknee] = Rot.from_euler("y", 1.2 * lift * r_up)
+        # 荷重移動: 支持脚（上げ脚と反対）の真上へ root を横移動し、体幹も僅かに傾ける。
+        # 左上げ(s>0)→支持は右足(y=-0.10)→root を -y へ。これで COM が支持多角形内に入る。
+        local[i_spine] = Rot.from_euler("x", -0.10 * s)
+        root = _REST[0].copy()
+        root[1] += -0.10 * s
+        keypoints[f] = _fk(local, root)
+        # 片足支持: 上げ脚は離地、支持脚のみ接地。
+        left_down[f] = l_up < 0.25
+        right_down[f] = r_up < 0.25
+
+    _ground_and_contacts(keypoints)  # z シフトのみ（接地脚で接地）
+    contacts = {"left_foot": left_down.tolist(), "right_foot": right_down.tolist()}
+    return RdMir(
+        motion_id=motion_id,
+        source_ref={"dataset_name": "robotdance-synthetic", "generator": "synthetic.generate_march"},
+        license_state="redistributable",
+        fps=fps,
+        duration=duration,
+        skeleton=Skeleton(joint_names=JOINT_NAMES, parents=PARENTS),
+        root_trajectory={"position": keypoints[:, 0, :].tolist()},
+        keypoints_3d=keypoints.tolist(),
+        contacts=contacts,
+        privacy_flags={"synthetic": True, "face_visible": False},
+        semantics={"action_label": "march", "style_tag": "synthetic_demo"},
+        extractor_versions={"generator": "robotdance.synthetic.v0"},
+    )

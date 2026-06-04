@@ -49,7 +49,13 @@ def _motion_class(mir: RdMir) -> str:
 
 def default_motion_suite() -> dict[str, RdMir]:
     """合成モーションの標準スイート（権利クリーン・決定的）。"""
-    from robotdance_core.synthetic import generate_backflip, generate_dance, generate_overbend
+    from robotdance_core.synthetic import (
+        generate_backflip,
+        generate_dance,
+        generate_march,
+        generate_overbend,
+        generate_squat,
+    )
 
     suite = {
         "dance_normal": generate_dance(beats_per_second=1.0),
@@ -58,6 +64,10 @@ def default_motion_suite() -> dict[str, RdMir]:
         "backflip": generate_backflip(duration=1.6),
         # 肘を実機可動域上限を超えて折る → joint_flexion_violation>0 を leaderboard に出す実例。
         "overbend": generate_overbend(),
+        # 深い膝屈曲＋保持: 膝 ROM/トルクを exercise（接地のまま, feasible 期待）。
+        "squat": generate_squat(),
+        # その場足踏み: 単脚支持の balance（ZMP vs 支持多角形）を exercise。
+        "march": generate_march(),
     }
     for name, mir in suite.items():
         mir.motion_id = name

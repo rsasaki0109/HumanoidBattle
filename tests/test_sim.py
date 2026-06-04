@@ -517,6 +517,21 @@ def test_certificate_no_velocity_ratio_without_per_joint_limits() -> None:
     assert "joint_velocity_ratio" not in cert["metrics"]
 
 
+def test_squat_is_feasible_and_march_exercises_balance() -> None:
+    """新 motion: squat は接地のまま深屈曲で feasible（膝 ROM/トルク exercise）、march は単脚支持で
+    balance 軸を発火させる（airborne ではなく ZMP 違反）。feasibility 軸の判別力を広い運動で確認。"""
+    from robotdance_core.synthetic import generate_march, generate_squat
+
+    morph = get_morphology("unitree_h1")
+    sq = simulate_certificate(retarget(generate_squat(), morph), morph)
+    assert sq["verdict"] == "PASS"                       # 接地・対称で動的にクリーン
+    assert sq["metrics"]["airborne_ratio"] == 0.0
+    assert sq["metrics"]["torque_ratio"] > 0.0           # 屈曲保持トルクが乗る
+    mar = simulate_certificate(retarget(generate_march(), morph), morph)
+    assert mar["metrics"]["balance_violation_ratio"] > 0.0  # 単脚支持で ZMP が支持外
+    assert mar["metrics"]["airborne_ratio"] == 0.0          # 常に片足は接地（滞空ではない）
+
+
 def test_certificate_no_rom_metric_without_per_joint_limits() -> None:
     """per_joint_limits が無い morphology では ROM 統合は無効（joint_flexion 指標も出ない）。"""
     import dataclasses

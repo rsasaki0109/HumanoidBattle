@@ -15,12 +15,14 @@ from robotdance_benchmarks.suite import default_motion_suite, run_benchmark
 
 def test_default_suite_has_variety() -> None:
     suite = default_motion_suite()
-    assert {"dance_normal", "dance_fast", "idle", "backflip", "overbend"} <= set(suite)
+    assert {"dance_normal", "dance_fast", "idle", "backflip", "overbend",
+            "squat", "march"} <= set(suite)
 
 
 def test_run_benchmark_no_sim_shape() -> None:
+    n = len(default_motion_suite())
     report = run_benchmark(default_motion_suite(), ["unitree_g1", "unitree_h1"], with_sim=False)
-    assert len(report["rows"]) == 5 * 2
+    assert len(report["rows"]) == n * 2
     assert report["sim_available"] is False
     # retarget 指標は sim なしでも入る。
     for r in report["rows"]:
@@ -37,7 +39,7 @@ def test_write_csv_and_markdown(tmp_path) -> None:
     md_path = write_markdown(report, tmp_path / "L.md")
     with csv_path.open() as f:
         rows = list(csv.DictReader(f))
-    assert len(rows) == 5
+    assert len(rows) == len(default_motion_suite())
     assert "motion_id" in rows[0] and "verdict" in rows[0]
     assert "joint_flexion_violation" in rows[0]  # 新列が CSV に出る
     md = md_path.read_text("utf-8")
