@@ -18,17 +18,30 @@ from robotdance_retarget.embodiment import RobotMorphology
 # 足 bone（ankle→foot）。接地 box を付与する。
 _FOOT_CHILD_JOINTS = {JOINT_NAMES.index("left_foot"), JOINT_NAMES.index("right_foot")}
 
+# 固定質量（kg）: pelvis 根の球ハブ + 接地用の足 box（各）。
+# これらは bone 長比配分とは別枠の固定質点だが、**total_mass に含める**（実機相当の
+# 総質量を sim で再現するため）。差し引かないと宣言質量より +3.6kg 重い robot を sim して
+# しまう（実証: G1 宣言35→実38.6kg, +10.3%）。よって bone 配分予算から必ず差し引く。
+_PELVIS_HUB_MASS = 3.0
+_FOOT_BOX_MASS = 0.3
+
 
 def build_mjcf(morphology: RobotMorphology, *, total_mass: float = 35.0, ground: bool = True) -> str:
     """morphology から MJCF 文字列を生成する。
 
-    total_mass: 全 bone へ長さ比で配分する概算総質量（kg）。G1≈35, H1≈47 程度。
+    total_mass: robot の総質量（kg, 実機相当）。G1≈35, H1≈47 程度。
+        pelvis ハブ + 足 box の固定質量を差し引いた残りを全 bone へ長さ比で配分するので、
+        生成 MJCF の総質量は total_mass に一致する（宣言質量＝実質量を保証）。
     ground: 地面 plane を含めるか。逆動力学（mj_inverse）では接触力が混入して
             内部トルクを汚染するため、トルク/COM 計算では ground=False（純浮遊多体）にする。
     """
     rest = morphology.rest_pose
     bone_len = morphology.bone_lengths
     len_sum = float(sum(bone_len[j] for j in range(len(JOINT_NAMES)) if PARENTS[j] >= 0)) or 1.0
+    # 固定質量（pelvis ハブ + 足 box×2）を差し引いた残りが bone 配分予算。
+    # こうして「pelvis/足が total_mass の上乗せになる」質量超過バグを防ぐ。
+    n_feet = len(_FOOT_CHILD_JOINTS)
+    bone_budget = max(total_mass - _PELVIS_HUB_MASS - n_feet * _FOOT_BOX_MASS, 0.1)
 
     # 各 joint の子 bone リスト（MJCF ネストは joint 親子ツリーと一致）。
     children: dict[int, list[int]] = {i: [] for i in range(len(JOINT_NAMES))}
@@ -42,7 +55,7 @@ def build_mjcf(morphology: RobotMorphology, *, total_mass: float = 35.0, ground:
         # body_j 原点 = bone j の始点（= joint p）。親 body 原点（joint gp）からの相対 pos。
         pos = (rest[p] - rest[gp]) if p > 0 else np.zeros(3)
         endpoint = rest[j] - rest[p]  # 自 frame での bone 終点（= o_j）
-        mass = max(total_mass * bone_len[j] / len_sum, 0.05)
+        mass = max(bone_budget * bone_len[j] / len_sum, 0.05)
         pad = "  " * indent
         s = f'{pad}<body name="body_{j}" pos="{_v(pos)}">\n'
         s += f'{pad}  <joint name="jnt_{j}" type="ball"/>\n'
@@ -54,7 +67,7 @@ def build_mjcf(morphology: RobotMorphology, *, total_mass: float = 35.0, ground:
             # 接地用の足 box（前方に伸ばす）。
             s += (
                 f'{pad}  <geom type="box" pos="{_v(endpoint)}" size="0.08 0.04 0.02" '
-                f'mass="0.3" friction="1 0.05 0.01"/>\n'
+                f'mass="{_FOOT_BOX_MASS}" friction="1 0.05 0.01"/>\n'
             )
         for c in children[j]:
             s += emit_body(c, indent + 1)
@@ -64,7 +77,7 @@ def build_mjcf(morphology: RobotMorphology, *, total_mass: float = 35.0, ground:
     # root = pelvis（free joint）。pelvis 自体に小球の geom。
     body = '    <body name="root" pos="0 0 1">\n'
     body += '      <freejoint name="root"/>\n'
-    body += '      <geom type="sphere" size="0.06" mass="3.0"/>\n'
+    body += f'      <geom type="sphere" size="0.06" mass="{_PELVIS_HUB_MASS}"/>\n'
     for c in children[0]:
         body += emit_body(c, 3)
     body += "    </body>\n"

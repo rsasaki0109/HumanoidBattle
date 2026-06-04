@@ -75,12 +75,22 @@ def simulate_certificate(
     motion: RdMotion,
     morphology: RobotMorphology,
     *,
-    total_mass: float = 35.0,
-    torque_limit: float = 80.0,
+    total_mass: float | None = None,
+    torque_limit: float | None = None,
     support_margin: float = 0.12,
 ) -> dict[str, Any]:
-    """RD-Motion を MuJoCo 物理で検証し sim_certificate dict を返す。"""
+    """RD-Motion を MuJoCo 物理で検証し sim_certificate dict を返す。
+
+    質量・トルク上限は embodiment 固有の既定（morphology.sim_defaults）から取る。
+    caller が明示すればそれを優先。旧実装は G1 値（35kg / 80N·m）をハードコードしており、
+    H1（47kg / 160N·m）の certify でも G1 のトルク上限で torque_ratio を判定していた
+    （= v0.27 の SimDefaults を導入したのにこの経路だけ配線漏れ）。
+    """
     import mujoco
+
+    sd = morphology.sim_defaults
+    total_mass = sd.total_mass if total_mass is None else total_mass
+    torque_limit = sd.torque_limit if torque_limit is None else torque_limit
 
     # 地面なしの純浮遊多体: mj_inverse に接触力が混入せず、内部トルクが純 RNEA になる。
     # バランスは motion の contact_schedule と keypoints から別途計算するため地面は不要。

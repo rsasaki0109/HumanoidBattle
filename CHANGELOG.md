@@ -5,6 +5,31 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-06-04
+
+実データ深掘りの継続リリース（pre-alpha）。MJCF 質量モデルを実測検証したところ、**生成される
+robot の総質量が宣言 `total_mass` と一致していなかった**（pelvis ハブ 3kg + 足 box 0.6kg を
+total_mass に加算せず上乗せ → G1 宣言35kg を実38.6kg(+10.3%) で sim）バグと、**certify 経路が
+v0.27 の `SimDefaults` 配線から漏れて G1 値（35kg/80N·m）を H1 にも流用していた**バグを発見・修正。
+いずれも「宣言と実体がズレる／既定が特定機種に隠れ固定される」隠れ取り違えの一種で、v0.27 と同じ
+失敗クラスを別経路で塞いだ。
+
+### Fixed
+- **MJCF 総質量の保存**（`robotdance_sim.mjcf.build_mjcf`）: pelvis ハブ・足 box の固定質量を
+  bone 長比配分の予算から差し引くよう変更。生成 MJCF の総質量が宣言 `total_mass` に厳密一致する
+  （G1: 38.60→35.000kg, H1: 50.60→47.000kg, Δ=0）。PD ゲインや逆動力学トルクは実質量に依存する
+  ため、宣言質量＝実質量でないと「35kg 用に調整したつもりが 38.6kg を制御」という取り違えが起きる。
+- **certify のトルク上限・質量を embodiment 由来に**（`robotdance_sim.mujoco_backend.simulate_certificate`）:
+  旧実装は `total_mass=35` / `torque_limit=80`（G1値）をハードコードしており、H1（47kg/160N·m）の
+  certify でも G1 のトルク上限で torque_ratio を算定していた（v0.27 で `SimDefaults` を導入したのに
+  この経路だけ配線漏れ）。既定を `None` とし `morphology.sim_defaults` から取得するよう変更。
+
+### Added
+- **MJCF 質量保存の回帰テスト**（`tests/test_sim.py::test_mjcf_total_mass_is_conserved`）: G1/H1 の
+  生成 MJCF 総質量が宣言 total_mass に一致することを MuJoCo 実ロードで担保。
+- **certify トルク上限配線の回帰テスト**（`tests/test_sim.py::test_certify_uses_embodiment_torque_limit_not_g1_default`）:
+  H1 の既定 certify が H1 のトルク上限(160)を使い、G1 値(80)固定ではないことを担保。
+
 ## [0.27.0] - 2026-06-04
 
 実データ深掘りの継続リリース（pre-alpha）。v0.26 で G1/H1 の体格を実寸化した結果、**より背が高く
@@ -67,6 +92,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   実行し（`ROBOTDANCE_G1_URDF` か既知パスから探索、無ければ skip = CI 非破壊）、簡略 morphology が
   実 URDF 寸法（nominal 1cm 以内 / bone MAE < 1cm）と一致し、actuator IK が収束することを検証する。
 
+[0.28.0]: https://github.com/rsasaki0109/RobotDance/releases/tag/v0.28.0
 [0.27.0]: https://github.com/rsasaki0109/RobotDance/releases/tag/v0.27.0
 [0.26.0]: https://github.com/rsasaki0109/RobotDance/releases/tag/v0.26.0
 
