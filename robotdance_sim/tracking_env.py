@@ -28,7 +28,7 @@ from robotdance_core.skeleton import JOINT_NAMES, PARENTS
 from robotdance_retarget.embodiment import RobotMorphology
 
 from .mjcf import build_mjcf
-from .mujoco_backend import _pose_to_qpos
+from .mujoco_backend import _poses_to_qpos
 
 
 class TrackingEnv:
@@ -87,11 +87,11 @@ class TrackingEnv:
         self.dt = 1.0 / self.fps
         self.n_substeps = max(1, round(self.dt / self.model.opt.timestep))
 
-        # 参照 keypoints を厳密に qpos 列へ復元（mujoco_backend と同じ写像）。
+        # 参照 keypoints を qpos 列へ復元（mujoco_backend と同じ写像）。twist は時間方向に
+        # 連続化（_poses_to_qpos）。単フレーム独立復元だと極端な屈曲で bone 軸 twist が ~80 rad/s
+        # 跳ね、PD 追従誤差（_err_to）と reference 速度を汚すため、追従 reference には必須。
         kps = reference.keypoints_3d_array()  # [T, J, 3]
-        self.ref_qpos = np.stack(
-            [_pose_to_qpos(self.model, morphology, kps[f]) for f in range(len(kps))]
-        )  # [T, nq]
+        self.ref_qpos = _poses_to_qpos(self.model, morphology, kps)  # [T, nq]
         self.T = int(self.ref_qpos.shape[0])
 
         self.nv = int(self.model.nv)
@@ -210,14 +210,9 @@ class MultiTrackingEnv(TrackingEnv):
         self._ref_qpos_all = [self.ref_qpos]
         for r in refs[1:]:
             kps = r.keypoints_3d_array()
-            self._ref_qpos_all.append(
-                np.stack([self._pose_to_qpos_frame(kps[f]) for f in range(len(kps))])
-            )
+            self._ref_qpos_all.append(_poses_to_qpos(self.model, self.morph, kps))
         self._ep = 0
         self.cur_idx = 0
-
-    def _pose_to_qpos_frame(self, kp) -> np.ndarray:  # noqa: ANN001
-        return _pose_to_qpos(self.model, self.morph, kp)
 
     def reset(self, idx: int | None = None) -> np.ndarray:  # type: ignore[override]
         if hasattr(self, "_ref_qpos_all"):

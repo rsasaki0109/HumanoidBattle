@@ -51,6 +51,11 @@ def _quat_to_mat(q_wxyz: np.ndarray) -> np.ndarray:
     return Rot.from_quat([q_wxyz[1], q_wxyz[2], q_wxyz[3], q_wxyz[0]]).as_matrix()
 
 
+def _mat_to_quat(m: np.ndarray) -> np.ndarray:
+    x, y, z, w = Rot.from_matrix(m).as_quat()
+    return np.array([w, x, y, z])
+
+
 def _max_bone_angular_speed(kps: np.ndarray, dt: float) -> float:
     """各 bone（親→子）方向の連続フレーム間角度変化率の最大値 [rad/s]。
 
@@ -72,7 +77,14 @@ def _max_bone_angular_speed(kps: np.ndarray, dt: float) -> float:
 
 
 def _pose_to_qpos(model, morphology: RobotMorphology, kps: np.ndarray) -> np.ndarray:
-    """1 フレームの keypoints [J, 3] を qpos に厳密復元する。"""
+    """1 フレームの keypoints [J, 3] を qpos に厳密復元する。
+
+    ⚠️ 単フレーム版は各 bone を rest 方向から shortest-arc で独立復元する。bone 軸まわりの
+    twist は keypoints に拘束されず、極端な屈曲（観測方向が rest と反平行付近）では shortest-arc の
+    回転軸 o×d が悪条件となり、フレーム間で twist が不連続に跳ぶ。**時系列を復元するなら
+    `_poses_to_qpos`** を使う（twist を時間方向に伝播し連続化する）。位置（COM/ZMP）はどちらでも
+    厳密一致する（twist は不可観測かつ位置不変）。
+    """
     rest = morphology.rest_pose
     qpos = np.zeros(model.nq)
     qpos[0:3] = kps[0]
@@ -88,6 +100,54 @@ def _pose_to_qpos(model, morphology: RobotMorphology, kps: np.ndarray) -> np.nda
         adr = model.joint(f"jnt_{j}").qposadr[0]
         qpos[adr:adr + 4] = q
         r_body[j] = r_parent @ _quat_to_mat(q)
+    return qpos
+
+
+def _poses_to_qpos(model, morphology: RobotMorphology, kps: np.ndarray) -> np.ndarray:
+    """keypoints 時系列 [T, J, 3] を **twist が時間方向に連続な** qpos 列 [T, nq] へ復元する。
+
+    単フレーム復元（_pose_to_qpos）を各フレーム独立に適用すると、観測方向が rest と反平行
+    付近に滞在する極端な屈曲で shortest-arc の特異点を踏み、bone 軸まわりに**データに無い偽の
+    twist スパイク**（実測: 手首で ~80 rad/s）が出る。これは qpos を差分する全経路（RL tracking の
+    reference 速度・PD 追従誤差・export 軌道）を汚染する。
+
+    本関数は各 bone の world 向きフレームを **frame 0 は rest 基準の shortest-arc で seed し、
+    以降は連続フレーム間の小さな swing（向き変化そのもの）だけで前進**させる（時間方向の平行移動）。
+    連続フレームの向きは常に近接するので特異点を踏まず、twist は注入されない。bone 向きは厳密に
+    再現されるため位置（COM/ZMP/トルク）は単フレーム版と完全一致し、変わるのは不可観測な twist
+    成分の連続性のみ。
+    """
+    kps = np.asarray(kps, dtype=np.float64)
+    if kps.ndim == 2:  # 単フレーム → 単フレーム版に委譲
+        return _pose_to_qpos(model, morphology, kps)
+    rest = morphology.rest_pose
+    n = kps.shape[0]
+    qpos = np.zeros((n, model.nq))
+    qpos[:, 0:3] = kps[:, 0, :]
+    qpos[:, 3:7] = [1.0, 0.0, 0.0, 0.0]  # base 向きは identity
+
+    par = np.array([max(p, 0) for p in PARENTS])
+    d = kps - kps[:, par, :]                                   # [T, J, 3] 親→子
+    d = d / np.maximum(np.linalg.norm(d, axis=2, keepdims=True), _EPS)
+
+    # 各 joint の world 姿勢 r_world[j][f]（r_world[j][f] @ o_j = d[f,j] を満たす）。
+    # root（pelvis）は free joint で base 向き identity。
+    r_world: dict[int, np.ndarray] = {0: np.broadcast_to(np.eye(3), (n, 3, 3))}
+    for j in range(1, len(JOINT_NAMES)):
+        p = PARENTS[j]
+        o = rest[j] - rest[p]
+        o = o / max(np.linalg.norm(o), _EPS)
+        rj = np.zeros((n, 3, 3))
+        rj[0] = _quat_to_mat(_min_rot_quat(o, d[0, j]))       # rest 基準 seed
+        for f in range(1, n):
+            # 連続向き間の swing（小角・常に好条件）だけで前進 → twist を注入しない
+            rsw = _quat_to_mat(_min_rot_quat(d[f - 1, j], d[f, j]))
+            rj[f] = rsw @ rj[f - 1]
+        r_world[j] = rj
+        adr = model.joint(f"jnt_{j}").qposadr[0]
+        rp = r_world[p]
+        for f in range(n):
+            qpos[f, adr:adr + 4] = _mat_to_quat(rp[f].T @ rj[f])  # 親相対 = local quat
     return qpos
 
 
@@ -145,8 +205,9 @@ def simulate_certificate(
         for j in range(1, len(JOINT_NAMES)) if j not in toe_joints
     }
 
-    # 各フレームの qpos / COM / 重力保持トルク。
-    qpos = np.stack([_pose_to_qpos(model, morphology, kps[f]) for f in range(n)])
+    # 各フレームの qpos / COM / 重力保持トルク。twist は時間方向に連続化（_poses_to_qpos）。
+    # 位置は単フレーム版と厳密一致するので COM/ZMP/トルクは不変。
+    qpos = _poses_to_qpos(model, morphology, kps)
     com = np.zeros((n, 3))
     per_frame_torque = []
     for f in range(n):

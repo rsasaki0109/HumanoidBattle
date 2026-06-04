@@ -233,6 +233,82 @@ def test_overbend_angular_speed_has_no_spurious_spike() -> None:
     assert cert["metrics"]["balance_violation_ratio"] == 0.0
 
 
+def test_poses_to_qpos_removes_twist_spike_keeping_positions() -> None:
+    """時系列 qpos 復元は twist を時間連続化し、偽スパイクを消しつつ位置を厳密保存する。
+
+    過屈曲では観測 bone 方向が rest と反平行付近に滞在し、フレーム独立の shortest-arc 復元は
+    特異点を踏んで bone 軸 twist が ~80 rad/s 跳ねる（reference 速度・PD 追従誤差を汚染）。
+    `_poses_to_qpos` は連続フレーム間の swing だけで前進させ twist を注入しない。bone 方向は
+    厳密に再現されるので FK 位置は単フレーム版と一致（twist は不可観測かつ位置不変）。
+    """
+    import mujoco
+    from scipy.spatial.transform import Rotation as Rot
+
+    from robotdance_core.skeleton import JOINT_NAMES
+    from robotdance_sim.mujoco_backend import _pose_to_qpos, _poses_to_qpos
+
+    morph = get_morphology("unitree_g1")
+    motion = retarget(generate_overbend(), morph)
+    kps = motion.keypoints_3d_array()
+    n = kps.shape[0]
+    dt = 1.0 / motion.fps
+    model = mujoco.MjModel.from_xml_string(
+        build_mjcf(morph, total_mass=morph.sim_defaults.total_mass, ground=False)
+    )
+    data = mujoco.MjData(model)
+
+    per_frame = np.stack([_pose_to_qpos(model, morph, kps[f]) for f in range(n)])
+    temporal = _poses_to_qpos(model, morph, kps)
+
+    def max_qpos_diff_speed(qp: np.ndarray) -> float:
+        worst = 0.0
+        for j in range(1, len(JOINT_NAMES)):
+            adr = model.joint(f"jnt_{j}").qposadr[0]
+            qs = qp[:, adr:adr + 4]
+            for f in range(n - 1):
+                q0 = Rot.from_quat([qs[f, 1], qs[f, 2], qs[f, 3], qs[f, 0]])
+                q1 = Rot.from_quat([qs[f + 1, 1], qs[f + 1, 2], qs[f + 1, 3], qs[f + 1, 0]])
+                worst = max(worst, (q1 * q0.inv()).magnitude() / dt)
+        return worst
+
+    # フレーム独立版はスパイクを持ち、時間連続版は実速度（_max_bone_angular_speed）に収束する。
+    spike = max_qpos_diff_speed(per_frame)
+    stable = max_qpos_diff_speed(temporal)
+    truth = _max_bone_angular_speed(kps, dt)
+    assert spike > 50.0                       # 偽スパイクの存在を確認（回帰ガード）
+    assert stable < 10.0                      # 連続化でスパイク消滅
+    assert stable == pytest.approx(truth, abs=1.0)  # 実 bone 速度と整合
+
+    # FK 位置は完全一致（twist のみの差・位置不変）。
+    def positions(qp: np.ndarray) -> np.ndarray:
+        out = np.zeros((n, len(JOINT_NAMES), 3))
+        for f in range(n):
+            data.qpos[:] = qp[f]
+            data.qvel[:] = 0
+            mujoco.mj_forward(model, data)
+            for j in range(1, len(JOINT_NAMES)):
+                out[f, j] = data.xpos[model.body(f"body_{j}").id]
+        return out
+
+    assert np.abs(positions(per_frame) - positions(temporal)).max() < 1e-9
+
+
+def test_poses_to_qpos_single_frame_matches_pose_to_qpos() -> None:
+    """2D 入力（単フレーム）では `_pose_to_qpos` に委譲して同一 qpos を返す。"""
+    import mujoco
+
+    from robotdance_sim.mujoco_backend import _pose_to_qpos, _poses_to_qpos
+
+    morph = get_morphology("unitree_g1")
+    kps = retarget(generate_dance(duration=0.5), morph).keypoints_3d_array()
+    model = mujoco.MjModel.from_xml_string(
+        build_mjcf(morph, total_mass=morph.sim_defaults.total_mass, ground=False)
+    )
+    assert np.allclose(
+        _poses_to_qpos(model, morph, kps[0]), _pose_to_qpos(model, morph, kps[0])
+    )
+
+
 def test_certificate_rejects_rom_violation_and_clamp_remedies() -> None:
     """動的に安定でも実機 ROM 超過なら統合 verdict は REJECT、clamp_flexion で PASS になる。
 

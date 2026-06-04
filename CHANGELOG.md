@@ -5,6 +5,24 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.47.0] - 2026-06-04
+
+実データ深掘り（再構成 qpos の twist を時間方向に安定化, pre-alpha）。v0.43 で sim の角速度指標は
+bone 方向ベース（twist-free）に是正したが、その根である「keypoints から復元した qpos 自体の
+twist 不連続」は残っていた。本版で qpos 復元を時系列対応にし、reference 速度・PD 追従誤差・export
+軌道など **qpos を差分する全経路**から偽 twist スパイクを除去した。
+
+### Changed
+- `robotdance_sim.mujoco_backend` に時系列 qpos 復元 `_poses_to_qpos`（[T,J,3]→[T,nq]）を追加。
+  各 bone の world フレームを **frame 0 は rest 基準の shortest-arc で seed し、以降は連続フレーム間の
+  swing だけで前進**させて twist を注入しない。極端な屈曲（観測 bone 方向が rest と反平行付近に滞在）で
+  フレーム独立復元が踏む shortest-arc 特異点を回避し、手首で ~80 rad/s の偽 twist スパイクを実 bone
+  速度（~4 rad/s）へ是正。bone 方向は厳密再現のため FK 位置・COM・ZMP・トルク・verdict は完全不変
+  （位置差 ~5e-17 m）。
+- `simulate_certificate` と `TrackingEnv`/`MultiTrackingEnv` の `ref_qpos` 構築を `_poses_to_qpos`
+  経由に変更。RL tracking の reference 速度と PD 追従誤差（`mj_differentiatePos`）が偽スパイクで
+  汚染されなくなった。単フレーム復元 `_pose_to_qpos` は後方互換のため残置（twist 規約の注意を docstring 化）。
+
 ## [0.46.0] - 2026-06-04
 
 実データ深掘り（executability を CLI に露出, pre-alpha）。v0.45 で Model Card に追加した統合

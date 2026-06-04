@@ -33,6 +33,12 @@ Isaac Lab / MuJoCo / Genesis-style backend adapters — 物理シミュレーシ
 | 過大運動 | bone 方向角速度（twist-free） | >30 rad/s |
 | 可動域超過 | retarget の joint_flexion 違反（膝・肘 vs 実機 ROM） | 違反フレーム >0% |
 
+> **qpos 復元の twist 安定化**: keypoints → qpos は `_poses_to_qpos` で時系列復元する。frame 0 を
+> rest 基準の shortest-arc で seed し、以降は連続フレーム間の swing だけで bone フレームを前進させる
+> ため、極端な屈曲（観測方向が rest と反平行付近）でも shortest-arc 特異点を踏まず、bone 軸まわりの
+> 偽 twist スパイク（実測 ~80 rad/s）が出ない。bone 方向は厳密再現で位置・COM・トルクは不変。これにより
+> RL tracking の reference 速度・PD 追従誤差や export 軌道など qpos を差分する全経路が clean に保たれる。
+
 ```python
 from robotdance_sim.backend import certify, backend_status
 certify(motion, morphology, backend="mujoco")   # backend を選んで sim_certificate を格納
