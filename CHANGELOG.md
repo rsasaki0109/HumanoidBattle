@@ -5,6 +5,22 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.56.0] - 2026-06-05
+
+新展開（Booster T1 を 7 軸フル実データに, pre-alpha）。v0.55 で追加した T1 に**実 URDF 慣性テンソル**を
+収載し、G1/H1 と同格の `real_inertia=True` 対応にした。あわせて v0.55 の質量割当の取り違えを是正。
+
+### Added
+- `booster_t1.T1_INERTIA_TENSORS`: 実 Booster T1 URDF `<inertial>` を canonical bone へ平行軸合成した
+  per-bone 慣性（T1 URDF は inertial frame 無回転なので並進のみ）。`EMBODIMENT_INERTIA` に登録 →
+  `get_morphology("booster_t1", real_inertia=True)` で実慣性 sim（certificate approximate_inertia=False、
+  PD 追従も安定）。MuJoCo body_inertia が埋め込み固有値に一致することをテストで担保。
+
+### Fixed
+- T1 質量分布のセグメント取り違えを是正。v0.55 は **世界 COM 最近傍ボーンでなく明示セグメントで割当て、
+  大腿(Hip_Yaw)を hip・下腿(Shank)を knee bone に置いていた**（1 区間上にズレ）。最近傍ボーン中点へ
+  再割当てし、大腿=knee bone（0.080）/ 下腿=ankle bone（0.055）と物理的に正しい縦位置に修正（総質量不変）。
+
 ## [0.55.0] - 2026-06-05
 
 新展開（3 機種目 Booster T1 を実 URDF から追加, pre-alpha）。深掘りで G1/H1 に整えた「近似→実 URDF

@@ -18,10 +18,10 @@ EMBODIMENTS: dict[str, RobotMorphology] = {
 
 # robot 名 → 実 URDF <inertial> 由来の per-bone 慣性テンソル（opt-in）。
 # 既定 morphology は capsule 近似（inertia_tensors=None）だが、real_inertia=True で実テンソルを装着する。
-# Booster T1 は慣性テンソル未収載（follow-up）→ registry に無いので real_inertia でも capsule。
 EMBODIMENT_INERTIA: dict[str, dict] = {
     g1.ROBOT_NAME: g1.G1_INERTIA_TENSORS,
     h1.ROBOT_NAME: h1.H1_INERTIA_TENSORS,
+    booster_t1.ROBOT_NAME: booster_t1.T1_INERTIA_TENSORS,
 }
 
 

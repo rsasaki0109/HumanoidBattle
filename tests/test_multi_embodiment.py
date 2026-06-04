@@ -30,10 +30,10 @@ def test_registry_has_g1_h1_and_t1() -> None:
 
 
 def test_booster_t1_real_urdf_geometry_and_limits() -> None:
-    """3 機種目 Booster T1 が実 URDF 由来の geometry / limit / 質量で canonical へ写像される。
+    """3 機種目 Booster T1 が実 URDF 由来の geometry / limit / 質量 / 慣性で canonical へ写像される。
 
-    T1 は小型（~0.98m, 31.6kg）で G1/H1 と別ベンダ。機種非依存に全機能が機能することを実証する。
-    慣性テンソルは未収載（follow-up）なので certificate は capsule（approximate_inertia=True）。
+    T1 は小型（~0.98m, 31.6kg）で G1/H1 と別ベンダ。機種非依存に全機能（7 軸フル実データ）が機能する
+    ことを実証する。real_inertia=True で実 URDF 慣性テンソルを装着できる（G1/H1 と同格）。
     """
     import numpy as np
 
@@ -52,6 +52,10 @@ def test_booster_t1_real_urdf_geometry_and_limits() -> None:
     jl = m.per_joint_limits
     assert jl["left_knee"]["torque"] > jl["left_shoulder"]["torque"]
     assert np.all(m.bone_lengths[1:] > 0.0)
+    # real_inertia=True で実 URDF 慣性テンソルが装着される（既定は capsule = None）。
+    assert getattr(m, "inertia_tensors", None) in (None, {})
+    real = get_morphology("booster_t1", real_inertia=True)
+    assert real.inertia_tensors and "left_knee" in real.inertia_tensors
 
 
 @pytest.mark.parametrize("name", sorted(EMBODIMENTS))

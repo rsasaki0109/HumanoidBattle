@@ -141,6 +141,36 @@ def test_build_mjcf_uses_real_inertia_tensors_when_present() -> None:
                            cap.body_inertia[cap.body(f"body_{jc}").id], atol=1e-3)
 
 
+def test_booster_t1_real_inertia_mjcf_frame_and_mass() -> None:
+    """Booster T1 の実 URDF 慣性テンソルが正しいフレームで MJCF に入る（body_inertia 一致・質量保存）。
+
+    T1 の慣性は per-link を平行軸合成して canonical bone へ写像（URDF inertial は回転なし）。MuJoCo の
+    body_inertia（principal）が埋め込みテンソルの固有値に一致し、総質量も保存することを担保する。
+    """
+    import mujoco
+
+    from robotdance_core.skeleton import JOINT_NAMES
+    from robotdance_unitree.booster_t1 import T1_INERTIA_TENSORS
+
+    real = get_morphology("booster_t1", real_inertia=True)
+    tm = real.sim_defaults.total_mass
+    model = mujoco.MjModel.from_xml_string(build_mjcf(real, total_mass=tm, ground=False))
+    assert model.body_mass.sum() == pytest.approx(tm, abs=1e-3)
+    # floor 込みの raw 合計で scale される（_inertial_xml と同じ）。
+    floor = 0.02
+    raw_sum = sum(
+        T1_INERTIA_TENSORS[n]["mass"] if n in T1_INERTIA_TENSORS else floor for n in JOINT_NAMES
+    )
+    iscale = tm / raw_sum
+    for name in ("chest", "left_knee", "left_ankle"):
+        f = T1_INERTIA_TENSORS[name]["fullinertia"]
+        mat = np.array([[f[0], f[3], f[4]], [f[3], f[1], f[5]], [f[4], f[5], f[2]]])
+        bid = model.body(f"body_{JOINT_NAMES.index(name)}").id
+        src_eig = np.sort(np.linalg.eigvalsh(mat)) * iscale
+        mj_eig = np.sort(model.body_inertia[bid])
+        assert np.allclose(mj_eig, src_eig, atol=2e-3), f"{name}: {mj_eig} vs {src_eig}"
+
+
 def test_get_morphology_real_inertia_opt_in() -> None:
     """get_morphology(real_inertia=True) は実 URDF 慣性テンソルを装着、既定は capsule（None）。"""
     base = get_morphology("unitree_g1")
