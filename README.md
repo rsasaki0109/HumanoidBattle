@@ -183,7 +183,7 @@ backflip(REJECT) cert=REJECT → motion_server: 遮断（ABORT）（0 frames）
 全指標（retarget / sim_certificate / source 品質）を **motion × robot** で集計し、CSV + leaderboard を出力します。
 
 ```bash
-robotdance benchmark --robots unitree_g1 unitree_h1 -o out/
+robotdance benchmark --robots unitree_g1 unitree_h1 booster_t1 -o out/   # 既定で 3 機種
 ```
 
 サンプル結果（合成スイート 4 motion × G1/H1、[全文](docs/benchmark/LEADERBOARD.md)）:

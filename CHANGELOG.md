@@ -5,6 +5,18 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.57.0] - 2026-06-05
+
+新展開（benchmark leaderboard を 3 機種化, pre-alpha）。7 軸フル実データの 3 機種（G1 / H1 / Booster T1）を
+canonical leaderboard に並べ、機種固有の feasibility 差を可視化する。
+
+### Changed
+- benchmark 既定 robot を G1/H1/T1 の 3 機種に拡張（`benchmark` CLI default + `_ROBOT_COLORS`）。
+  leaderboard / csv を 15 runs（5 motion × 3 robot, 全機種 実慣性）で再生成。
+- 可視化された機種差: **T1 backflip は torque× 1.325**（弱いアクチュエータ: 膝 60N·m で backflip トルク
+  不能 → G1/H1 とは別理由で REJECT）。**T1 dance_fast は PASS**（G1 は balance で REJECT — 小型軽量で
+  COM 加速度が小さく ZMP が支持内）。T1 height_scale 0.686（小型）。PASS 率 G1 0.4 / H1 0.8 / T1 0.6。
+
 ## [0.56.0] - 2026-06-05
 
 新展開（Booster T1 を 7 軸フル実データに, pre-alpha）。v0.55 で追加した T1 に**実 URDF 慣性テンソル**を
