@@ -363,10 +363,11 @@ def _video_to_robot(video: Path, robot: str, out: Path, stride: int) -> int:
     return 0
 
 
-def _serve(path: Path, speed: float, ros2: bool, allow_uncertified: bool) -> int:
+def _serve(path: Path, speed: float, ros2: bool, allow_uncertified: bool,
+           urdf: Path | None = None) -> int:
     from .rd_motion import RdMotion
     from robotdance_ros2.motion_server import MotionServer
-    from robotdance_ros2.safety_guard import SafetyGuard, SafetyLimits
+    from robotdance_ros2.safety_guard import SafetyGuard, build_safety_limits
 
     if ros2:
         from robotdance_ros2.motion_server_node import main as node_main
@@ -374,11 +375,18 @@ def _serve(path: Path, speed: float, ros2: bool, allow_uncertified: bool) -> int
         argv = [str(path), "--speed", str(speed)]
         if allow_uncertified:
             argv.append("--allow-uncertified")
+        if urdf is not None:
+            argv += ["--urdf", str(urdf)]
         return node_main(argv)
 
     # dry-run（ROS2 不要）: 安全ゲートとフレーム整形をシミュレートする。
     motion = RdMotion.load(path)
-    guard = SafetyGuard(SafetyLimits(require_certificate=not allow_uncertified), speed_scale=speed)
+    limits = build_safety_limits(str(urdf) if urdf else None,
+                                 require_certificate=not allow_uncertified)
+    if urdf is not None:
+        print(f"safety guard: 実 URDF limit で構築（{Path(urdf).name}, "
+              f"{len(limits.joint_position_limits or {})} 関節）")
+    guard = SafetyGuard(limits, speed_scale=speed)
     server = MotionServer(motion, guard)
     pre = server.precheck()
     print(f"precheck: {pre.status.value} {pre.reasons}")
@@ -1190,6 +1198,8 @@ def main(argv: list[str] | None = None) -> int:
     p_serve.add_argument("--speed", type=float, default=1.0)
     p_serve.add_argument("--ros2", action="store_true", help="ROS2 ノードとして配信（rclpy 必要）")
     p_serve.add_argument("--allow-uncertified", action="store_true", help="certificate 無しでも再生（危険）")
+    p_serve.add_argument("--urdf", type=Path, default=None,
+                         help="実 URDF の joint limit で safety guard を構築する")
 
     sub.add_parser("demo-runtime", help="safety guard の PASS/REJECT 遮断を実演")
 
@@ -1473,7 +1483,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "demo-joint-safety":
         return _demo_joint_safety(args.urdf)
     if args.command == "serve":
-        return _serve(args.rdmotion, args.speed, args.ros2, args.allow_uncertified)
+        return _serve(args.rdmotion, args.speed, args.ros2, args.allow_uncertified, args.urdf)
     if args.command == "demo-runtime":
         return _demo_runtime()
     if args.command == "benchmark":

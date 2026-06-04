@@ -107,13 +107,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--speed", type=float, default=1.0)
     parser.add_argument("--allow-uncertified", action="store_true",
                         help="sim_certificate 無しでも再生（危険・sim 専用）")
+    parser.add_argument("--urdf", type=Path, default=None,
+                        help="実 URDF の joint limit で safety guard を構築する")
     args = parser.parse_args(argv)
 
     motion = RdMotion.load(args.rdmotion)
-    from .safety_guard import SafetyLimits
+    from .safety_guard import build_safety_limits
 
     guard = SafetyGuard(
-        SafetyLimits(require_certificate=not args.allow_uncertified), speed_scale=args.speed
+        build_safety_limits(str(args.urdf) if args.urdf else None,
+                            require_certificate=not args.allow_uncertified),
+        speed_scale=args.speed,
     )
     rclpy.init()
     node = MotionServerNode(motion, guard=guard)

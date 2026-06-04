@@ -5,6 +5,20 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-06-04
+
+実データ深掘りの締め（pre-alpha）。v0.32 で実 URDF limit から `SafetyLimits` を作る primitive を
+追加したが、それを使っていたのは demo だけで、**本番 ROS2 ランタイム（`serve` / motion server）は
+依然 generic 既定（±π）で guard を構築**していた。この最後の配線を埋め、実 limit が
+「embodiment 記述 → 最終 gate → 本番ランタイム」まで一貫して流れるようにした。
+
+### Added
+- `serve --urdf <path>` / `robotdance_motion_server --urdf <path>`: 実 URDF の joint limit で
+  safety guard を構築して再生する（dry-run / ROS2 配信の両経路）。
+- `safety_guard.build_safety_limits(urdf=None, ...)`: serve / motion server / CLI が共有する
+  SafetyLimits builder。URDF 指定で実 actuator limit から、無指定で generic 既定を返す
+  （`robotdance_unitree` への依存は遅延 import）。
+
 ## [0.32.0] - 2026-06-04
 
 実データ深掘りの継続（pre-alpha）。v0.31 で embodiment の joint limit を実 URDF 由来にしたが、

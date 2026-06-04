@@ -93,6 +93,25 @@ class SafetyLimits:
         return cls(**kw)
 
 
+def build_safety_limits(
+    urdf: "str | None" = None, *, require_certificate: bool = True,
+    position_margin: float = 0.0, **overrides,
+) -> SafetyLimits:
+    """SafetyLimits を作る。`urdf` 指定時は実 actuator limit から、無指定なら generic 既定。
+
+    serve / motion server / CLI が共有する builder。URDF があれば膝・足首などの実可動域・実トルクが
+    最終 gate に効く（generic ±π/12/60 を脱却）。`robotdance_unitree` への依存は遅延 import に留める。
+    """
+    if urdf is None:
+        return SafetyLimits(require_certificate=require_certificate, **overrides)
+    from robotdance_unitree.urdf_import import parse_actuated_limits
+
+    return SafetyLimits.from_actuated_limits(
+        parse_actuated_limits(urdf), position_margin=position_margin,
+        require_certificate=require_certificate, **overrides,
+    )
+
+
 def _limit_arrays(
     limits: SafetyLimits, joint_names: Optional[list[str]], n: int
 ) -> tuple[np.ndarray, np.ndarray]:

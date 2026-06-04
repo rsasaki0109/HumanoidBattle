@@ -17,6 +17,7 @@ from robotdance_ros2.motion_server import MotionServer
 from robotdance_ros2.safety_guard import (
     SafetyGuard,
     SafetyLimits,
+    build_safety_limits,
     clamp_joint_trajectory,
 )
 from robotdance_unitree import get_morphology
@@ -145,6 +146,28 @@ def test_guard_clamps_knee_reverse_bend_to_real_limit() -> None:
     generic, _ = clamp_joint_trajectory(
         raw, dt, SafetyLimits(max_joint_accel=1e9, enforce_torque_limit=False), ["left_knee_joint"])
     assert float(generic.min()) < -1.0
+
+
+def test_build_safety_limits_generic_vs_urdf(tmp_path) -> None:
+    """build_safety_limits は URDF 無しで generic、指定時は実 per-joint limit を返す。"""
+    # URDF 無し → generic（位置 limit 未設定、require_certificate を尊重）。
+    g = build_safety_limits(None, require_certificate=False)
+    assert g.joint_position_limits is None
+    assert g.require_certificate is False
+    # 最小 URDF（膝の実 limit を持つ）→ per-joint 位置/トルクが入る。
+    urdf = tmp_path / "mini.urdf"
+    urdf.write_text(
+        '<robot name="m"><link name="pelvis"/><link name="left_knee_link"/>'
+        '<joint name="left_knee_joint" type="revolute">'
+        '<parent link="pelvis"/><child link="left_knee_link"/>'
+        '<origin xyz="0 0 -0.3" rpy="0 0 0"/>'
+        '<limit lower="-0.087" upper="2.88" effort="139" velocity="20"/></joint></robot>',
+        encoding="utf-8")
+    r = build_safety_limits(str(urdf))
+    assert r.joint_position_limits["left_knee_joint"] == (-0.087, 2.88)
+    assert r.joint_torque_limits["left_knee_joint"] == 139.0
+    assert r.max_joint_speed == 20.0
+    assert r.require_certificate is True
 
 
 def test_clamp_joint_trajectory_bounds_torque() -> None:
