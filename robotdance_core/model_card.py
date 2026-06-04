@@ -129,8 +129,13 @@ def build_mir_card(mir: RdMir) -> dict[str, Any]:
 def _executability(cert: dict[str, Any], flexion: Optional[dict[str, Any]]) -> dict[str, Any]:
     """動的（sim_certificate）＋運動学的（joint_flexion）feasibility を 1 つの実行可否に集約する。
 
-    consumer が「この motion は実機で実行してよいか」を一目で判断するためのサマリ。
-    - sim_certificate あり: その verdict が権威（v0.44 以降 ROM 違反も verdict に統合済み）。
+    consumer が「この motion は実機で実行してよいか」を一目で判断するためのサマリ。checked_axes は
+    **どの実 URDF feasibility 軸を検証したか**を表す（全て実機値接地）:
+    - dynamics: 転倒/トルク/滞空（balance + 実 per-joint torque）。
+    - joint_velocity: 関節速度が実 per-joint 速度上限内か（v0.50, per_joint_limits があるとき）。
+    - joint_rom: 関節角が実機 ROM 内か（v0.44, joint_flexion）。
+    速度・ROM 違反も sim_certificate.verdict に統合済み（v0.44/v0.50）なので、verdict が権威。
+    - sim_certificate あり: その verdict が権威。
     - sim_certificate なし: 動的 feasibility 未検証なので executable=null（不明）。可動域だけは
       joint_flexion があれば報告する（kinematic 経路でも実機可動域超過は分かる）。
     """
@@ -138,6 +143,8 @@ def _executability(cert: dict[str, Any], flexion: Optional[dict[str, Any]]) -> d
     axes: list[str] = []
     if cert:
         axes.append("dynamics")
+        if cert.get("metrics", {}).get("joint_velocity_ratio") is not None:
+            axes.append("joint_velocity")
         if flexion is not None:
             axes.append("joint_rom")
         if cert.get("verdict") == "REJECT":

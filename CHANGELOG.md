@@ -5,6 +5,19 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.53.0] - 2026-06-05
+
+実データ深掘り（三軸 feasibility を Model Card に明示, pre-alpha）。v0.50 で velocity を certificate の
+第3 feasibility 軸にしたが、Model Card の `executability.checked_axes` は dynamics/joint_rom のみで
+「速度も実機値で検証済み」が表に出ていなかった。consumer が**どの実 URDF 軸を検証したか**を一目で
+分かるよう velocity 軸を表出した。
+
+### Changed
+- `model_card._executability`: `checked_axes` に `joint_velocity` を追加（cert に joint_velocity_ratio
+  metric があるとき＝per_joint_limits を持つ embodiment）。安全な motion は
+  `["dynamics", "joint_velocity", "joint_rom"]` の三軸全てを検証したと表示。per_joint_limits が無ければ
+  従来どおり dynamics のみ。CLI `validate-sim` の executability 出力にも自動反映。
+
 ## [0.52.0] - 2026-06-05
 
 実データ深掘り（feasibility 検証を既定で実 URDF 慣性に, pre-alpha）。深掘りの集大成。v0.51 で PD

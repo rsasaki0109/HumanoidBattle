@@ -110,7 +110,8 @@ def test_executability_summary_pass_reject_and_remedy() -> None:
     ex_safe = build_motion_card(safe)["executability"]
     assert ex_safe["executable"] is True
     assert ex_safe["blockers"] == []
-    assert set(ex_safe["checked_axes"]) == {"dynamics", "joint_rom"}
+    # 実 URDF feasibility 三軸（dynamics + 速度 + ROM）を検証したことを表出（v0.53）。
+    assert set(ex_safe["checked_axes"]) == {"dynamics", "joint_velocity", "joint_rom"}
 
     # 過屈曲 → ROM 超過で executable: false、clamp の remedy を示す。
     bad = certify(retarget(generate_overbend(), g1), g1)
@@ -122,6 +123,13 @@ def test_executability_summary_pass_reject_and_remedy() -> None:
     # clamp で補正 → executable: true。
     fixed = certify(retarget(generate_overbend(), g1, clamp_flexion=True), g1)
     assert build_motion_card(fixed)["executability"]["executable"] is True
+
+    # per_joint_limits が無い morphology では速度・ROM 軸は検証されず dynamics のみ。
+    import dataclasses
+
+    stripped = dataclasses.replace(g1, per_joint_limits=None)
+    no_pjl = certify(retarget(generate_dance(duration=1.0), stripped), stripped)
+    assert build_motion_card(no_pjl)["executability"]["checked_axes"] == ["dynamics"]
 
 
 def test_executability_unknown_without_sim_certificate() -> None:
