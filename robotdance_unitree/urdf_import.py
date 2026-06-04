@@ -34,6 +34,17 @@ G1_LINK_MAP = {
     "left_wrist": "left_wrist_roll_rubber_hand", "right_wrist": "right_wrist_roll_rubber_hand",
 }
 
+# canonical limb joint → Unitree H1 URDF link。H1（無印 h1.urdf）は腕が肘で終わり wrist link が
+# 無いため wrist は省略（build_rest_pose が前腕を合成する）。
+H1_LINK_MAP = {
+    "pelvis": "pelvis",
+    "left_hip": "left_hip_pitch_link", "right_hip": "right_hip_pitch_link",
+    "left_knee": "left_knee_link", "right_knee": "right_knee_link",
+    "left_ankle": "left_ankle_link", "right_ankle": "right_ankle_link",
+    "left_shoulder": "left_shoulder_pitch_link", "right_shoulder": "right_shoulder_pitch_link",
+    "left_elbow": "left_elbow_link", "right_elbow": "right_elbow_link",
+}
+
 
 def parse_urdf(path: str | Path) -> tuple[dict[str, tuple[str, np.ndarray, np.ndarray]], str]:
     """URDF を読み、child_link → (parent_link, origin_xyz, origin_rpy) と root link を返す。"""
@@ -76,6 +87,12 @@ def build_rest_pose(link_pos: dict[str, np.ndarray], link_map: dict[str, str]) -
     out = np.zeros((len(JOINT_NAMES), 3))
     for canon, link in link_map.items():
         out[index_of(canon)] = link_pos[link]
+
+    # wrist が map に無い URDF（例: H1 無印は腕が肘止まり）では前腕を上腕と同程度に合成。
+    for side in ("left", "right"):
+        if f"{side}_wrist" not in link_map:
+            sh, el = out[index_of(f"{side}_shoulder")], out[index_of(f"{side}_elbow")]
+            out[index_of(f"{side}_wrist")] = el + (el - sh)
 
     pelvis = out[index_of("pelvis")]
     chest = 0.5 * (out[index_of("left_shoulder")] + out[index_of("right_shoulder")])

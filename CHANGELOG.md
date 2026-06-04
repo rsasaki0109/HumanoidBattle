@@ -12,6 +12,11 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   公式 URDF 由来の実寸 canonical rest pose に更新し、nominal_height 1.291m・bone 誤差 **~0%** に一致させた
   （関節オフセット＝寸法の事実のみ採用、mesh/URDF 本体は非同梱 = license-safe）。あわせて実 G1 URDF で
   actuator-space IK が収束（IK mean err 0.062m, joint-limit 違反 0）することを確認。
+- **H1 morphology も実 URDF 実寸に修正（real-data validation）**（`robotdance_unitree.h1`,
+  `urdf_import.H1_LINK_MAP`）: G1 と同じ手書き由来の H1 プロキシも**実機と乖離していた**（公式 h1.urdf と
+  比較し bone 長**平均相対誤差 ~33%**、特に hip 幅・肩を誤っていた）。公式 URDF 由来の実寸 rest pose に
+  更新し誤差 **~0%**（nominal 1.664m）に一致させた。H1 は腕が肘止まりで wrist link が無いため
+  `build_rest_pose` が前腕を合成する（G1 等 wrist 在 URDF には非影響）。`H1_LINK_MAP` を追加。
 - **TrackingEnv の PD ゲイン再チューニング**（`robotdance_sim.tracking_env`）: 上記 G1 実寸化（背が高く
   COM が上がった）に伴い、旧 kp=60 では関節 PD が実寸 G1 を支えきれず PD-only baseline が転倒していた
   ため、既定を **kp=150 / kd=6** に更新（PD-only が gentle 参照で 59/59 生存に回復）。tracking 系テストを
