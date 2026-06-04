@@ -9,7 +9,9 @@ from robotdance_core.model_card import (
     build_mir_card,
     build_motion_card,
     build_policy_card,
+    card_for_artifact,
     license_composition,
+    render_cards_index,
     render_markdown,
 )
 from robotdance_core.synthetic import generate_dance
@@ -108,6 +110,35 @@ def test_policy_card_markdown_has_io_and_weights() -> None:
     for header in ("# RobotDance POLICY Card", "## I/O Contract", "## Weights",
                    "## Safety Limits", "## Failure Modes / Known Limitations (v0)"):
         assert header in md
+
+
+def test_card_for_artifact_dispatch(tmp_path) -> None:
+    """ファイルから種別（mir/motion/policy）を判別してカードを生成する。"""
+    mir = _mir()
+    mir_path = mir.save(tmp_path / "c.rdmir.json")
+    assert card_for_artifact(mir_path)["card_type"] == "mir"
+
+    motion = retarget(mir, get_morphology("unitree_g1"))
+    motion_path = motion.save(tmp_path / "c.rdmotion.json")
+    assert card_for_artifact(motion_path)["card_type"] == "motion"
+
+    pol = _policy()
+    pol_path = pol.save(tmp_path / "p.rdpolicy.json")
+    assert card_for_artifact(pol_path)["card_type"] == "policy"
+
+
+def test_render_cards_index() -> None:
+    rows = [
+        {"type": "mir", "id": "m1", "license": "research_only", "failure_modes": 1,
+         "summary": "action=dance", "card_file": "m1.CARD.md"},
+        {"type": "policy", "id": "p1", "license": "unknown", "failure_modes": 2,
+         "summary": "tracking", "card_file": "p1.CARD.md"},
+    ]
+    md = render_cards_index(rows)
+    assert "# RobotDance Model Cards 索引" in md
+    assert "research_only=1" in md and "unknown=1" in md  # license composition
+    assert "[m1.CARD.md](m1.CARD.md)" in md
+    assert "| mir | `m1` |" in md and "| policy | `p1` |" in md
 
 
 def test_license_composition() -> None:

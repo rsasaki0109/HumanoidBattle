@@ -24,4 +24,12 @@ keywords:
   - unitree
   - human-pose
   - motion-dataset
+  - text-to-motion
+  - sim-to-real
+  - reinforcement-learning
+  - motion-generation
+  - smpl
+  - mujoco
+version: 0.23.0
+date-released: "2026-06-04"
 license: Apache-2.0

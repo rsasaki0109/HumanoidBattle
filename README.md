@@ -57,7 +57,7 @@ Output: Unitree G1 simulation motion + RD-MIR dataset + motion embedding
 | temporal smoothing + 2D overlay | `smooth` / `overlay` | jitter 0.099→0.022 |
 | benchmark（motion × robot leaderboard） | `benchmark` | CSV + leaderboard |
 | extraction benchmark（MediaPipe vs HMR, §4.1） | `benchmark-extraction` | MPJPE/PA-MPJPE/PCK/jitter |
-| Model Card（MIR/Motion/Policy, §7） | `model-card` | lineage/license/failure/safety（policy は I/O+weights）|
+| Model Card + 索引（MIR/Motion/Policy, §7） | `model-card` / `cards-index` | lineage/license/failure/safety + CARDS_INDEX |
 | ROS2 安全再生（Jazzy, safety guard） | `serve --ros2` / `demo-runtime` | RViz 可視化 |
 | 関節空間 safety guard（位置/速度/加速度/トルククランプ, §5.6） | `demo-joint-safety` | 実機コマンド直前の最終 gate |
 
@@ -391,7 +391,7 @@ robotdance_viewer/      side-by-side video/motion/robot visualization
 **MuJoCo 物理検証（sim_certificate / PASS・REJECT）+ RL tracking policy baseline（物理上で参照を追従, PPO, base 非駆動, 1 方策で複数運動を汎化）+ joint-space safety guard（位置/速度/加速度/トルク）**、
 **motion × robot benchmark + leaderboard + extraction benchmark（MPJPE/PA-MPJPE/PCK/jitter）**、**Model Card 生成（lineage/license/failure/safety, §7）**、**ROS2 runtime（safety guard: Cartesian + 関節空間 位置/速度/加速度クランプ + motion server + /joint_states, Jazzy）**、
 3D & multi-panel ビューアまで動作
-（`demo-pipeline`/`extract`/`import-hmr`/`import-humanml3d`/`import-babel`/`import-motionx`/`dedupe-dir`/`model-card`/`benchmark-extraction`/`video-to-robot`/`build-dataset`/`benchmark`/`serve`/`demo-motion-map`/`train-text-motion`/`search-text`/`train-tokenizer`/`demo-tokenizer`/`train-prior`/`demo-generate`/`train-denoiser`/`demo-denoise`/`train-text2motion`/`generate-text`/`train-tracking`/`demo-track`/`demo-track-multi`/`demo-joint-safety`/`sim-backends`/`export-policy`/`retarget-ik`/`demo-runtime`/`overlay`/`smooth`/`demo-*` 他）。
+（`demo-pipeline`/`extract`/`import-hmr`/`import-humanml3d`/`import-babel`/`import-motionx`/`dedupe-dir`/`model-card`/`cards-index`/`benchmark-extraction`/`video-to-robot`/`build-dataset`/`benchmark`/`serve`/`demo-motion-map`/`train-text-motion`/`search-text`/`train-tokenizer`/`demo-tokenizer`/`train-prior`/`demo-generate`/`train-denoiser`/`demo-denoise`/`train-text2motion`/`generate-text`/`train-tracking`/`demo-track`/`demo-track-multi`/`demo-joint-safety`/`sim-backends`/`export-policy`/`retarget-ik`/`demo-runtime`/`overlay`/`smooth`/`demo-*` 他）。
 次は Isaac Lab backend 実装・web viewer・重複除去の text-motion 拡張・高度な RL tracking（AMP/実機転移）。詳細は [`docs/ROADMAP.md`](docs/ROADMAP.md)。
 
 ## License

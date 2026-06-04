@@ -19,6 +19,7 @@ schemas, validators, metadata, CLI, config — RobotDance の中核。RD-MIR/RD-
 ```bash
 robotdance model-card g1.rdmotion.json --mir clip.rdmir.json -o MODEL_CARD.md --json card.json
 robotdance model-card policy.rdpolicy.json -o POLICY_CARD.md   # RD-Policy も同じコマンドで
+robotdance cards-index out/                                    # dir 内 artifact 全カード + 索引(CARDS_INDEX.md)
 ```
 
 > ⚠️ v0 pre-alpha。カードは「既知の限界を正直に明示する」ためのもので、実機保証ではない。

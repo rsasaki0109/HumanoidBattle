@@ -5,6 +5,15 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Cards index + CITATION 充実（§7, 公開準備）**（`cards-index`,
+  `robotdance_core.model_card.card_for_artifact` / `render_cards_index`）: ディレクトリ内の
+  RD-MIR/Motion/Policy artifact を種別自動判別して **Model Card を一括生成**し、**索引
+  `CARDS_INDEX.md`**（type / id / license / failure_modes / summary / card リンク + license
+  composition）を出力する。`card_for_artifact(path)` で 3 種の dispatch を集約（`model-card` も使用）。
+  `CITATION.cff` に version / date-released と keywords（text-to-motion / sim-to-real /
+  reinforcement-learning 等）を追加。純 Python で **CI 検証**。
+
 ## [0.23.0] - 2026-06-04
 
 データ品質の節目リリース（pre-alpha）。motion-embedding 重複除去を**任意の RD-MIR コレクション**

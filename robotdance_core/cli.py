@@ -157,26 +157,9 @@ def _model_card(path: Path, mir_path: Path | None, out: Path, json_out: Path | N
     """RD-MIR / RD-Motion / RD-Policy から Model Card（lineage / license / failure / safety）を生成（§7）。"""
     import json
 
-    from robotdance_core.model_card import (
-        build_mir_card,
-        build_motion_card,
-        build_policy_card,
-        render_markdown,
-    )
-    from robotdance_core.rd_mir import RdMir
-    from robotdance_core.rd_motion import RdMotion
-    from robotdance_core.rd_policy import RdPolicy
+    from robotdance_core.model_card import card_for_artifact, render_markdown
 
-    raw = json.loads(path.read_text(encoding="utf-8"))
-    if "rd_policy_version" in raw or "policy_id" in raw:
-        card = build_policy_card(RdPolicy.load(path))
-    elif "rd_motion_version" in raw or "control_mode" in raw:
-        motion = RdMotion.load(path)
-        mir = RdMir.load(mir_path) if mir_path else None
-        card = build_motion_card(motion, mir=mir)
-    else:
-        card = build_mir_card(RdMir.load(path))
-
+    card = card_for_artifact(path, mir_path=mir_path)
     out.write_text(render_markdown(card), encoding="utf-8")
     print(f"✓ {card['card_type']} card: {out}")
     print(f"  id={card['identity'].get('id')} license={card['license']['state']} "
@@ -186,6 +169,47 @@ def _model_card(path: Path, mir_path: Path | None, out: Path, json_out: Path | N
         print(f"  machine-readable: {json_out}")
     if card["card_type"] == "motion" and mir_path is None:
         print("  ⚠️ license は --mir 指定で source RD-MIR から継承（未指定は unknown）。")
+    return 0
+
+
+def _cards_index(in_dir: Path, out_dir: Path | None) -> int:
+    """ディレクトリ内の RD-MIR/Motion/Policy から Model Card を一括生成し索引を出す（§7）。"""
+    from robotdance_core.model_card import (
+        _card_summary,
+        card_for_artifact,
+        render_cards_index,
+        render_markdown,
+    )
+
+    out_dir = out_dir or in_dir / "cards"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    paths = sorted(p for pat in ("*.rdmir.json", "*.rdmotion.json", "*.rdpolicy.json")
+                   for p in in_dir.glob(pat))
+    if not paths:
+        print(f"⚠️ {in_dir} に artifact（*.rdmir/rdmotion/rdpolicy.json）が見つかりません")
+        return 1
+
+    rows = []
+    for p in paths:
+        card = card_for_artifact(p)
+        card_file = f"{p.stem}.CARD.md"
+        (out_dir / card_file).write_text(render_markdown(card), encoding="utf-8")
+        rows.append({
+            "type": card["card_type"],
+            "id": card["identity"].get("id", p.stem),
+            "license": card["license"]["state"],
+            "failure_modes": len(card["failure_modes"]),
+            "summary": _card_summary(card),
+            "card_file": card_file,
+        })
+    index_path = out_dir / "CARDS_INDEX.md"
+    index_path.write_text(render_cards_index(rows), encoding="utf-8")
+    by_type: dict[str, int] = {}
+    for r in rows:
+        by_type[r["type"]] = by_type.get(r["type"], 0) + 1
+    print(f"✓ {len(rows)} 件のカードを生成: {out_dir}")
+    print(f"  種別: {', '.join(f'{k}={v}' for k, v in by_type.items())}")
+    print(f"  索引: {index_path}")
     return 0
 
 
@@ -1289,6 +1313,11 @@ def main(argv: list[str] | None = None) -> int:
     p_bx.add_argument("--out-md", type=Path, default=Path("extraction_benchmark.md"))
     p_bx.add_argument("--seed", type=int, default=0)
 
+    p_ci = sub.add_parser("cards-index",
+                          help="ディレクトリ内の artifact から Model Card 群 + 索引を生成（§7）")
+    p_ci.add_argument("in_dir", type=Path, help="*.rdmir/rdmotion/rdpolicy.json を含むディレクトリ")
+    p_ci.add_argument("--out-dir", type=Path, default=None, help="カード出力先（既定: <in_dir>/cards）")
+
     p_card = sub.add_parser("model-card",
                             help="RD-MIR/RD-Motion の Model Card（lineage/license/failure/safety）を生成（§7）")
     p_card.add_argument("path", type=Path, help="RD-MIR または RD-Motion JSON")
@@ -1480,6 +1509,8 @@ def main(argv: list[str] | None = None) -> int:
         return _import_hmr(args.path, args.source, args.fps, args.out)
     if args.command == "model-card":
         return _model_card(args.path, args.mir, args.out, args.json_out)
+    if args.command == "cards-index":
+        return _cards_index(args.in_dir, args.out_dir)
     if args.command == "benchmark-extraction":
         return _benchmark_extraction(args.out_csv, args.out_md, args.seed)
     if args.command == "video-to-robot":
