@@ -152,6 +152,23 @@ def test_get_morphology_real_inertia_opt_in() -> None:
     assert np.array_equal(real.rest_pose, base.rest_pose)
 
 
+def test_certificate_uses_real_inertia_by_default() -> None:
+    """certificate は既定で実 URDF 慣性で検証（approximate_inertia=False）、real_inertia=False で capsule。
+
+    capsule は COM を幾何中心に置き subtree COM→重力トルクを誤推定する。実慣性は実 <inertial> の
+    COM オフセットで正し、H1 では torque_ratio を補正（capsule が過大評価）。morphology が
+    inertia_tensors を持たなくても embodiment registry から名前で装着する（tracking/PPO 経路は不変）。
+    """
+    morph = get_morphology("unitree_h1")  # capsule 既定 morphology（inertia_tensors なし）
+    motion = retarget(generate_dance(duration=1.0), morph)
+    real = simulate_certificate(motion, morph)                    # 既定 real_inertia=True
+    cap = simulate_certificate(motion, morph, real_inertia=False)  # capsule 再現
+    assert real["approximate_inertia"] is False
+    assert cap["approximate_inertia"] is True
+    assert real["metrics"]["torque_ratio"] < cap["metrics"]["torque_ratio"]  # capsule 過大評価
+    assert real["verdict"] == cap["verdict"]  # この motion では verdict 不変
+
+
 @pytest.mark.parametrize("robot", ["unitree_g1", "unitree_h1"])
 def test_pd_tracking_stable_with_real_inertia(robot: str) -> None:
     """実慣性でも PD-only 追従は安定（転倒せず RMSE もほぼ不変）。v0.37 の崩壊は PPO 限定。

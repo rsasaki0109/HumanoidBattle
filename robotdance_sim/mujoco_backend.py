@@ -13,6 +13,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 from typing import Any
 
 import numpy as np
@@ -198,6 +199,7 @@ def simulate_certificate(
     total_mass: float | None = None,
     torque_limit: float | None = None,
     support_margin: float = 0.05,
+    real_inertia: bool = True,
 ) -> dict[str, Any]:
     """RD-Motion を MuJoCo 物理で検証し sim_certificate dict を返す。
 
@@ -206,12 +208,31 @@ def simulate_certificate(
     H1（47kg / 160N·m）の certify でも G1 のトルク上限で torque_ratio を判定していた
     （= v0.27 の SimDefaults を導入したのにこの経路だけ配線漏れ）。
 
+    real_inertia: feasibility 検証を **実 URDF `<inertial>` 慣性テンソル**で行う（既定 True, v0.52）。
+        morphology が inertia_tensors を持たなければ EMBODIMENT_INERTIA から名前で装着する。capsule 近似は
+        COM を幾何中心に置き subtree COM→重力トルクを誤推定する（実測: H1 で torque_ratio を ~22% 過大評価）。
+        実慣性は逆動力学のみで PD-safe（v0.51）。tracking/PPO は別経路で本フラグの影響を受けない。
+        False で旧来の capsule 近似に戻せる（再現用）。
+
     support_margin: ZMP が支持多角形（実フットプリント矩形の凸包）の外へ許容される距離（m）。
         旧既定 0.12 は支持多角形に足の横幅が無かった分（半幅~0.04）を margin で誤魔化していた。
         本実装は足幅を実フットプリントとして明示するので、margin は純粋なスラック（ZMP 推定誤差＋
         未モデルの踵 ~0.05）に縮小（実測: 安定なダンスの ZMP は足面から最大 4.4mm）。
     """
     import mujoco
+
+    # 実慣性で検証する（既定）。morphology に無ければ embodiment registry から名前で装着。
+    # sim→unitree の import cycle を避けるため lazy import（unitree は sim を読まない）。
+    if real_inertia and not getattr(morphology, "inertia_tensors", None):
+        try:
+            from robotdance_unitree import EMBODIMENT_INERTIA
+
+            tensors = EMBODIMENT_INERTIA.get(morphology.name)
+        except Exception:
+            tensors = None
+        if tensors:
+            morphology = dataclasses.replace(morphology, inertia_tensors=tensors)
+    used_real_inertia = bool(getattr(morphology, "inertia_tensors", None))
 
     sd = morphology.sim_defaults
     total_mass = sd.total_mass if total_mass is None else total_mass
@@ -361,7 +382,7 @@ def simulate_certificate(
     return {
         "backend": "mujoco",
         "mujoco_version": mujoco.__version__,
-        "approximate_inertia": True,
+        "approximate_inertia": not used_real_inertia,
         "passed": passed,
         "verdict": "PASS" if passed else "REJECT",
         "metrics": metrics,
@@ -375,9 +396,11 @@ def simulate_certificate(
         },
         "reasons": reasons,
         "note": (
-            "physically-informed feasibility（近似質量, v0）— 実機保証ではない。動的（転倒/トルク/"
-            "滞空/角速度）＋運動学的（関節可動域）の両 feasibility を統合。gravity_torque は subtree"
-            " COM から解析計算（mj_inverse の ball-joint 特異性を回避した robust 値）。"
+            "physically-informed feasibility（"
+            + ("実 URDF 慣性" if used_real_inertia else "capsule 近似慣性")
+            + ", v0）— 実機保証ではない。動的（転倒/トルク/滞空/速度）＋運動学的（関節可動域）の両"
+            " feasibility を統合。gravity_torque は subtree COM から解析計算（mj_inverse の"
+            " ball-joint 特異性を回避した robust 値）。"
         ),
     }
 

@@ -5,6 +5,21 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.52.0] - 2026-06-05
+
+実データ深掘り（feasibility 検証を既定で実 URDF 慣性に, pre-alpha）。深掘りの集大成。v0.51 で PD
+経路が実慣性で安全と実証したので、sim_certificate を **既定で実 URDF `<inertial>` 慣性テンソル**で
+検証するよう切替えた（capsule 近似は COM を幾何中心に置き subtree COM→重力トルクを誤推定していた）。
+全 motion×robot で **verdict 反転ゼロ**を確認した上での切替で、tracking/PPO 経路は構造的に不変。
+
+### Changed
+- `simulate_certificate`（と `certify`）: `real_inertia: bool = True` を追加し既定で実慣性検証。
+  morphology が inertia_tensors を持たなければ `EMBODIMENT_INERTIA` から名前で装着する（sim→unitree は
+  lazy import で cycle 回避）。`approximate_inertia` は実慣性使用時 False を返すよう正直化。`real_inertia=False`
+  で旧 capsule 近似を再現可能。tracking/PPO は自前で capsule モデルを組むため**本フラグの影響を受けない**。
+- benchmark leaderboard / csv を実慣性で再生成（torque× が補正、例: H1 dance 0.627→0.513 で capsule が
+  ~22% 過大評価、balance も実 COM で微変）。**PASS 率・全 verdict は不変**（G1 0.4 / H1 0.8）。
+
 ## [0.51.0] - 2026-06-04
 
 実データ深掘り（実慣性を first-class 化、PD 経路で安全と実証, pre-alpha）。v0.37 で実 URDF 慣性

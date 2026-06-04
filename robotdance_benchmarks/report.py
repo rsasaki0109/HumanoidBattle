@@ -66,7 +66,7 @@ def write_markdown(report: dict, path: str | Path, *, title: str = "RobotDance B
         f"motions: **{len(report['motions'])}** × robots: **{len(report['robots'])}** "
         f"= {len(report['rows'])} runs · sim: **{'on' if report['sim_available'] else 'off (mujoco 無し)'}**",
         "",
-        "> ⚠️ v0: 近似形態プロキシ + 近似慣性。実機保証ではない（各 README 参照）。",
+        "> ⚠️ v0: 近似形態プロキシ。sim は実 URDF 慣性テンソルで検証（v0.52）。実機保証ではない（各 README 参照）。",
         "",
         "## Leaderboard（robot 別集計）",
         "",
