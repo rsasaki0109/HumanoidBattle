@@ -5,6 +5,13 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- README hero asset「Human → Humanoid」横並び GIF と生成スクリプト
+  [`scripts/render_human_vs_robot_gif.py`](scripts/render_human_vs_robot_gif.py)。**同一の合成ダンス**を、
+  左は canonical 19-joint 人間スケルトン（matplotlib）、右は actuator-space IK で実 G1 の 23 関節角へ
+  retarget した実メッシュ（pybullet）として描き、同期フレームを横連結する。人間側は合成 RD-MIR、
+  メッシュは render（再配布ではない）で license-safe。
+
 ### Changed
 - CI の actions を Node 24 対応版へ更新（`actions/checkout@v4→v6`, `actions/setup-python@v5→v6`）。
   GitHub が 2026-06-16 から Node 20 actions を Node 24 へ強制するため、事前に追従（パッケージ不変）。

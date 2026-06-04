@@ -11,6 +11,13 @@
 ![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
 ![ROS2](https://img.shields.io/badge/ROS2-Jazzy-22314E.svg)
 
+<img src="assets/readme/human_vs_g1.gif" width="560" alt="Human motion on the left, Unitree G1 dancing the same motion on the right">
+
+<sub>↑ **左の人間の動き（RD-MIR）→ 右の実 Unitree G1 が同じ振付で踊る。** これが RobotDance の一行説明。
+**同一の合成ダンス**を、左は canonical 19-joint スケルトンとして、右は **actuator-space IK** で実 G1 の
+**23 関節角**へ retarget し**実 g1_23dof メッシュ**でレンダリング。フレームは同期しているので「人間 → ロボット」の
+対応がそのまま見える。[`scripts/render_human_vs_robot_gif.py`](scripts/render_human_vs_robot_gif.py) で生成。</sub>
+
 <img src="assets/readme/g1_dance.gif" width="300" alt="Real Unitree G1 dancing from a human motion">
 
 <sub>↑ **人間のダンス → 実 Unitree G1 が踊る。** 合成ダンス（RD-MIR）を **actuator-space IK** で実 G1 の
