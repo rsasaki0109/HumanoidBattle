@@ -5,6 +5,25 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.50.0] - 2026-06-04
+
+実データ深掘り（関節速度 feasibility を実 per-joint 速度上限へ配線, pre-alpha）。sim_certificate の
+速度判定は全関節一律ハードコード 30 rad/s で、実機差（9-37 rad/s）を無視し H1 足首/肩のような遅い
+actuator 限界（9 rad/s）の超過を見逃していた。v0.49 で「reference は実速度上限内で trackable」を
+示した流れを certificate 本体へ統合し、velocity を dynamics/ROM に続く第3の feasibility 軸にした。
+
+### Changed
+- `simulate_certificate`: 速度判定を per_joint_limits があるとき **実 per-joint 速度上限**
+  （`per_joint_limits.velocity`, v0.38）との比較へ置換（無ければ従来の一律 30 rad/s）。temporal qpos
+  （v0.47 で twist 連続化済み）の**関節相対速度**（actuator が駆動する量）を `mj_differentiatePos` で取り、
+  実値を持つ関節のみ（generic placeholder 除外）で判定。metric `joint_velocity_ratio`（>1.0 で
+  追従不能）+ threshold 1.0 を追加。実例: H1 高速腕運動は肩を ~11 rad/s で駆動し実上限 9 を超える
+  （bone 世界角速度は 30 未満なので旧一律では見逃し）。= v0.36 のスカラ→per-joint トルクと同型の是正。
+
+### Added
+- `robotdance_sim.mujoco_backend._max_joint_velocity_ratio`: temporal qpos の関節相対速度 / 実
+  per-joint 速度上限 の最大比と worst joint 詳細を返すヘルパー。
+
 ## [0.49.0] - 2026-06-04
 
 実データ深掘り（reference の追従可能性を実機速度上限で判定, pre-alpha）。v0.48 は reference 速度の

@@ -76,6 +76,46 @@ def _max_bone_angular_speed(kps: np.ndarray, dt: float) -> float:
     return float(ang.max())
 
 
+def _max_joint_velocity_ratio(
+    model, qpos: np.ndarray, dt: float, morphology: RobotMorphology
+) -> "tuple[float, tuple[str, float, float] | None]":
+    """temporal qpos の各 ball joint の親相対角速度 / 実 per-joint 速度上限 の最大比と詳細。
+
+    アクチュエータが駆動するのは親リンク相対の関節角速度。MuJoCo の tangent 差分
+    （mj_differentiatePos）で連続フレーム間の関節速度を取り、**実 URDF 速度上限を持つ関節のみ**
+    （per_joint_limits.velocity。generic placeholder は除外）でその上限と比較する。>1.0 で指令速度が
+    actuator 速度上限を超え物理的に追従不能。bone 方向の世界角速度ではなく**関節相対**速度を見るのが
+    要諦。twist が時間連続化された qpos（_poses_to_qpos）を前提とする（v0.43 の偽スパイク是正済み）。
+
+    返り値: (max_ratio, detail)。detail=(joint_name, speed_rad_s, limit_rad_s) または None。
+    """
+    import mujoco
+
+    pjl = morphology.per_joint_limits or {}
+    limits = []  # (dofadr, limit, joint_name) — 実 velocity 値を持つ関節のみ
+    for jid in range(model.njnt):
+        name = model.joint(jid).name
+        if name and name.startswith("jnt_"):
+            jn = JOINT_NAMES[int(name[4:])]
+            v = pjl.get(jn, {}).get("velocity")
+            if v:
+                limits.append((int(model.jnt_dofadr[jid]), float(v), jn))
+    if qpos.shape[0] < 2 or not limits:
+        return 0.0, None
+    dq = np.zeros(model.nv)
+    best_ratio = 0.0
+    best_detail: "tuple[str, float, float] | None" = None
+    for f in range(qpos.shape[0] - 1):
+        mujoco.mj_differentiatePos(model, dq, 1.0, qpos[f], qpos[f + 1])
+        for adr, lim, jn in limits:
+            speed = float(np.linalg.norm(dq[adr:adr + 3])) / dt
+            ratio = speed / lim
+            if ratio > best_ratio:
+                best_ratio = ratio
+                best_detail = (jn, speed, lim)
+    return best_ratio, best_detail
+
+
 def _pose_to_qpos(model, morphology: RobotMorphology, kps: np.ndarray) -> np.ndarray:
     """1 フレームの keypoints [J, 3] を qpos に厳密復元する。
 
@@ -274,6 +314,16 @@ def simulate_certificate(
     jf = (motion.retarget_metrics or {}).get("joint_flexion") or {}
     flexion_violation = jf.get("any_violation_ratio")
 
+    # 関節速度 feasibility: temporal qpos の関節相対速度を**実 per-joint 速度上限**と比較。
+    # per_joint_limits があるときのみ per-joint 判定（無ければ従来の全関節一律 30 rad/s）。旧来の
+    # スカラ 30 は実機差（9-37 rad/s）を無視し、H1 足首/肩のような遅い限界（9 rad/s）の超過を
+    # 見逃していた（= v0.36 のスカラトルク問題と同型）。v0.47 で twist を時間連続化したので
+    # reconstructed qpos の関節相対速度を安全に使える。
+    velocity_ratio = None
+    velocity_detail = None
+    if morphology.per_joint_limits:
+        velocity_ratio, velocity_detail = _max_joint_velocity_ratio(model, qpos, dt, morphology)
+
     reasons: list[str] = []
     if airborne_ratio > 0.1:
         reasons.append(f"airborne {airborne_ratio:.0%}（接地なしで支持不能）")
@@ -281,7 +331,14 @@ def simulate_certificate(
         reasons.append(f"ZMP が支持多角形外 {balance_violation_ratio:.0%}（転倒リスク）")
     if torque_ratio > 1.0:
         reasons.append(f"重力保持トルク ×{torque_ratio:.2f}（actuator 限界超過）")
-    if max_joint_ang_speed > 30.0:
+    if velocity_ratio is not None:
+        if velocity_ratio > 1.0:
+            jn, sp, lim = velocity_detail
+            reasons.append(
+                f"関節速度過大 ×{velocity_ratio:.2f}（{jn} {sp:.0f}>{lim:.0f} rad/s "
+                "実機 actuator 速度上限超過）"
+            )
+    elif max_joint_ang_speed > 30.0:
         reasons.append(f"関節角速度過大 {max_joint_ang_speed:.0f} rad/s")
     if flexion_violation is not None and flexion_violation > 0.0:
         reasons.append(
@@ -297,6 +354,8 @@ def simulate_certificate(
         "torque_ratio": round(torque_ratio, 3),
         "max_joint_ang_speed_rad_s": round(max_joint_ang_speed, 2),
     }
+    if velocity_ratio is not None:
+        metrics["joint_velocity_ratio"] = round(velocity_ratio, 3)
     if flexion_violation is not None:
         metrics["joint_flexion_violation_ratio"] = round(flexion_violation, 3)
     return {
@@ -311,6 +370,7 @@ def simulate_certificate(
             "balance_violation_ratio": 0.3,
             "gravity_torque_ratio": 1.0,
             "max_joint_ang_speed_rad_s": 30.0,
+            "joint_velocity_ratio": 1.0,
             "joint_flexion_violation_ratio": 0.0,
         },
         "reasons": reasons,

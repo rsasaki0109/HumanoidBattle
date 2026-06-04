@@ -393,6 +393,41 @@ def test_certificate_rejects_rom_violation_and_clamp_remedies() -> None:
     assert cert2["metrics"]["joint_flexion_violation_ratio"] == 0.0
 
 
+def test_certificate_per_joint_velocity_catches_slow_actuator_limit() -> None:
+    """関節速度 feasibility は実 per-joint 速度上限で判定し、一律 30 rad/s が見逃す違反を捕える。
+
+    H1 肩の実 actuator 速度上限は 9 rad/s。高速腕運動は肩を ~11 rad/s で駆動し実上限を超える（指令
+    不能）。bone 方向の世界角速度は 30 rad/s 未満なので旧来の全関節一律 30 では PASS してしまうが、
+    per-joint 実値（v0.38）との比較がこれを捕える（= v0.36 のスカラ→per-joint トルクと同型）。
+    """
+    morph = get_morphology("unitree_h1")
+    fast = generate_dance(beats_per_second=3.0, sway_amp=0.6, arm_amp=0.9)
+    cert = simulate_certificate(retarget(fast, morph), morph)
+    assert cert["metrics"]["joint_velocity_ratio"] > 1.0       # 実速度上限超過
+    assert cert["verdict"] == "REJECT"
+    assert any("速度上限超過" in r for r in cert["reasons"])
+    # 旧来の全関節一律 30 rad/s なら見逃す（bone 世界角速度 < 30）ことを明示。
+    assert cert["metrics"]["max_joint_ang_speed_rad_s"] < 30.0
+
+
+def test_certificate_velocity_within_limits_for_normal_motion() -> None:
+    """通常運動は実 per-joint 速度上限内（joint_velocity_ratio<1）で velocity 理由は出ない。"""
+    for rob in ("unitree_g1", "unitree_h1"):
+        morph = get_morphology(rob)
+        cert = simulate_certificate(retarget(generate_dance(duration=1.0), morph), morph)
+        assert cert["metrics"]["joint_velocity_ratio"] < 1.0
+        assert not any("速度上限超過" in r for r in cert["reasons"])
+
+
+def test_certificate_no_velocity_ratio_without_per_joint_limits() -> None:
+    """per_joint_limits が無い morphology では per-joint velocity 判定は無効（指標も出ない）。"""
+    import dataclasses
+
+    morph = dataclasses.replace(get_morphology("unitree_g1"), per_joint_limits=None)
+    cert = simulate_certificate(retarget(generate_dance(duration=1.0), morph), morph)
+    assert "joint_velocity_ratio" not in cert["metrics"]
+
+
 def test_certificate_no_rom_metric_without_per_joint_limits() -> None:
     """per_joint_limits が無い morphology では ROM 統合は無効（joint_flexion 指標も出ない）。"""
     import dataclasses

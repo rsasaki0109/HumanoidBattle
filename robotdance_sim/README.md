@@ -30,7 +30,7 @@ Isaac Lab / MuJoCo / Genesis-style backend adapters — 物理シミュレーシ
 | torque saturation | 逆動力学 `mj_inverse`（純 RNEA）→ 内部 joint トルク | p50 が actuator 限界超過 |
 | balance / 転倒 | 質量モデルの COM → ZMP vs 接地足の支持多角形 | ZMP が支持外 >30% |
 | 滞空 | contact_schedule に接地なし | airborne >10% |
-| 過大運動 | bone 方向角速度（twist-free） | >30 rad/s |
+| 関節速度超過 | temporal qpos の関節相対速度 vs **実 per-joint 速度上限**（v0.38） | 比 >1.0（per_joint_limits 無→全関節一律 30 rad/s） |
 | 可動域超過 | retarget の joint_flexion 違反（膝・肘 vs 実機 ROM） | 違反フレーム >0% |
 
 > **qpos 復元の twist 安定化**: keypoints → qpos は `_poses_to_qpos` で時系列復元する。frame 0 を
