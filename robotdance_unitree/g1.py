@@ -82,10 +82,11 @@ G1_MASS_FRACTION: dict[str, float] = {
 # 割当て・剛体合成（平行軸）。capsule 近似（軸対称・棒）と違い実機の三軸非対称（胴体は太い箱で
 # 慣性 2-5 倍）を反映。数値のみで license-safe。test_real_g1_urdf が実 URDF と一致を検証。
 #
-# ⚠️ opt-in: 既定 MORPHOLOGY には付けない。real 慣性は物理的に正しいが、PPO tracking baseline
-#   （capsule 慣性で調整済み）を不安定化させるため、controller 再チューニングが済むまで既定は capsule。
-#   real 慣性 sim は `build_mjcf(morph, mass_fraction=None)` で morph.inertia_tensors を設定するか、
-#   `urdf_to_morphology`（URDF-import）経由で使える。
+# ⚠️ opt-in: 既定 MORPHOLOGY には付けない。real 慣性は物理的に正しく **PD 追従・feasibility 検証では
+#   安全**（PD は実慣性で退行しないと v0.51 で実証）だが、PPO tracking baseline（capsule で調整済み）は
+#   不安定化するため、その再学習が済むまで既定は capsule。real 慣性 sim は
+#   `get_morphology(name, real_inertia=True)` で取得する（推奨）か、`build_mjcf(morph, mass_fraction=None)`
+#   で morph.inertia_tensors を設定して使う。
 G1_INERTIA_TENSORS: dict[str, dict] = {
     "pelvis": {"mass": 3.816, "com": [0.0, 0.0, -0.07599], "fullinertia": [0.010567, 0.009327, 0.007919, 0.0, 2e-06, 0.0]},
     "spine": {"mass": 0.244, "com": [0.00396, 0.0, 0.01877], "fullinertia": [0.0001, 0.000124, 0.000156, -2e-06, -1.3e-05, -0.0]},

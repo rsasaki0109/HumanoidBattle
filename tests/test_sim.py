@@ -141,6 +141,48 @@ def test_build_mjcf_uses_real_inertia_tensors_when_present() -> None:
                            cap.body_inertia[cap.body(f"body_{jc}").id], atol=1e-3)
 
 
+def test_get_morphology_real_inertia_opt_in() -> None:
+    """get_morphology(real_inertia=True) は実 URDF 慣性テンソルを装着、既定は capsule（None）。"""
+    base = get_morphology("unitree_g1")
+    real = get_morphology("unitree_g1", real_inertia=True)
+    assert getattr(base, "inertia_tensors", None) in (None, {})
+    assert real.inertia_tensors and len(real.inertia_tensors) > 0
+    # 慣性以外は不変（質量・rest など）。
+    assert real.sim_defaults.total_mass == base.sim_defaults.total_mass
+    assert np.array_equal(real.rest_pose, base.rest_pose)
+
+
+@pytest.mark.parametrize("robot", ["unitree_g1", "unitree_h1"])
+def test_pd_tracking_stable_with_real_inertia(robot: str) -> None:
+    """実慣性でも PD-only 追従は安定（転倒せず RMSE もほぼ不変）。v0.37 の崩壊は PPO 限定。
+
+    実慣性は物理的に正しいが、v0.37 では PPO tracking が崩壊したため opt-in に留めた。本テストは
+    **PD baseline（学習なし）は実慣性で退行しない**ことを担保し、feasibility 検証や PD 追従で
+    real_inertia を安全に使えることを保証する（PPO 再学習は別タスク）。
+    """
+    from robotdance_sim.tracking_env import TrackingEnv
+
+    ref = generate_dance(duration=1.0)
+
+    def survive_rmse(morph):  # noqa: ANN001, ANN202
+        env = TrackingEnv(ref, morph)
+        env.reset()
+        rmses = []
+        survived = 0
+        for t in range(env.T - 1):
+            _o, _r, _d, info = env.step(np.zeros(env.action_dim))
+            rmses.append(info["pose_rmse"])
+            if info["fallen"]:
+                break
+            survived = t + 1
+        return survived / (env.T - 1), float(np.mean(rmses))
+
+    cap_s, cap_r = survive_rmse(get_morphology(robot))
+    real_s, real_r = survive_rmse(get_morphology(robot, real_inertia=True))
+    assert cap_s == 1.0 and real_s == 1.0       # どちらも転倒しない
+    assert abs(real_r - cap_r) < 0.05           # RMSE 退行なし（実測 ≤0.006）
+
+
 @pytest.mark.parametrize("robot", ["unitree_g1", "unitree_h1"])
 def test_mjcf_total_mass_is_conserved(robot: str) -> None:
     """生成 MJCF の総質量が宣言 total_mass（embodiment 既定＝実 URDF 総質量）に一致する。

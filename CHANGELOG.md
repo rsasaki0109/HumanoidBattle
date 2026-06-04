@@ -5,6 +5,25 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.51.0] - 2026-06-04
+
+実データ深掘り（実慣性を first-class 化、PD 経路で安全と実証, pre-alpha）。v0.37 で実 URDF 慣性
+テンソルを追加したが「controller が崩壊する」として opt-in（private dict を手で差し替え）に留めていた。
+本版でその崩壊が **PPO 学習ポリシー限定**であり、**PD baseline は実慣性で全く退行しない**ことを実証し、
+実慣性を選択する first-class API を整えた。
+
+### Added
+- `get_morphology(name, *, real_inertia=False)`: `real_inertia=True` で実 URDF `<inertial>` 由来の
+  per-bone 慣性テンソルを装着する first-class API（旧来は `dataclasses.replace` で private dict を手で
+  差し替える必要があった）。`EMBODIMENT_INERTIA` registry を追加。
+- tests: PD-only 追従が実慣性で安定（G1/H1 とも survival 1.0・RMSE 退行 ≤0.006）であることを担保。
+
+### Notes
+- 既定は capsule 慣性のまま（PPO baseline 退行回避）。**PD 追従・feasibility 検証では `real_inertia=True`
+  を安全に使える**。実慣性は certificate のトルク評価も補正する（実測: H1 torque_ratio 0.627→0.513 で
+  capsule が ~22% 過大評価、gravity 32.5→27.7 N·m — 実 COM オフセットが subtree COM を正す）。
+  既定の capsule→実慣性への切替（benchmark 再生成・verdict 再検証を伴う）は次の増分候補。
+
 ## [0.50.0] - 2026-06-04
 
 実データ深掘り（関節速度 feasibility を実 per-joint 速度上限へ配線, pre-alpha）。sim_certificate の
