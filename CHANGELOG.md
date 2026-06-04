@@ -5,6 +5,11 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-06-04
+
+公開準備の節目リリース（pre-alpha）。ディレクトリ内 artifact の Model Card 一括生成 + 索引
+（CARDS_INDEX.md）と CITATION.cff の充実で、データセット/モデルを責任を持って公開する土台を整えた。
+
 ### Added
 - **Cards index + CITATION 充実（§7, 公開準備）**（`cards-index`,
   `robotdance_core.model_card.card_for_artifact` / `render_cards_index`）: ディレクトリ内の
@@ -13,6 +18,8 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   composition）を出力する。`card_for_artifact(path)` で 3 種の dispatch を集約（`model-card` も使用）。
   `CITATION.cff` に version / date-released と keywords（text-to-motion / sim-to-real /
   reinforcement-learning 等）を追加。純 Python で **CI 検証**。
+
+[0.24.0]: https://github.com/rsasaki0109/RobotDance/releases/tag/v0.24.0
 
 ## [0.23.0] - 2026-06-04
 
