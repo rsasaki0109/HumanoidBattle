@@ -22,11 +22,33 @@ _MOTION_SCHEMA = json.loads(
 )
 
 
-def test_registry_has_g1_h1_and_t1() -> None:
-    assert set(EMBODIMENTS) == {"unitree_g1", "unitree_h1", "booster_t1"}
+def test_registry_has_four_embodiments() -> None:
+    assert set(EMBODIMENTS) == {"unitree_g1", "unitree_h1", "booster_t1", "apptronik_apollo"}
     assert get_morphology("unitree_g1").name == "unitree_g1"
     with pytest.raises(KeyError):
         get_morphology("nonexistent_robot")
+
+
+def test_apptronik_apollo_real_model_geometry_and_inertia() -> None:
+    """4 機種目 Apptronik Apollo（full-size ~1.62m/80.9kg）が実 menagerie モデルから写像される。
+
+    位置 ROM / トルク / 質量 / 慣性 / 寸法 / balance の 6 軸が実 Apollo 値（velocity は MJCF に無く未収載）。
+    real_inertia=True で実慣性テンソルを装着できる。
+    """
+    import numpy as np
+
+    m = get_morphology("apptronik_apollo")
+    assert m.sim_defaults.total_mass == pytest.approx(80.898, abs=1e-2)
+    # full-size: G1 より高く H1 と同程度。
+    assert m.nominal_height > get_morphology("unitree_g1").nominal_height
+    # 実 forcerange トルク: 膝(336) > 肘(114) > 首(10.6)。velocity は未収載（generic fallback）。
+    jl = m.per_joint_limits
+    assert jl["left_knee"]["torque"] > jl["left_elbow"]["torque"] > jl["neck"]["torque"]
+    assert "velocity" not in jl["left_knee"]
+    assert np.all(m.bone_lengths[1:] > 0.0)
+    # real_inertia=True で実慣性が装着される。
+    assert getattr(m, "inertia_tensors", None) in (None, {})
+    assert get_morphology("apptronik_apollo", real_inertia=True).inertia_tensors
 
 
 def test_provenance_doc_lists_all_embodiments() -> None:

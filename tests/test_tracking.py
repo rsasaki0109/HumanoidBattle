@@ -109,6 +109,24 @@ def test_booster_t1_pd_baseline_is_stable_with_morphology_defaults() -> None:
         assert info["upright"] > 0.9
 
 
+def test_apptronik_apollo_pd_baseline_is_stable_with_morphology_defaults() -> None:
+    """4 機種目 Apptronik Apollo（full-size 80.9kg）も morphology 既定 PD で安定追従する。"""
+    morph = get_morphology("apptronik_apollo")
+    for arm_amp, sway_amp in [(0.6, 0.08), (1.2, 0.15)]:
+        ref = retarget(generate_dance(duration=1.0, arm_amp=arm_amp, sway_amp=sway_amp), morph)
+        env = TrackingEnv(ref, morph)
+        env.reset()
+        survived = 0
+        info = {"upright": 1.0}
+        for _ in range(env.T - 1):
+            _o, _r, d, info = env.step(np.zeros(env.action_dim))
+            survived += 1
+            if d:
+                break
+        assert survived == env.T - 1, f"Apollo が arm={arm_amp} で {survived}/{env.T-1} で転倒"
+        assert info["upright"] > 0.9
+
+
 def test_ppo_trains_and_rolls_out_valid_motion() -> None:
     """PPO が学習でき、物理ロールアウトが schema 適合の RD-Motion になる。"""
     ref, morph = _gentle_reference()

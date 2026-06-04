@@ -189,7 +189,11 @@ def _joint_flexion_metrics(robot: np.ndarray, morphology: RobotMorphology) -> di
         d1 /= np.maximum(np.linalg.norm(d1, axis=1, keepdims=True), _EPS)
         d2 /= np.maximum(np.linalg.norm(d2, axis=1, keepdims=True), _EPS)
         flex = np.arccos(np.clip((d1 * d2).sum(axis=1), -1.0, 1.0))  # 直伸=0, 深屈→π
-        upper = float(lim["position"][1])
+        # 屈曲角は arccos（非負・方向不問）なので可動域の**最大屈曲は max(|lo|,|hi|)**。上限 hi に固定すると
+        # 屈曲を負方向に取る機種（例: Apollo 肘 [-2.618, 0.175]）で誤検出する。屈曲側が hi の機種
+        # （G1/H1/T1）では max(|lo|,|hi|)=hi なので後方互換。
+        lo, hi = float(lim["position"][0]), float(lim["position"][1])
+        upper = max(abs(lo), abs(hi))
         over = flex > upper + 1e-6
         over_any |= over
         per_joint[canon] = {
@@ -234,7 +238,8 @@ def _clamp_flexion_to_limits(
         lim = pjl.get(canon)
         if not lim or "position" not in lim:
             continue
-        upper = float(lim["position"][1])
+        # 屈曲限界は max(|lo|,|hi|)（屈曲角は非負・方向不問。_joint_flexion_metrics と一致）。
+        upper = max(abs(float(lim["position"][0])), abs(float(lim["position"][1])))
         ip, ih, idd = index_of(prox), index_of(hinge), index_of(dist)
         sub = _subtree(idd)  # 遠位サブチェーン（dist 含む）
         pre_max = 0.0

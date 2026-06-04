@@ -5,6 +5,31 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.59.0] - 2026-06-05
+
+新展開（4 機種目 Apptronik Apollo を追加, pre-alpha）。full-size humanoid（~1.62m / 80.9kg）を実
+menagerie モデルから追加し、フレームワークの機種非依存性をさらに実証。
+
+### Added
+- `robotdance_unitree.apptronik_apollo`: canonical 19-joint へ写像した Apollo morphology。rest pose /
+  位置 ROM / **実 forcerange トルク**（膝336/肘114/股120）/ 質量分布（総 80.9kg, 胴体 19.3kg）/ 慣性
+  テンソルを **MuJoCo Menagerie の Apollo モデル（Apache-2.0）の実値**から抽出。**抽出は MuJoCo に
+  モデルを読ませ world frame / world 軸慣性を厳密計算**（diaginertia+quat の回転を MuJoCo が処理）→
+  最近傍ボーン中点割当・平行軸合成。`real_inertia=True` 対応（body_inertia 一致をテストで担保）。
+  PD 既定 kp=400/kd=12。benchmark 既定に追加（20 runs, Apollo PASS 率 0.8）。
+- `docs/EMBODIMENTS.md` に Apollo 行を追加（7 軸カバレッジ）。velocity は menagerie MJCF に無く未収載
+  （6 軸が実 Apollo 値, follow-up）。
+
+### Fixed
+- `_joint_flexion_metrics` / `_clamp_flexion_to_limits` の屈曲限界を `position[1]`（上限）から
+  **`max(|lo|,|hi|)`** に修正。屈曲角は arccos（非負・方向不問）なので、屈曲を負方向に取る機種
+  （Apollo 肘 `[-2.618, 0.175]`）で `position[1]=0.175` を限界とすると全フレーム誤検出していた。
+  屈曲側が上限の機種（G1/H1/T1）では `max(|lo|,|hi|)=position[1]` で**後方互換**。
+
+### Notes
+- **license-safety**: Fourier GR-1 / N1（FFTAI Wiki-GRx-Models）は **GPL-3.0（copyleft）**のため Apache-2.0
+  の本プロジェクトには取り込まず、permissive な代替として Apollo（Apache-2.0）を採用。上流 LICENSE を直接確認。
+
 ## [0.58.0] - 2026-06-05
 
 新展開（対応ロボットの data provenance を明文化, pre-alpha）。実データ・ライセンス・抽出方法・7 軸
