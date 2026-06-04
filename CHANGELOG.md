@@ -5,6 +5,19 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.58.0] - 2026-06-05
+
+新展開（対応ロボットの data provenance を明文化, pre-alpha）。実データ・ライセンス・抽出方法・7 軸
+カバレッジを文書化し、本プロジェクトの「license-safe・実 URDF データ」という誠実さの再現性を担保する。
+
+### Added
+- `docs/EMBODIMENTS.md`: 3 機種（G1 / H1 / Booster T1）の provenance 表。出典 URDF・**ライセンス**
+  （Unitree=BSD 3-Clause, Booster T1=Apache-2.0, いずれも上流 LICENSE を直接確認）・総質量・身長・
+  runtime adapter・**7 軸の実データカバレッジ matrix**・再現可能な抽出手順・attribution を明記。
+  数値定数のみ派生利用し mesh/URDF 本体は非同梱という方針を明示。
+- tests: provenance doc が全 embodiment とライセンス出典を載せることを担保（文書化漏れガード）。
+  README の multi-embodiment 行から doc へリンク。
+
 ## [0.57.0] - 2026-06-05
 
 新展開（benchmark leaderboard を 3 機種化, pre-alpha）。7 軸フル実データの 3 機種（G1 / H1 / Booster T1）を

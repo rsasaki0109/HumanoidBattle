@@ -57,7 +57,7 @@ Output: Unitree G1 simulation motion + RD-MIR dataset + motion embedding
 | near-duplicate 除去（汎用, §4.1） | `dedupe-dir` / `import-babel --dedupe` | embedding 類似で重複統合 |
 | text-motion（HumanML3D / BABEL / Motion-X, §4.1） | `import-humanml3d` / `import-babel` / `import-motionx` | 記述・行動ラベルを semantics に |
 | HMR 動画→3D（4DHumans/GVHMR SMPL→RD-MIR, §4.1） | `import-hmr` | betas shape-cond・native .pkl/.pt・world trajectory |
-| G1 / H1 / Booster T1 への retarget（multi-embodiment, 実 URDF 由来） | `retarget` / `demo-multi` | many humanoids ↑ |
+| G1 / H1 / Booster T1 への retarget（multi-embodiment, 実 URDF 由来） | `retarget` / `demo-multi` | [provenance](docs/EMBODIMENTS.md) |
 | MuJoCo 物理検証（安全な運動だけ通す） | `validate-sim` / `demo-safety` | Demo 4: unsafe rejected |
 | sim backend 抽象（pluggable, §4.3） | `sim-backends` / `validate-sim --backend` | MuJoCo 参照 + Isaac Lab scaffold |
 | **end-to-end pipeline（1 コマンド統合, §6）** | `demo-pipeline` | RD-MIR→retarget→sim→policy→cards |

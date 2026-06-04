@@ -29,6 +29,15 @@ def test_registry_has_g1_h1_and_t1() -> None:
         get_morphology("nonexistent_robot")
 
 
+def test_provenance_doc_lists_all_embodiments() -> None:
+    """docs/EMBODIMENTS.md が全 embodiment を載せる（ロボット追加時の文書化漏れガード）。"""
+    doc = (_ROOT / "docs" / "EMBODIMENTS.md").read_text(encoding="utf-8")
+    for name in EMBODIMENTS:
+        assert name in doc, f"{name} が docs/EMBODIMENTS.md に未記載"
+    # ライセンス出典が明記されている（数値定数のみ・本体非同梱の誠実さ）。
+    assert "BSD 3-Clause" in doc and "Apache-2.0" in doc
+
+
 def test_booster_t1_real_urdf_geometry_and_limits() -> None:
     """3 機種目 Booster T1 が実 URDF 由来の geometry / limit / 質量 / 慣性で canonical へ写像される。
 
