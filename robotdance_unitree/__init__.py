@@ -7,16 +7,18 @@ import dataclasses
 
 from robotdance_retarget.embodiment import RobotMorphology
 
-from . import g1, h1
+from . import booster_t1, g1, h1
 
-# robot 名 → 形態 の registry。新しい Unitree 機種はここに追加する。
+# robot 名 → 形態 の registry。新しい機種はここに追加する（Unitree 以外も可）。
 EMBODIMENTS: dict[str, RobotMorphology] = {
     g1.ROBOT_NAME: g1.MORPHOLOGY,
     h1.ROBOT_NAME: h1.MORPHOLOGY,
+    booster_t1.ROBOT_NAME: booster_t1.MORPHOLOGY,
 }
 
 # robot 名 → 実 URDF <inertial> 由来の per-bone 慣性テンソル（opt-in）。
 # 既定 morphology は capsule 近似（inertia_tensors=None）だが、real_inertia=True で実テンソルを装着する。
+# Booster T1 は慣性テンソル未収載（follow-up）→ registry に無いので real_inertia でも capsule。
 EMBODIMENT_INERTIA: dict[str, dict] = {
     g1.ROBOT_NAME: g1.G1_INERTIA_TENSORS,
     h1.ROBOT_NAME: h1.H1_INERTIA_TENSORS,
@@ -39,4 +41,4 @@ def get_morphology(name: str, *, real_inertia: bool = False) -> RobotMorphology:
     return morph
 
 
-__all__ = ["EMBODIMENTS", "EMBODIMENT_INERTIA", "get_morphology", "g1", "h1"]
+__all__ = ["EMBODIMENTS", "EMBODIMENT_INERTIA", "get_morphology", "g1", "h1", "booster_t1"]

@@ -59,7 +59,7 @@
     "runtime_adapter": {
       "type": "string",
       "description": "ROS2 / SDK2 / simulator backend",
-      "enum": ["ros2", "unitree_sdk2", "ros2_control", "isaac_lab", "mujoco"]
+      "enum": ["ros2", "unitree_sdk2", "booster_sdk", "ros2_control", "isaac_lab", "mujoco"]
     }
   }
 }

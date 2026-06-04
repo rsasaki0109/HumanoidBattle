@@ -86,6 +86,29 @@ def test_h1_pd_baseline_is_stable_with_morphology_defaults() -> None:
         assert info["upright"] > 0.9
 
 
+def test_booster_t1_pd_baseline_is_stable_with_morphology_defaults() -> None:
+    """3 機種目 Booster T1 も morphology 既定の PD ゲインだけで安定追従する（転倒しない）。
+
+    T1 は小型（0.98m/31.6kg）だが短い bone で実効慣性が小さく、G1（kp=150）では転倒する。
+    embodiment 固有 sim_defaults（kp=300, 実測スイープで決定）で明示ゲイン無しでも安定することを担保。
+    """
+    morph = get_morphology("booster_t1")
+    assert morph.sim_defaults.kp > get_morphology("unitree_g1").sim_defaults.kp  # T1 は高 kp が要る
+    for arm_amp, sway_amp in [(0.6, 0.08), (1.2, 0.15), (1.6, 0.18)]:
+        ref = retarget(generate_dance(duration=1.0, arm_amp=arm_amp, sway_amp=sway_amp), morph)
+        env = TrackingEnv(ref, morph)  # 明示ゲイン無し → morphology.sim_defaults
+        env.reset()
+        survived = 0
+        info = {"upright": 1.0}
+        for _ in range(env.T - 1):
+            _o, _r, d, info = env.step(np.zeros(env.action_dim))
+            survived += 1
+            if d:
+                break
+        assert survived == env.T - 1, f"T1 が arm={arm_amp} で {survived}/{env.T-1} で転倒"
+        assert info["upright"] > 0.9
+
+
 def test_ppo_trains_and_rolls_out_valid_motion() -> None:
     """PPO が学習でき、物理ロールアウトが schema 適合の RD-Motion になる。"""
     ref, morph = _gentle_reference()

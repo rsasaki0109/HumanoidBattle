@@ -5,6 +5,25 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.55.0] - 2026-06-05
+
+新展開（3 機種目 Booster T1 を実 URDF から追加, pre-alpha）。深掘りで G1/H1 に整えた「近似→実 URDF
+データ」基盤の**機種非依存な汎用性**を、別ベンダの小型機 Booster T1（~0.98m / 31.6kg）で実証する。
+
+### Added
+- `robotdance_unitree.booster_t1`: canonical 19-joint へ写像した T1 morphology。rest pose / 関節
+  limit（位置・速度・**実 effort トルク**: 膝60/股45/腕18）/ 質量分布（総 31.614kg, 胴体 37%）は
+  **公式 Booster T1 URDF（BoosterRobotics booster_gym, Apache-2.0）の実値**から抽出（数値定数のみ・
+  mesh/URDF 本体は非同梱, license-safe・attribution 付き）。`get_morphology("booster_t1")` で利用。
+- T1 の PD 既定ゲインを実測スイープで決定（kp=300: 小型でも短 bone で実効慣性が小さく G1 の kp=150 では
+  転倒。kp≥300 で全振幅 survival 1.0/upright 1.0）。retarget / certificate（6 軸: 寸法/質量/トルク/速度/
+  ROM/balance）/ PD tracking が機種非依存に機能。tests + RD-Embodiment schema に `booster_sdk` adapter 追加。
+
+### Notes
+- T1 の**慣性テンソルは未収載**（per-link rpy 回転＋平行軸合成を要するため follow-up）。`real_inertia=True`
+  でも T1 は registry に無く capsule にフォールバック（certificate は approximate_inertia=True）。geometry /
+  limit / 質量は実 URDF 値。benchmark 既定 robot は G1/H1 のまま（leaderboard 不変）。
+
 ## [0.54.0] - 2026-06-05
 
 実データ深掘り（PPO tracking を実慣性で安定化, pre-alpha）。v0.37 で「実慣性を入れると PPO tracking が

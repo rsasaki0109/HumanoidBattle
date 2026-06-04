@@ -22,11 +22,36 @@ _MOTION_SCHEMA = json.loads(
 )
 
 
-def test_registry_has_g1_and_h1() -> None:
-    assert set(EMBODIMENTS) == {"unitree_g1", "unitree_h1"}
+def test_registry_has_g1_h1_and_t1() -> None:
+    assert set(EMBODIMENTS) == {"unitree_g1", "unitree_h1", "booster_t1"}
     assert get_morphology("unitree_g1").name == "unitree_g1"
     with pytest.raises(KeyError):
         get_morphology("nonexistent_robot")
+
+
+def test_booster_t1_real_urdf_geometry_and_limits() -> None:
+    """3 機種目 Booster T1 が実 URDF 由来の geometry / limit / 質量で canonical へ写像される。
+
+    T1 は小型（~0.98m, 31.6kg）で G1/H1 と別ベンダ。機種非依存に全機能が機能することを実証する。
+    慣性テンソルは未収載（follow-up）なので certificate は capsule（approximate_inertia=True）。
+    """
+    import numpy as np
+
+    m = get_morphology("booster_t1")
+    # 実 T1 URDF 総質量・小型 nominal height（G1 より低い）。
+    assert m.sim_defaults.total_mass == pytest.approx(31.614, abs=1e-3)
+    assert m.nominal_height < get_morphology("unitree_g1").nominal_height
+    # 左右対称（rest pose の y 反転で一致）。
+    rest = m.rest_pose
+    from robotdance_core.skeleton import JOINT_NAMES
+
+    li, ri = JOINT_NAMES.index("left_knee"), JOINT_NAMES.index("right_knee")
+    assert rest[li][0] == pytest.approx(rest[ri][0])
+    assert rest[li][1] == pytest.approx(-rest[ri][1])
+    # 実 effort: 膝(60) > 腕(18)、足首は狭レンジ。bone 長は全て正（root 除く）。
+    jl = m.per_joint_limits
+    assert jl["left_knee"]["torque"] > jl["left_shoulder"]["torque"]
+    assert np.all(m.bone_lengths[1:] > 0.0)
 
 
 @pytest.mark.parametrize("name", sorted(EMBODIMENTS))
