@@ -5,6 +5,12 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-06-04
+
+実機忠実度の節目リリース（pre-alpha）。「広く v0 を積む」から方針転換し、**実 Unitree URDF で深掘り検証**
+した結果、G1/H1 の体格データが実機と 26〜33% 乖離していたバグを発見・修正。あわせて実機メッシュが
+踊る README hero GIF と H1 actuator IK 対応を追加した。
+
 ### Added
 - **実 Unitree メッシュの hero GIF（README 刷新, §6）**（`scripts/render_robot_gif.py`,
   `assets/readme/g1_dance.gif` / `many_humanoids_mesh.gif`）: 棒人間スケルトンに代え、**公式 G1/H1 の
@@ -36,6 +42,8 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 - **実 G1 URDF 回帰テスト**（`tests/test_real_g1_urdf.py`）: 公式 g1_23dof URDF がローカルに在る場合のみ
   実行し（`ROBOTDANCE_G1_URDF` か既知パスから探索、無ければ skip = CI 非破壊）、簡略 morphology が
   実 URDF 寸法（nominal 1cm 以内 / bone MAE < 1cm）と一致し、actuator IK が収束することを検証する。
+
+[0.26.0]: https://github.com/rsasaki0109/RobotDance/releases/tag/v0.26.0
 
 ## [0.25.0] - 2026-06-04
 
