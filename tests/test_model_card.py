@@ -94,6 +94,48 @@ def test_motion_card_surfaces_overbend_violation_end_to_end() -> None:
     assert "kinematic_feasibility" in md  # safety セクションに表出
 
 
+def test_executability_summary_pass_reject_and_remedy() -> None:
+    """Motion Card の executability が動的＋運動学的を集約し、ROM 違反は false＋remedy を示す。"""
+    from robotdance_sim.mujoco_backend import certify
+
+    import pytest
+
+    pytest.importorskip("mujoco")
+    from robotdance_core.synthetic import generate_dance, generate_overbend
+
+    g1 = get_morphology("unitree_g1")
+
+    # 安全なダンス → executable: true。
+    safe = certify(retarget(generate_dance(duration=1.0), g1), g1)
+    ex_safe = build_motion_card(safe)["executability"]
+    assert ex_safe["executable"] is True
+    assert ex_safe["blockers"] == []
+    assert set(ex_safe["checked_axes"]) == {"dynamics", "joint_rom"}
+
+    # 過屈曲 → ROM 超過で executable: false、clamp の remedy を示す。
+    bad = certify(retarget(generate_overbend(), g1), g1)
+    ex_bad = build_motion_card(bad)["executability"]
+    assert ex_bad["executable"] is False
+    assert any("可動域" in b for b in ex_bad["blockers"])
+    assert "clamp_flexion" in ex_bad["remedy"]
+
+    # clamp で補正 → executable: true。
+    fixed = certify(retarget(generate_overbend(), g1, clamp_flexion=True), g1)
+    assert build_motion_card(fixed)["executability"]["executable"] is True
+
+
+def test_executability_unknown_without_sim_certificate() -> None:
+    """sim_certificate が無ければ executable=null（動的未検証）。可動域だけは報告する。"""
+    from robotdance_core.synthetic import generate_overbend
+
+    motion = retarget(generate_overbend(), get_morphology("unitree_g1"))  # certify せず
+    ex = build_motion_card(motion)["executability"]
+    assert ex["executable"] is None
+    assert ex["checked_axes"] == ["joint_rom"]
+    assert any("可動域" in b for b in ex["blockers"])  # kinematic は分かる
+    assert "sim_certificate" in ex["note"]
+
+
 def test_render_markdown_has_required_headers() -> None:
     card = build_motion_card(retarget(_mir(), get_morphology("unitree_g1")))
     md = render_markdown(card)

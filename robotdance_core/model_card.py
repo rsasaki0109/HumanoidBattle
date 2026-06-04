@@ -126,6 +126,43 @@ def build_mir_card(mir: RdMir) -> dict[str, Any]:
     }
 
 
+def _executability(cert: dict[str, Any], flexion: Optional[dict[str, Any]]) -> dict[str, Any]:
+    """動的（sim_certificate）＋運動学的（joint_flexion）feasibility を 1 つの実行可否に集約する。
+
+    consumer が「この motion は実機で実行してよいか」を一目で判断するためのサマリ。
+    - sim_certificate あり: その verdict が権威（v0.44 以降 ROM 違反も verdict に統合済み）。
+    - sim_certificate なし: 動的 feasibility 未検証なので executable=null（不明）。可動域だけは
+      joint_flexion があれば報告する（kinematic 経路でも実機可動域超過は分かる）。
+    """
+    blockers: list[str] = []
+    axes: list[str] = []
+    if cert:
+        axes.append("dynamics")
+        if flexion is not None:
+            axes.append("joint_rom")
+        if cert.get("verdict") == "REJECT":
+            blockers = list(cert.get("reasons", []))
+        executable: Optional[bool] = cert.get("verdict") == "PASS"
+    else:
+        executable = None  # 動的 feasibility 未検証 → 実行可否は確定できない
+        if flexion is not None:
+            axes.append("joint_rom")
+            v = flexion.get("any_violation_ratio") or 0.0
+            if v > 0.0:
+                blockers.append(f"関節可動域超過 {v:.0%}（膝・肘が実機 ROM を超過）")
+
+    out: dict[str, Any] = {
+        "executable": executable,
+        "checked_axes": axes,
+        "blockers": blockers,
+    }
+    if any("可動域" in b or "ROM" in b for b in blockers):
+        out["remedy"] = "retarget(..., clamp_flexion=True) で可動域内へ補正可"
+    if not cert:
+        out["note"] = "sim_certificate 未計算 — validate-sim で動的 feasibility を検証するまで実行可否は未確定。"
+    return out
+
+
 def build_motion_card(motion: RdMotion, *, mir: Optional[RdMir] = None) -> dict[str, Any]:
     """RD-Motion の Model Card（dict）を生成する。mir を渡すと license/source を継承する。"""
     prov = motion.source_provenance or {}
@@ -189,6 +226,7 @@ def build_motion_card(motion: RdMotion, *, mir: Optional[RdMir] = None) -> dict[
         },
         "lineage": lineage,
         "license": _license_section(lic_state),
+        "executability": _executability(cert, flexion),
         "intended_use": [
             f"{motion.robot_name} の sim 再生 / 可視化（RViz, viewer）",
             "sim_certificate PASS かつ safety guard 通過時の、慎重な実機評価（tethered, 低速）",
@@ -344,6 +382,19 @@ def render_markdown(card: dict[str, Any]) -> str:
     ]
     for k, v in ident.items():
         lines.append(f"- **{k}**: {v}")
+
+    ex = card.get("executability")
+    if ex is not None:
+        flag = {True: "✅ yes", False: "❌ no", None: "❔ unknown（要 sim 検証）"}[ex.get("executable")]
+        lines += ["", "## Executability", f"- **executable**: {flag}"]
+        if ex.get("checked_axes"):
+            lines.append(f"- **checked axes**: {', '.join(ex['checked_axes'])}")
+        for b in ex.get("blockers", []):
+            lines.append(f"- ⛔ {b}")
+        if ex.get("remedy"):
+            lines.append(f"- 💡 {ex['remedy']}")
+        if ex.get("note"):
+            lines.append(f"- {ex['note']}")
 
     lines += ["", "## Data Lineage"]
     for st in card.get("lineage", []):

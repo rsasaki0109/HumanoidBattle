@@ -5,6 +5,20 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.45.0] - 2026-06-04
+
+実データ深掘り（Model Card に統合 executability サマリ, pre-alpha）。v0.44 で動的＋運動学的
+feasibility を sim_certificate に統合したが、Motion Card では sim_certificate と
+kinematic_feasibility が別々に埋まり、consumer が「結局この motion は実機で実行してよいか」を
+一目で判断しづらかった。本版で両軸を集約した executability サマリをカード上位に追加した。
+
+### Added
+- Motion Card（`robotdance_core.model_card`）に `executability` を追加:
+  `{executable: true|false|null, checked_axes, blockers, remedy?}`。sim_certificate があれば
+  その verdict（v0.44 で ROM 統合済み）が権威、無ければ executable=null（動的未検証）だが可動域は
+  joint_flexion から報告。ROM が blocker のときは clamp_flexion の remedy を併記。Markdown は
+  ✅/❌/❔ と blocker・remedy を表示。
+
 ## [0.44.0] - 2026-06-04
 
 実データ深掘り（動的＋運動学的 feasibility の統合, pre-alpha）。v0.43 で overbend が動的には安定
