@@ -2,518 +2,201 @@
 
 # 🕺 RobotDance
 
-**Drop a human motion video. Get a humanoid motion dataset, embedding, and G1 simulation replay.**
+**Human Video → Humanoid Motion Compiler**
 
-*RobotDance は、権利管理された人間動画を、ヒューマノイドロボットの運動データ・運動埋め込み・学習 policy・実行可能モーションへ変換する OSS モーションコンパイラです。*
+*人間の動画を、ヒューマノイドが学習・検索・模倣・実行できる運動へ変換する OSS コンパイラ。*
 
 [![CI](https://github.com/rsasaki0109/RobotDance/actions/workflows/ci.yml/badge.svg)](https://github.com/rsasaki0109/RobotDance/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 ![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
 ![ROS2](https://img.shields.io/badge/ROS2-Jazzy-22314E.svg)
 
-<img src="assets/readme/human_vs_g1.gif" width="560" alt="Human motion on the left, Unitree G1 dancing the same motion on the right">
+<img src="assets/readme/human_vs_g1.gif" width="520" alt="Human motion on the left, Unitree G1 dancing the same motion on the right">
 
-<sub>↑ **左の人間の動き（RD-MIR）→ 右の実 Unitree G1 が同じ振付で踊る。** これが RobotDance の一行説明。
-**同一の合成ダンス**を、左は canonical 19-joint スケルトンとして、右は **actuator-space IK** で実 G1 の
-**23 関節角**へ retarget し**実 g1_23dof メッシュ**でレンダリング。フレームは同期しているので「人間 → ロボット」の
-対応がそのまま見える。[`scripts/render_human_vs_robot_gif.py`](scripts/render_human_vs_robot_gif.py) で生成。</sub>
+<sub>左の人間の動き（RD-MIR）→ 右の実 Unitree G1 が同じ振付で踊る。これが RobotDance の一行説明。</sub>
 
-<img src="assets/readme/g1_dance.gif" width="300" alt="Real Unitree G1 dancing from a human motion">
-
-<sub>↑ **人間のダンス → 実 Unitree G1 が踊る。** 合成ダンス（RD-MIR）を **actuator-space IK** で実 G1 の
-**23 関節角**へ retarget し、**公式 g1_23dof URDF の実メッシュ**でレンダリング（棒人間ではない）。
-関節角はそのまま ROS2/SDK2 が command できる形。kinematic playback（動的実現可能性は MuJoCo sim_certificate が別途検証）。</sub>
-
-<img src="assets/readme/many_humanoids_mesh.gif" width="480" alt="Same motion on Unitree G1 and H1">
-
-<sub>↑ **Same motion, many humanoids** — 同じ人間モーションを **実 Unitree G1（左, 小型）と H1（右, full-size）**
-の実メッシュへ retarget。**実寸 URDF 由来**の morphology なので、身長差（G1 1.29m / H1 1.66m）がそのまま見える。
-<br>※ ロボットメッシュ © Unitree Robotics（`unitree_ros`, BSD-3-Clause）。URDF/メッシュは repo に同梱せず
-利用者がローカル取得。GIF は RobotDance パイプライン出力（actuator-IK 関節角）の可視化で、
-[`scripts/render_robot_gif.py`](scripts/render_robot_gif.py)（pybullet headless）で生成。</sub>
-
-### 🎬 Gallery — 色々な振付 × 2 機種が踊る
+### 🎬 色々な振付 × 2 機種
 
 <table>
 <tr>
 <td align="center"><sub><b>G1</b><br>1.29m</sub></td>
-<td align="center"><img src="assets/readme/gallery/g1_groove.gif" width="140" alt="G1 groove dance"><br><sub><b>groove</b></sub></td>
-<td align="center"><img src="assets/readme/gallery/g1_fast.gif" width="140" alt="G1 fast dance"><br><sub><b>fast dance</b></sub></td>
-<td align="center"><img src="assets/readme/gallery/g1_wave.gif" width="140" alt="G1 arm wave"><br><sub><b>arm wave</b></sub></td>
-<td align="center"><img src="assets/readme/gallery/g1_march.gif" width="140" alt="G1 march"><br><sub><b>march</b></sub></td>
-<td align="center"><img src="assets/readme/gallery/g1_squat.gif" width="140" alt="G1 squat"><br><sub><b>squat</b></sub></td>
+<td align="center"><img src="assets/readme/gallery/g1_groove.gif" width="120" alt="G1 groove"><br><sub>groove</sub></td>
+<td align="center"><img src="assets/readme/gallery/g1_fast.gif" width="120" alt="G1 fast"><br><sub>fast</sub></td>
+<td align="center"><img src="assets/readme/gallery/g1_wave.gif" width="120" alt="G1 wave"><br><sub>wave</sub></td>
+<td align="center"><img src="assets/readme/gallery/g1_march.gif" width="120" alt="G1 march"><br><sub>march</sub></td>
+<td align="center"><img src="assets/readme/gallery/g1_squat.gif" width="120" alt="G1 squat"><br><sub>squat</sub></td>
 </tr>
 <tr>
 <td align="center"><sub><b>H1</b><br>1.66m</sub></td>
-<td align="center"><img src="assets/readme/gallery/h1_groove.gif" width="140" alt="H1 groove dance"><br><sub><b>groove</b></sub></td>
-<td align="center"><img src="assets/readme/gallery/h1_fast.gif" width="140" alt="H1 fast dance"><br><sub><b>fast dance</b></sub></td>
-<td align="center"><img src="assets/readme/gallery/h1_wave.gif" width="140" alt="H1 arm wave"><br><sub><b>arm wave</b></sub></td>
-<td align="center"><img src="assets/readme/gallery/h1_march.gif" width="140" alt="H1 march"><br><sub><b>march</b></sub></td>
-<td align="center"><img src="assets/readme/gallery/h1_squat.gif" width="140" alt="H1 squat"><br><sub><b>squat</b></sub></td>
+<td align="center"><img src="assets/readme/gallery/h1_groove.gif" width="120" alt="H1 groove"><br><sub>groove</sub></td>
+<td align="center"><img src="assets/readme/gallery/h1_fast.gif" width="120" alt="H1 fast"><br><sub>fast</sub></td>
+<td align="center"><img src="assets/readme/gallery/h1_wave.gif" width="120" alt="H1 wave"><br><sub>wave</sub></td>
+<td align="center"><img src="assets/readme/gallery/h1_march.gif" width="120" alt="H1 march"><br><sub>march</sub></td>
+<td align="center"><img src="assets/readme/gallery/h1_squat.gif" width="120" alt="H1 squat"><br><sub>squat</sub></td>
 </tr>
 </table>
 
-<sub>↑ **色々な「short 動画」を入れたら、色々なヒューマノイドが色々に踊る** のイメージ。5 つの異なる振付（RD-MIR）を
-それぞれ **actuator-space IK** で **実 G1（上, 23 関節, 1.29m）と H1（下, 19 関節, 1.66m）**の関節角へ retarget し、
-**公式 URDF の実メッシュ**でレンダリング（IK 位置誤差 G1 0.05〜0.09m / H1 0.09〜0.11m）。同じ振付でも実寸 morphology の
-違い（身長・DOF）がそのまま出る。<br>※ ⚠️ **実動画はライセンス上同梱できない**ため、ここでの「色々な入力」は
-**合成モーション群が代役**です（実動画は `video-to-robot` でユーザーが持ち込み、`license_state="unknown"` の派生 motion は非公開）。
-<br>※ メッシュ © Unitree Robotics（`unitree_ros`, BSD-3-Clause、repo 非同梱）。GIF はパイプライン出力の可視化（render）。
-[`scripts/render_gallery.py`](scripts/render_gallery.py)（`--robot g1|h1`）で一括生成。</sub>
+<sub>同じ振付を実 G1 / H1 メッシュへ retarget。身長・DOF の違いがそのまま出る。<br>
+※ メッシュ © Unitree Robotics（BSD-3-Clause, repo 非同梱）。GIF はパイプライン出力の可視化。</sub>
 
 </div>
 
 ---
 
-## 一言で
-
-> **RobotDance = "Human Video to Humanoid Motion Compiler"**
-
-単なる pose estimation ラッパーでも、単なる retargeting ツールでも、単なる robot policy repo でもありません。
-人間の全身運動を、ヒューマノイドロボットが**学習・検索・模倣・実行**できる形に変換する基盤です。
+## これは何？
 
 ```
-Input:  a short human video
-Output: Unitree G1 simulation motion + RD-MIR dataset + motion embedding
+Input:  a short human video（合成 / 実動画(MediaPipe) / mocap(AMASS)）
+Output: ロボット実行可能モーション + RD-MIR データセット + motion embedding
 ```
 
-## 今動くもの（v0, すべて検証済み）
+入力はすべて canonical **RD-MIR**（中核 motion IR）に合流し、**retarget → 物理検証 → embedding → ROS2 安全再生**へ流れます。
 
-| 機能 | コマンド | デモ |
-| --- | --- | --- |
-| 実動画 → 3D motion（MediaPipe） | `extract` / `video-to-robot` | bring your own video |
-| mocap → motion（AMASS, skeleton-first） | `build-dataset` | + license firewall / Data BOM |
-| near-duplicate 除去（汎用, §4.1） | `dedupe-dir` / `import-babel --dedupe` | embedding 類似で重複統合 |
-| text-motion（HumanML3D / BABEL / Motion-X, §4.1） | `import-humanml3d` / `import-babel` / `import-motionx` | 記述・行動ラベルを semantics に |
-| HMR 動画→3D（4DHumans/GVHMR SMPL→RD-MIR, §4.1） | `import-hmr` | betas shape-cond・native .pkl/.pt・world trajectory |
-| G1 / H1 / T1 / Apollo への retarget（multi-embodiment, 実 URDF 由来） | `retarget` / `demo-multi` | [provenance](docs/EMBODIMENTS.md) |
-| MuJoCo 物理検証（安全な運動だけ通す） | `validate-sim` / `demo-safety` | Demo 4: unsafe rejected |
-| sim backend 抽象（pluggable, §4.3） | `sim-backends` / `validate-sim --backend` | MuJoCo 参照 + Isaac Lab scaffold |
-| **end-to-end pipeline（1 コマンド統合, §6）** | `demo-pipeline` | RD-MIR→retarget→sim→policy→cards |
-| motion embeddings + 類似検索 + Motion Map | `demo-motion-map` | Demo 3 |
-| テキスト → モーション意味検索（contrastive + 検索 GIF） | `train-text-motion` / `search-text --gif` | group top-1 100%・モンタージュ |
-| モーション → 離散トークン（VQ-VAE） | `train-tokenizer` / `demo-tokenizer` | 4× 圧縮・再構成 RMSE ~0.03 |
-| モーション生成・補完・長尺（token prior） | `train-prior` / `demo-generate` | next-token 92%・長尺 sliding-window |
-| ノイズ除去・in-betweening（双方向 denoiser, §4.2） | `train-denoiser` / `demo-denoise` | masked modeling・補間/中割り |
-| テキスト → モーション生成（text2motion） | `train-text2motion` / `generate-text` | "a backflip" → バックフリップ |
-| RL tracking policy（物理上で参照を追従, §4.5） | `train-tracking` / `demo-track` | PPO・base 非駆動・survival 100% |
-| policy export（RD-Policy + ONNX, §3/§4.5） | `export-policy` / `validate policy` | I/O規約・安全制約・weights参照・実機橋渡し |
-| multi-motion tracking（1 方策で 4 運動を汎化） | `train-tracking --suite` / `demo-track-multi` | reference-conditioned・全運動 survival 100% |
-| temporal smoothing + 2D overlay | `smooth` / `overlay` | jitter 0.099→0.022 |
-| benchmark（motion × robot leaderboard） | `benchmark` | CSV + leaderboard |
-| extraction benchmark（MediaPipe vs HMR, §4.1） | `benchmark-extraction` | MPJPE/PA-MPJPE/PCK/jitter |
-| Model Card + 索引（MIR/Motion/Policy, §7） | `model-card` / `cards-index` | lineage/license/failure/safety + CARDS_INDEX |
-| ROS2 安全再生（Jazzy, safety guard） | `serve --ros2 [--urdf]` / `demo-runtime` | RViz 可視化・実 URDF limit で guard 構築 |
-| 関節空間 safety guard（位置/速度/加速度/トルククランプ, §5.6） | `demo-joint-safety [--urdf]` | 実機コマンド直前の最終 gate・実 URDF limit で構築可 |
-
-> 入力は **合成 / 実動画(MediaPipe) / mocap(AMASS)** の 3 系統、すべて同じ canonical **RD-MIR** に合流し、
-> retarget → 物理検証 → embedding → 安全再生のパイプラインを流れます。
-> ⚠️ v0 は近似を含み**実機保証ではありません**（質量・慣性は実 URDF 由来だが balance/トルクは準静的近似）。
-> 近似と実機との境界は [`docs/SIM_TO_REAL.md`](docs/SIM_TO_REAL.md)、各パッケージ README も参照。
-
-## What RobotDance is / is not
-
-| ✅ RobotDance は | ❌ RobotDance ではない |
+| ✅ RobotDance は | ❌ ではない |
 | --- | --- |
-| 人間動画 → ヒューマノイド運動資産の **motion compiler** | TikTok/Instagram scraper |
-| **Motion IR (RD-MIR)** を標準化するデータの OS | 単なる pose estimation ラッパー |
-| Unitree G1/H1 を primary target にした **sim-first** 基盤 | 「動画を入れたら即実機が踊る」危険ツール |
+| 動画 → ヒューマノイド運動資産の **motion compiler** | TikTok/Instagram scraper |
+| **RD-MIR** を標準化するデータの OS | 単なる pose 推定ラッパー |
+| G1/H1 を primary target にした **sim-first** 基盤 | 「動画→即実機が踊る」危険ツール |
 | Isaac Lab 等に motion prior を供給する **frontend** | Isaac Lab / GR00T の competitor |
-| ダンスは強いデモの一つ（対象はスポーツ・武道・日常動作・リハビリ等） | ダンス専用ツール |
 
-## 4 つの出力
+> ⚠️ v0 は pre-alpha・近似を含み**実機保証ではありません**（質量/慣性は実 URDF 由来だが balance/トルクは準静的近似）。境界は [`docs/SIM_TO_REAL.md`](docs/SIM_TO_REAL.md)。
 
-1. **Humanoid Motion Dataset** — ライセンス管理済みの全身運動データセット
-2. **Motion Embeddings** — 検索・クラスタリング・VLA 接続・RL conditioning 用の運動表現
-3. **Robot Policies** — G1/H1 が物理的に追従できる policy
-4. **Robot Executable Motions** — ROS2 / Unitree SDK / sim runtime で再生可能な artifact
+## 実動画 → ヒューマノイド（本命 "Shorts to humanoid"）
 
-## アーキテクチャ
-
-```
-[Video Source]            ローカル / 許諾済み / URL manifest
-      ↓
-[Source Manifest Layer]   RD-Manifest: URL, license, provenance, rebuild recipe
-      ↓
-[Video Processing]        decode, segmentation, tracking, quality scoring
-      ↓
-[Human Motion Recovery]   2D pose → 3D pose / SMPL / world-grounded motion
-      ↓
-[RD-MIR]  ◀── 中核標準 ──  canonical skeleton, root trajectory, contacts, metadata
-      ↓
-[Motion Understanding]    embeddings, action tags, retrieval, quality classifier
-      ↓
-[Retargeting]             canonical human motion → robot embodiment motion
-      ↓
-[Physics Validation]      kinematic / contact / sim tracking, fall / torque / slip
-      ↓
-[Learning]                motion encoder, foundation model, RL tracker
-      ↓
-[Runtime]                 ROS2 / Unitree SDK2 / simulation / motion server
-```
-
-中核となる内部標準は **RD-MIR (RobotDance Motion Intermediate Representation)** です。詳細は [`specs/`](specs/) を参照。
-
-## Real video → humanoid（bring your own video）
-
-本命の **"Shorts to humanoid"**。ローカル動画を MediaPipe Pose で 3D 復元し、canonical RD-MIR →
-G1/H1 retarget → MuJoCo 物理検証まで一気通貫します。
-
-**実例: ライセンスがクリアな実スポーツ動画 → 実 G1**（合成ではなく本物の動画から）。
-**① 原動画に骨格 overlay → ② canonical スケルトン復元 → ③ 実 G1 が再現**の 3 段:
+ローカル動画を MediaPipe Pose で 3D 復元し、RD-MIR → retarget → 物理検証まで一気通貫。**① 骨格 overlay → ② canonical スケルトン → ③ 実 G1** の 3 段:
 
 <table>
 <tr>
-<td align="center"><img src="assets/readme/real/squat_overlay.gif" width="230" alt="2D skeleton overlaid on the source squat video"><br><sub>① 原動画 + 2D 骨格 overlay<br>（実ピクセルで検出確認）</sub></td>
-<td align="center"><img src="assets/readme/real/squat_g1_skeleton.gif" width="180" alt="canonical skeleton extracted from a real squat video"><br><sub>② canonical RD-MIR<br>スケルトンを復元</sub></td>
-<td align="center"><img src="assets/readme/real/squat_g1_robot.gif" width="190" alt="Unitree G1 mesh performing the squat extracted from the real video"><br><sub>③ actuator-IK で<br><b>実 G1（23 関節）</b>が再現</sub></td>
+<td align="center"><img src="assets/readme/real/squat_overlay.gif" width="220" alt="2D skeleton overlay on source video"><br><sub>① 原動画 + 骨格 overlay</sub></td>
+<td align="center"><img src="assets/readme/real/squat_g1_skeleton.gif" width="170" alt="canonical skeleton"><br><sub>② RD-MIR スケルトン</sub></td>
+<td align="center"><img src="assets/readme/real/squat_g1_robot.gif" width="180" alt="G1 mesh performing the squat"><br><sub>③ 実 G1 が再現</sub></td>
 </tr>
 </table>
 
-<sub>↑ **本物のスポーツ動画 → ヒューマノイド。** ① は MediaPipe の 2D 骨格を原フレームに重ねた検出確認
-（mean confidence 0.89）。② は world landmark から復元した canonical 19-joint（smoothed jitter 0.005）。
-③ は **actuator-space IK** で実 g1_23dof URDF の 23 関節角へ retarget（IK 位置誤差 0.094m）し実メッシュで render。
-<br>※ ① の overlay はソース動画のピクセルを含む派生物（CC BY なので出典明記で可）。②③ は抽出 motion /
-関節角の可視化で**ソース動画のピクセルを含みません**。**入力動画は repo に同梱しません。**
-[`scripts/render_real_video_gif.py`](scripts/render_real_video_gif.py) / `extract`+`overlay` で生成。<br>※ Source:
-『Squat – exercise demonstration video』by **FitnessScape**, **CC BY 3.0**, via
-[Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Squat_-_exercise_demonstration_video.webm)。
-ロボットメッシュ © Unitree Robotics（`unitree_ros`, BSD-3-Clause, repo 非同梱）。</sub>
+**武道・ダンスの実クリップも → 実 G1 / H1:**
 
-#### 実動画はそのままでは実機に流せない — feasibility certificate が止める
+<table>
+<tr>
+<td align="center"><img src="assets/readme/real/karate_g1_robot.gif" width="140" alt="G1 karate kata"><br><sub>karate → G1</sub></td>
+<td align="center"><img src="assets/readme/real/kathak_g1_robot.gif" width="140" alt="G1 kathak dance"><br><sub>kathak → G1</sub></td>
+<td align="center"><img src="assets/readme/real/kathak_h1_robot.gif" width="140" alt="H1 kathak dance"><br><sub>kathak → H1</sub></td>
+</tr>
+</table>
 
-抽出した実 squat を**そのまま** MuJoCo feasibility certificate（実 URDF 慣性, v0）にかけると **REJECT** になります。
-理由が診断的で、「動画を入れたら即ロボットが踊る」を**設計として**防いでいることが分かります:
+<sub>※ **入力動画は repo に同梱しません。** overlay のみソース動画ピクセルを含む派生物（CC-BY 出典明記で可）、他は抽出 motion の可視化でピクセル非含有。Sources（Wikimedia Commons, CC-BY/-SA）: FitnessScape / Sdcsabac / Suyash Dwivedi。生成は [`scripts/render_real_video_gif.py`](scripts/render_real_video_gif.py)。</sub>
+
+### 物理検証が安全弁 — 無理な運動は止める
+
+抽出した実 squat を feasibility certificate（実 URDF 慣性）にかけると **REJECT**。理由が診断的で「動画→即ロボット」を設計として防ぎます。`--ground-clean`（接地足を z=0 固定）で接地アーティファクトは消えるが、**残る balance は単眼の深度誤差律速**:
 
 <table>
 <tr><td>
 
-| 軸 | 生抽出 | `--ground-clean` 後 |
+| 軸 | 生抽出 | --ground-clean |
 | --- | --- | --- |
-| airborne_ratio | ⛔ 0.484 | ✅ **0.000** |
-| torque_ratio | ✅ 0.878 | ✅ **0.615** |
-| balance（ZMP 支持外） | ⛔ 0.601 | ⛔ **0.474** |
-| joint_velocity_ratio | ✅ 0.314 | ✅ 0.314 |
-| joint_flexion（ROM） | ✅ 0.0 | ✅ 0.0 |
-| **verdict** | **REJECT** | **REJECT**（balance 残） |
+| airborne | ⛔ 0.484 | ✅ **0.000** |
+| torque | ✅ 0.878 | ✅ **0.615** |
+| balance | ⛔ 0.601 | ⛔ **0.474** |
+| **verdict** | REJECT | REJECT（balance 残） |
 
 </td><td>
 
-<img src="assets/readme/real/squat_g1_balance_cleaned.png" width="280" alt="ZMP vs support polygon after ground-clean: airborne gone, residual ZMP spread in forward (depth) axis">
+<img src="assets/readme/real/squat_g1_balance_cleaned.png" width="250" alt="ZMP vs support polygon: residual spread in depth axis">
 
 </td></tr>
 </table>
 
-<sub>↑ **接地クリーンアップで airborne を 0 に — 残る壁は torque ではなく深度由来の balance。** 単眼抽出は
-**根の高さ・足接地が不確実**で生のままだと airborne 48% / ZMP外 60%。`--ground-clean`（接地足を毎フレーム z=0 に
-固定 + 接地フラグ再生成, [`robotdance_motion/grounding.py`](robotdance_motion/grounding.py)）で **airborne 0.48→0.00・
-torque 0.88→0.62** と接地アーティファクトが消え、右図のとおり**支持多角形が安定**する。それでも **balance 0.47 は閾値
-0.3 超で REJECT**。残った ZMP のはみ出しは**前後 x（＝単眼で最も不確実な深度）方向に偏る**（右図: 赤×が前方へ伸びる）。
-つまり接地（contact）は直せても、**balance は深度復元の精度律速**という所が v0 の正直な frontier。完全な PASS には
-深度推定 / contact-aware retarget の改善が要る。<br>※ 跳躍を含む動作は本 cleanup の対象外（grounded 前提）。
-`validate-sim ... --ground-clean --balance-plot` で生成。</sub>
-
-#### もっと実クリップ → 実ヒューマノイド（武道・ダンス, 多機種）
-
-<table>
-<tr>
-<td align="center"><img src="assets/readme/real/karate_g1_skeleton.gif" width="150" alt="karate kata skeleton"><br><sub>karate kata<br>（抽出骨格）</sub></td>
-<td align="center"><img src="assets/readme/real/karate_g1_robot.gif" width="150" alt="G1 performing karate kata"><br><sub>→ 実 <b>G1</b></sub></td>
-<td align="center"><img src="assets/readme/real/kathak_g1_skeleton.gif" width="150" alt="kathak dance skeleton"><br><sub>kathak dance<br>（抽出骨格）</sub></td>
-<td align="center"><img src="assets/readme/real/kathak_g1_robot.gif" width="150" alt="G1 performing kathak dance"><br><sub>→ 実 <b>G1</b></sub></td>
-<td align="center"><img src="assets/readme/real/kathak_h1_robot.gif" width="150" alt="H1 performing kathak dance"><br><sub>→ 実 <b>H1</b></sub></td>
-</tr>
-</table>
-
-<sub>↑ **武道（karate kata, 空手の型）と古典舞踊（kathak）の実動画 → 実 G1 / H1。** 同じ kathak を G1（IK 0.068m）
-と H1（IK 0.113m）の両方へ retarget。検出 mean confidence は karate 0.92 / kathak 0.95。<br>※ 入力動画は非同梱。
-Source: 『Karate, Hean Shodan』by **Sdcsabac** (CC BY-SA 4.0) / 『Vishvadeep performing Kathak…』by **Suyash Dwivedi**
-(CC BY-SA 4.0), via Wikimedia Commons。メッシュ © Unitree Robotics（BSD-3-Clause, repo 非同梱）。GIF はパイプライン出力の可視化。</sub>
+<sub>残った ZMP のはみ出しは前後 x（単眼で最も不確実な深度）方向に偏る。完全 PASS には深度推定 / contact-aware retarget の改善が要る — v0 の正直な frontier。</sub>
 
 ```bash
 pip install -e ".[demo,sim,perception]"
 
-# 動画 → RD-MIR → retarget → 物理検証 → human|robot side-by-side
-robotdance video-to-robot my_clip.mp4 --robot unitree_g1 -o shorts_to_humanoid.gif
-
-# 抽出（Savitzky-Golay 平滑化込み）/ 原動画への骨格オーバーレイ
-robotdance extract my_clip.mp4 -o clip.rdmir.json
-robotdance overlay my_clip.mp4 clip.rdmir.json -o overlay.gif
-
-# 物理検証（接地クリーンアップ + balance 可視化）
-robotdance validate-sim clip.rdmir.json --robot unitree_g1 --ground-clean --balance-plot balance.png
+robotdance video-to-robot my_clip.mp4 --robot unitree_g1 -o out.gif      # 動画→検証→side-by-side
+robotdance extract my_clip.mp4 -o clip.rdmir.json                        # 動画→RD-MIR
+robotdance overlay my_clip.mp4 clip.rdmir.json -o overlay.gif            # 骨格 overlay
+robotdance validate-sim clip.rdmir.json --robot unitree_g1 --ground-clean --balance-plot b.png  # 物理検証
 ```
 
-**実ピクセルでの検出（公有データで検証）** — 抽出した 2D 骨格を原フレームに重ねて目視確認できます:
-
-<img src="assets/readme/pose_overlay_astronaut.png" width="280">
-
-<sub>骨格 overlay（黄=bone, 赤=joint）。画像は scikit-image の `astronaut`（NASA 撮影, public domain = Tier A）。
-上半身は高 confidence、ポートレートなので下半身は外挿。実動画では全身が取れる。</sub>
-
-**temporal smoothing** — monocular pose は jittery なので Savitzky-Golay で平滑化（`extract` は既定で適用）:
-
-![smoothing](assets/readme/smoothing.gif)
-
-<sub>左: raw（赤, jittery）/ 右: smoothed（緑）。jitter（フレーム間加速度）0.099 → 0.022。</sub>
-
-> ⚠️ **実動画は同梱しません。** 入力動画の権利はユーザー責任で、アダプタは動画を再配布せず、
-> 抽出 RD-MIR の `license_state` は `"unknown"`（source 未確認 → 派生 motion を公開しない）。
-> 検証は landmark→canonical マッピングの単体テストと、公有 `astronaut` 実写での検出テストで行っています
-> （[`robotdance_perception`](robotdance_perception/) / [`robotdance_motion`](robotdance_motion/)）。
-
-## ROS2 runtime — 安全ゲート越しの motion server（Jazzy）
-
-certified な `.rdmotion` を **Safety Guard**（§5.6）越しに ROS2 へ配信します。`sim_certificate` が
-無い / REJECT の motion は**再生前に遮断**します（「動画を入れたら即ロボットが踊る」を防ぐ）。
-
-```bash
-robotdance demo-runtime          # certificate PASS → 再生 / REJECT → 遮断（ABORT）
-robotdance serve g1.rdmotion.json --ros2   # ROS2 配信（RViz で skeleton 可視化）
-```
-```
-dance(PASS)      cert=PASS   → motion_server: 再生（120 frames）
-backflip(REJECT) cert=REJECT → motion_server: 遮断（ABORT）（0 frames）
-```
-
-- **実 G1 を RViz で動かす**: `retarget-ik` の実関節角を `/joint_states` で配信 →
-  `robot_state_publisher` + 実 URDF → RViz で本物の G1 メッシュが動く（launch ファイル付属）。
-- core（safety guard / motion server）は **ROS2 非依存で完全テスト可能**。ノードは **ROS2 Jazzy**（primary target）。
-- topic: `/joint_states`（実関節角）、`/robotdance/skeleton`（MarkerArray）、`/robotdance/safety`、`/robotdance/estop`。
-- **sim-first** — 実機 bridge は安全レビュー後（[`robotdance_ros2`](robotdance_ros2/)）。
-
-## Benchmark — motion × robot leaderboard
-
-全指標（retarget / sim_certificate / source 品質）を **motion × robot** で集計し、CSV + leaderboard を出力します。
-
-```bash
-robotdance benchmark --robots unitree_g1 unitree_h1 booster_t1 -o out/   # 既定で 3 機種
-```
-
-サンプル結果（合成スイート 4 motion × G1/H1、[全文](docs/benchmark/LEADERBOARD.md)）:
-
-| robot | runs | PASS率 | 平均 bone方向cos | 平均 foot_sliding |
-| --- | --- | --- | --- | --- |
-| unitree_g1 | 4 | 0.75 | 1.000 | 0.024 |
-| unitree_h1 | 4 | 0.50 | 1.000 | 0.034 |
-
-<sub>backflip は両機で REJECT。fast dance は背の高い H1 でバランス違反 → REJECT（小型 G1 は PASS）という妥当な所見が出る。
-v0 は近似プロキシ・近似質量で実機保証ではない。</sub>
-
-## Motion Map — 類似検索・重複除去・運動の地図（Demo 3）
-
-RD-MIR を **motion embedding** に符号化し、類似動作検索・near-duplicate 検出・2D マップを実現します。
-
-<img src="assets/readme/motion_map.png" width="460">
-
-<sub>多様な合成モーションを埋め込み PCA で 2D 射影。dance / idle / backflip が明確にクラスタ化。
-同一振付は重複として検出される。</sub>
-
-```bash
-robotdance demo-motion-map -o motion_map.png
-```
-```
-retrieval（query=dance_fast）:  dance_slow 0.90, dance_normal 0.82, backflip 低い
-near-duplicates (>=0.98):       dance_normal ~ dance_dup (1.00), backflip_a ~ backflip_b (0.997)
-```
-
-**手作り特徴量** がデフォルト（位置/向き/スケール不変）。**学習 encoder**（masked motion modeling）も
-同じ interface で差し込めます:
-
-```bash
-pip install -e ".[learn]"
-robotdance train-encoder -o motion_encoder.pt --epochs 40       # masked 再構成 loss 0.36→0.02
-robotdance demo-motion-map --checkpoint motion_encoder.pt -o map_learned.png
-```
-
-<img src="assets/readme/motion_map_learned.png" width="420">
-
-<sub>学習 encoder の Motion Map。**クラス（dance/idle/backflip）を明確に分離**するが、v0 は小さな合成 corpus で
-学習しているため dance 変種は 1 点に集約（tempo 差を失う）— 手作り版が tempo を広げたのと対照的。
-**学習 encoder は基盤であり、手作り baseline を超えると主張するものではない**（要・実データ規模）。</sub>
-
-> 学習 encoder の `embed(mir)` は手作りと同じ `MotionIndex(embed_fn=...)` で検索・重複除去・Map に使える
-> （[`robotdance_models`](robotdance_models/)）。
-
-### テキストでモーションを探す（contrastive text-motion）
-
-motion encoder と決定的ハッシュ n-gram テキスト特徴を **共有埋め込み空間**に射影し、
-multi-positive InfoNCE で整合させると、**自然文でモーションを意味検索**できます:
-
-```bash
-robotdance train-text-motion -o text_motion.pt --epochs 200   # caption→motion group top-1 100%
-robotdance search-text "a person doing a backflip" --checkpoint text_motion.pt
-```
-```
-🔎 query: "a person doing a backflip"
-  backflip       cos=+0.678 ██████████████
-  dance_slow     cos=+0.160 ███
-  idle           cos=+0.077 ██
-```
-
-学習に無い言い回し（"standing perfectly still" → idle、"flipping backwards through the air" → backflip）にも
-汎化します。v0 は**事前学習言語モデルなし**・小さな合成 corpus（実キャプション規模・CLIP/sentence-transformers
-への差し替えは今後）。
-
-### テキストからモーションを生成する（text → motion）
-
-**テキスト特徴（v0.4）+ VQ-VAE トークナイザ + 生成 prior（v0.5）を 1 本に繋ぐ集大成**。
-token prior をテキスト特徴で条件付けすると、**caption からモーションを生成**できます:
-
-```bash
-robotdance train-tokenizer -o motion_tokenizer.pt --epochs 150
-robotdance train-text2motion --tokenizer motion_tokenizer.pt -o text2motion.pt --epochs 400
-robotdance generate-text "a person doing a backflip" -o backflip.rdmir.json --gif backflip.gif
-```
-```
-🎬 "a person doing a backflip" → 生成モーション   energy=0.261   # 高エネルギー
-🎬 "standing still"            → 生成モーション   energy=0.020   # 低エネルギー（idle）
-```
-
-caption の action 群（dance / idle / backflip）に応じて生成が変わります。生成物は schema 適合の
-RD-MIR なので、そのまま **retarget → MuJoCo 物理検証 → ROS2 安全再生**のパイプラインに流せます。
-
-```
-text → [hash n-gram] → 条件付き token prior → 離散トークン列 → [VQ-VAE decode] → RD-MIR → G1
-```
-
-> ⚠️ v0 は小さな合成 corpus・語彙限定。**生成物は物理的に妥当とは限らない** —
-> `validate-sim` の sim_certificate（MuJoCo）で必ず検証してから実機検討へ。
-
-## Dataset factory — manifest 駆動 + license firewall
-
-RobotDance は「運動データの OS」を目指します。**AMASS 等の mocap を skeleton-first で RD-MIR 化**し、
-**RD-Manifest** で権利を管理します。raw データは再配布せず、`license_declared=unknown` や
-`derived_motion_allowed=false` の clip は **license firewall** が派生 motion の書き出しを止めます。
-
-```bash
-robotdance build-dataset manifests.json --data-root /path/to/amass -o build/
-```
-```
-✅ amass-cc-walk-001     [trainable]  derived_motion_allowed=true, license=creativeCommon
-⛔ internet-clip-xyz     [unknown]    license_declared=unknown → 派生 motion 非公開
-→ build/DATA_CARD.md（Data Bill of Materials: どの source が・どの権利で・公開されたか）
-```
-
-- **アクチュエータ空間 retarget**（`retarget-ik --urdf`）: 実 URDF の微分可能 FK + 勾配 IK で
-  **実 G1 の 23 関節角**を出力（ROS2/SDK2 が command できる joint trajectory）。IK 位置誤差が
-  「実 G1 の限られた DOF で人間動作をどこまで追えるか」を示す（dance ~0.07m / backflip ~0.16m）。
-- **skeleton-first**: SMPL pose を FK して canonical 19-joint へ。**SMPL body model file は不要 / 同梱しない**（license friction 回避）。
-- 対応データセット: **AMASS**（mocap）/ **AIST++**（ダンス, 60fps）。同じ canonical RD-MIR に変換され retarget・物理検証へ流れる。
-- `--dedupe` で **motion embedding による near-duplicate 除去**（同じ振付を 1 本に集約）。
-- 実データは登録制のため同梱しません（[`robotdance_data`](robotdance_data/)）。
-
-## Demo 4 — Unsafe motion rejected
-
-> RobotDance は「動画を入れたら即ロボットが踊る」危険ツールではありません。retarget した運動を
-> **MuJoCo 物理で feasibility 検証**し、無理な運動は reject します（設計方針 §6.2 Demo 4 / §5.6）。
-
-![safe vs unsafe](assets/readme/safety_check.gif)
-
-```
-dance    → PASS    （airborne 0%, ZMP 支持内, torque p50 18.7 N·m）
-backflip → REJECT  （airborne 88%, ZMP 支持外 92%, torque ×20.6, 角速度 38 rad/s）
-```
-
-受動 humanoid はバランス制御なしで何でも倒れるため forward sim は判別力を持ちません。代わりに
-**参照運動そのものの物理的実現可能性**を検証します（逆動力学トルク + COM/ZMP バランス + 滞空判定）。
-近似慣性のため実機保証ではありません（詳細: [`robotdance_sim`](robotdance_sim/)）。
-
-## Quick start
-
-外部モデルや権利付き動画なしで、合成モーション → RD-MIR → retarget → 物理検証まで end-to-end に試せます。
+## Quick start（外部モデル・権利付き動画なしで試せる）
 
 ```bash
 pip install -e ".[demo,sim]"
 
-# "Same motion, many humanoids"（G1 + H1）
-robotdance demo-multi  -o many_humanoids.gif --robots unitree_g1 unitree_h1
-
-# 物理検証デモ: safe dance(PASS) vs backflip(REJECT)
-robotdance demo-safety -o safety_check.gif --robot unitree_g1
-
-# 個別ステップ:
-robotdance synth        -o dance.rdmir.json --duration 4 --fps 30          # 合成 RD-MIR
-robotdance validate     mir dance.rdmir.json                              # v0 schema 検証
-robotdance view         dance.rdmir.json -o dance.gif                     # 3D スケルトン GIF
-robotdance retarget     dance.rdmir.json -o h1.rdmotion.json --robot unitree_h1
-robotdance view-pair    dance.rdmir.json h1.rdmotion.json -o pair.gif     # human | robot
-robotdance validate-sim dance.rdmir.json --robot unitree_g1               # MuJoCo 物理検証（executable: yes/no）
-robotdance validate-sim dance.rdmir.json --robot unitree_g1 --clamp-flexion  # ROM 違反を補正して再検証
+robotdance demo-multi  -o many_humanoids.gif --robots unitree_g1 unitree_h1  # 同一動作・多機種
+robotdance demo-safety -o safety_check.gif --robot unitree_g1               # safe(PASS) vs backflip(REJECT)
+robotdance synth -o dance.rdmir.json --duration 4                           # 合成 RD-MIR
+robotdance validate-sim dance.rdmir.json --robot unitree_g1                 # 物理検証（executable: yes/no）
 ```
 
-> ここで使う動画は**合成データ**で、pose 推定や物理 sim は**まだ含みません**。
-> 実動画からの 3D 復元（`local video → RD-MIR`）と G1 の物理検証（sim）は v0.1〜Phase 2 で追加します。
+## できること
 
-## リポジトリ構成
+入力（合成 / 実動画 / mocap）→ RD-MIR → 以下のパイプライン。各 `command` の詳細は `--help` と各パッケージ README へ。
 
+<details><summary><b>機能一覧（クリックで展開）</b></summary>
+
+| 領域 | 主なコマンド |
+| --- | --- |
+| 抽出 | `extract` `import-hmr` `import-humanml3d` `import-babel` `import-motionx` `smooth` `overlay` |
+| データセット | `build-dataset`（RD-Manifest + license firewall / Data BOM）`dedupe-dir` |
+| retarget | `retarget` `retarget-ik`（実 G1 23 関節角）`demo-multi`（G1/H1/T1/Apollo） |
+| 物理検証 | `validate-sim`（sim_certificate, MuJoCo）`--ground-clean` `--balance-plot` `sim-backends` |
+| 埋め込み・検索 | `demo-motion-map` `train-encoder` `train-text-motion` `search-text` |
+| 生成 | `train-tokenizer`（VQ-VAE）`train-prior` `demo-generate` `train-text2motion` `generate-text` `train-denoiser` |
+| 学習 policy | `train-tracking`（PPO）`demo-track` `demo-track-multi` `export-policy`（RD-Policy + ONNX） |
+| benchmark | `benchmark`（motion×robot leaderboard）`benchmark-extraction` |
+| カード | `model-card` `cards-index`（lineage/license/failure/safety） |
+| ROS2 runtime | `serve --ros2` `demo-runtime`（safety guard）`demo-joint-safety` |
+| 統合 | `demo-pipeline`（RD-MIR→retarget→sim→policy→cards を 1 コマンド） |
+
+</details>
+
+<details><summary><b>埋め込み・検索・生成（画像つき）</b></summary>
+
+**Motion Map** — RD-MIR を embedding 化し、類似検索・near-duplicate 除去・2D マップ:
+
+<img src="assets/readme/motion_map.png" width="380">
+
+```bash
+robotdance demo-motion-map -o motion_map.png
+robotdance train-text-motion -o tm.pt && robotdance search-text "a backflip" --checkpoint tm.pt
+robotdance generate-text "a person doing a backflip" -o bf.rdmir.json --gif bf.gif
 ```
-specs/                  ◀── 仕様は実装より偉い（最上位に配置）
-  rd-manifest/          URL/ライセンス/再構築手順
-  rd-mir/               中核 motion IR
-  rd-embodiment/        ロボット形態記述
-  rd-motion/            robot-specific 実行可能モーション
-  rd-policy/            policy I/O
-robotdance_core/        schemas, validators, CLI, config
-robotdance_data/        manifests, source adapters, dataset builder, license firewall
-robotdance_perception/  pose / HMR adapters, tracking, smoothing
-robotdance_motion/      canonicalization, contacts, embeddings, retrieval
-robotdance_retarget/    contact-preserving retargeting
-robotdance_sim/         Isaac Lab / MuJoCo backend adapters
-robotdance_models/      tokenizer, encoder, foundation model, policy training
-robotdance_ros2/        messages, motion server, safety guard
-robotdance_unitree/     G1/H1 configs, URDF mapping, SDK2/ROS2 bridge
-robotdance_benchmarks/  extraction / retarget / sim tracking benchmark
-robotdance_viewer/      side-by-side video/motion/robot visualization
-```
 
-## データ & ライセンス安全性
+生成物は schema 適合の RD-MIR なので、そのまま retarget → 物理検証 → ROS2 安全再生へ流せます。v0 は小さな合成 corpus・語彙限定で、**生成物は物理的に妥当とは限らない**（`validate-sim` で必ず検証）。
 
-- **raw video を再配布しない。** URL/manifest + ローカル再構築を基本にする。
-- source license が `unknown` の派生 motion は公開しない。
-- SMPL/SMPL-X は **必須依存にしない**（skeleton-first core、SMPL は optional plugin）。
-- モデルは `robotdance-open-*` / `robotdance-research-*` / `robotdance-private-*` に分離。
+</details>
+
+## 設計の柱
+
+- **license-safe**: raw video/mocap/メッシュは**再配布しない**（URL/manifest + ローカル再構築）。`license_state=unknown` の派生 motion は firewall が公開を止める。SMPL は optional。
+- **sim-first**: retarget した運動を MuJoCo 物理で feasibility 検証し、無理な運動は reject。実機 bridge は安全レビュー後。
+- **ROS2 (Jazzy)**: certified な `.rdmotion` のみ safety guard 越しに配信（`/joint_states` で実 URDF を RViz 表示）。
 
 | ライセンス対象 | 方針 |
 | --- | --- |
 | Code | Apache-2.0 |
-| Schema / manifest | CC0 or Apache-2.0（中身の利用許諾は source ごとに分離） |
-| Model weights | 学習データ構成に応じて open / research-only / 非配布 |
+| Schema / manifest | CC0 or Apache-2.0 |
+| Model weights | open / research-only / 非配布に分離 |
 
 ## 対応ロボット
 
-| Robot | 状態 |
-| --- | --- |
-| Unitree G1 | ✅ kinematic retarget + MuJoCo 物理検証 + **実 URDF 取り込み**（`import-urdf` で実寸 morphology, nominal_height≈1.29m） |
-| Unitree H1 | ✅ kinematic retarget + MuJoCo 物理検証（簡略プロキシ）。実 URDF 取り込みは G1 と同経路 |
-| R1 / H2 / Figure / Digit / Booster / NEO | future adapter |
+実 URDF 由来の morphology（質量/慣性/可動域）で **Unitree G1・H1 / Booster T1 / Apptronik Apollo** に retarget + 物理検証。provenance は [`docs/EMBODIMENTS.md`](docs/EMBODIMENTS.md)。
 
-## ロードマップ
+## リポジトリ構成
 
-| Version | テーマ |
-| --- | --- |
-| **v0.1** | Video → G1 Sim（local video → 3D motion → viewer → G1 retarget） |
-| v0.2 | Dataset Builder（RD-Manifest, license firewall, HF export） |
-| v0.3 | Motion Embeddings（encoder, retrieval, motion map） |
-| v0.4 | Humanoid Retarget Benchmark（G1/H1 metrics, leaderboard） |
-| v0.5 | ROS2 Runtime（motion server, safety guard, Unitree bridge / sim-first） |
-| v1.0 | Stable Specs（RD-MIR / RD-Manifest / RD-Embodiment 安定化） |
-
-実装 workstream の詳細は [`docs/ROADMAP.md`](docs/ROADMAP.md)。
+```
+specs/             仕様（RD-Manifest / RD-MIR / RD-Embodiment / RD-Motion / RD-Policy）
+robotdance_core/        schemas, validators, CLI        robotdance_models/    tokenizer/encoder/policy
+robotdance_data/        adapters, dataset, firewall     robotdance_ros2/      motion server, safety guard
+robotdance_perception/  pose / HMR, smoothing           robotdance_unitree/   URDF map, SDK2/ROS2 bridge
+robotdance_motion/      canonical, contacts, embeddings robotdance_benchmarks/ leaderboard
+robotdance_retarget/    retargeting                     robotdance_viewer/    visualization
+robotdance_sim/         MuJoCo / Isaac Lab backend
+```
 
 ## ステータス
 
-🏁 **v0.39.0（pre-alpha, [CHANGELOG](CHANGELOG.md)）。** specs v0、RD-MIR/RD-Motion の Python モデル、合成モーション生成、
-**local 動画 → RD-MIR（MediaPipe Pose / HMR 4DHumans・GVHMR SMPL adapter）+ smoothing + 2D overlay**、
-**AMASS / AIST++ / HumanML3D / BABEL ローダ + RD-Manifest license firewall（Data Bill of Materials）**、
-**motion embeddings + 類似検索 + Motion Map + 重複除去（+ 学習 encoder option）**、
-**テキスト → モーション意味検索（contrastive text-motion）**、**モーション → 離散トークン（VQ-VAE）+ 生成・補完・長尺（token prior）+ テキスト条件付き生成（text2motion）+ 双方向 denoiser（ノイズ除去・in-betweening）**、
-**G1/H1 への kinematic retarget（multi-embodiment）+ アクチュエータ空間 IK（実 G1 関節角）+ 実 URDF 由来の per-joint limit（膝は屈曲のみ等、placeholder ±3.14 を脱却）**、
-**MuJoCo 物理検証（sim_certificate / PASS・REJECT, 実 URDF inertial 由来の質量分布（実機は脚が最重量）・宣言質量＝実質量を保存・トルク判定は実 per-joint actuator 上限（膝139/足首35 を区別）・ZMP は実フットプリント矩形の支持多角形で判定）+ RL tracking policy baseline（物理上で参照を追従, PPO, base 非駆動, 1 方策で複数運動を汎化, embodiment 固有 PD 既定で G1/H1 とも安定）+ joint-space safety guard（位置/速度/加速度/トルク）**、
-**motion × robot benchmark + leaderboard + extraction benchmark（MPJPE/PA-MPJPE/PCK/jitter）**、**Model Card 生成（lineage/license/failure/safety, §7）**、**ROS2 runtime（safety guard: Cartesian + 関節空間 位置/速度/加速度クランプ + motion server + /joint_states, Jazzy）**、
-3D & multi-panel ビューアまで動作
-（`demo-pipeline`/`extract`/`import-hmr`/`import-humanml3d`/`import-babel`/`import-motionx`/`dedupe-dir`/`model-card`/`cards-index`/`benchmark-extraction`/`video-to-robot`/`build-dataset`/`benchmark`/`serve`/`demo-motion-map`/`train-text-motion`/`search-text`/`train-tokenizer`/`demo-tokenizer`/`train-prior`/`demo-generate`/`train-denoiser`/`demo-denoise`/`train-text2motion`/`generate-text`/`train-tracking`/`demo-track`/`demo-track-multi`/`demo-joint-safety`/`sim-backends`/`export-policy`/`retarget-ik`/`demo-runtime`/`overlay`/`smooth`/`demo-*` 他）。
-次は Isaac Lab backend 実装・web viewer・重複除去の text-motion 拡張・高度な RL tracking（AMP/実機転移）。詳細は [`docs/ROADMAP.md`](docs/ROADMAP.md)。
+pre-alpha（最新版・全変更は [CHANGELOG](CHANGELOG.md)）。specs v0、抽出（MediaPipe/HMR）・データセット・埋め込み/生成・retarget（実 URDF）・MuJoCo 物理検証・RL tracking・ROS2 runtime・benchmark まで動作。ロードマップは [`docs/ROADMAP.md`](docs/ROADMAP.md)。
 
 ## License
 

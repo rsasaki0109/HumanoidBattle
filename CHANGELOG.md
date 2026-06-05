@@ -5,6 +5,17 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.77.0] - 2026-06-05
+
+README を簡潔化（pre-alpha, docs のみ）。521 → 203 行。
+
+### Changed
+- 冗長な `<sub>` 長文キャプションを 1 行へ短縮、重複していた「動画→即ロボット」警告を集約。
+- 30 行超の機能表を `<details>` の領域別サマリへ折りたたみ。埋め込み/生成の詳細節も `<details>` に集約。
+- 陳腐化していた「ステータス」段落（v0.39.0 のまま肥大）を 1 行 + CHANGELOG リンクへ置換。
+- ヒーロー GIF を厳選（gallery と重複する単体 GIF を README から外す。アセット自体は保持）。
+- 内容（パイプライン・実動画デモ・物理検証・安全方針・ライセンス）は維持。
+
 ## [0.76.0] - 2026-06-05
 
 実動画の接地クリーンアップ（pre-alpha）。v0.75 で実証した「単眼抽出 → certificate REJECT」の主因のうち
