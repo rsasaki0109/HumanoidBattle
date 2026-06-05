@@ -39,6 +39,9 @@ class BenchmarkRow:
     gravity_torque_nm: Optional[float] = None
     dynamic_torque_nm: Optional[float] = None
     max_joint_ang_speed: Optional[float] = None
+    # 律速軸（feasibility 各軸 util の最大＝一番詰まっている軸）と使用率（v0.70）。
+    binding_axis: Optional[str] = None
+    binding_util: Optional[float] = None
     # source 品質（RD-MIR の quality_metrics から）
     source_confidence: Optional[float] = None
     jitter: Optional[float] = None
@@ -131,6 +134,13 @@ def run_benchmark(
                 row.gravity_torque_nm = cm.get("gravity_torque_nm")
                 row.dynamic_torque_nm = cm.get("dynamic_torque_nm")
                 row.max_joint_ang_speed = cm.get("max_joint_ang_speed_rad_s")
+                # 律速軸（どの feasibility 軸が一番詰まっているか, v0.70）を集計に出す。
+                from robotdance_core.model_card import _feasibility_headroom
+
+                fh = _feasibility_headroom(cert)
+                if fh is not None:
+                    row.binding_axis = fh["binding_axis"]
+                    row.binding_util = round(fh["binding_util"], 3)
             rows.append(row)
 
     return {

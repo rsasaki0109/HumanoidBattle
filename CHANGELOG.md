@@ -5,6 +5,18 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.71.0] - 2026-06-05
+
+律速軸（binding axis）を benchmark leaderboard に出す（pre-alpha）。v0.70 で Model Card に出した
+「どの feasibility 軸が一番詰まっているか」を、標準成果物の leaderboard へ集約し、機種×運動の弱点軸を
+一覧化する。
+
+### Added
+- `BenchmarkRow` に `binding_axis` / `binding_util`（`_feasibility_headroom` 由来。各 run で律速する軸と
+  その限界使用率）。CSV 列・全 run 表（`律速軸(util)` 列）に出す。
+- robot 別集計に `top_binding_axis`（機種の**最頻**律速軸＝系統的な弱点）。leaderboard に「最頻 律速軸」列。
+- test: speed dance は torque が binding（util>1）、律速軸列が CSV・表に出ることを検証。leaderboard 32 run 再生成。
+
 ## [0.70.0] - 2026-06-05
 
 feasibility 三軸の legibility を 1 ビューに統合（pre-alpha）。v0.64-69 で torque/velocity/balance を

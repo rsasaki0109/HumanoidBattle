@@ -59,6 +59,24 @@ def test_dynamic_torque_propagates_to_benchmark() -> None:
     assert row["gravity_torque_nm"] is not None and row["dynamic_torque_nm"] is not None
     # 速い運動なので動的（重力＋慣性）は重力保持を上回る。
     assert row["dynamic_torque_nm"] >= row["gravity_torque_nm"]
+    # 律速軸（v0.70）が row に伝播し、speed dance は torque が binding（util>1）。
+    assert row["binding_axis"] == "torque" and row["binding_util"] > 1.0
+
+
+def test_binding_axis_in_leaderboard(tmp_path) -> None:
+    """律速軸が CSV 列・全 run 表・robot 集計（最頻軸）に出る。"""
+    pytest.importorskip("mujoco")
+    suite = {"march": default_motion_suite()["march"],
+             "dance_normal": default_motion_suite()["dance_normal"]}
+    report = run_benchmark(suite, ["unitree_g1"], with_sim=True)
+    import csv as _csv
+
+    csv_path = write_csv(report, tmp_path / "b.csv")
+    with csv_path.open() as f:
+        rows = list(_csv.DictReader(f))
+    assert "binding_axis" in rows[0] and "binding_util" in rows[0]
+    md = write_markdown(report, tmp_path / "L.md").read_text("utf-8")
+    assert "律速軸" in md  # 全 run 表 / robot 集計に律速軸列が出る
 
 
 def test_overbend_propagates_violation_to_leaderboard() -> None:
