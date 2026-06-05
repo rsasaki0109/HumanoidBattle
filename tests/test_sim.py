@@ -499,6 +499,9 @@ def test_certificate_per_joint_velocity_catches_slow_actuator_limit() -> None:
     assert any("速度上限超過" in r for r in cert["reasons"])
     # 旧来の全関節一律 30 rad/s なら見逃す（bone 世界角速度 < 30）ことを明示。
     assert cert["metrics"]["max_joint_ang_speed_rad_s"] < 30.0
+    # 速度の律速関節を metric に出す（torque_limiting_joint と対称, v0.69）。
+    from robotdance_core.skeleton import JOINT_NAMES
+    assert cert["metrics"]["velocity_limiting_joint"] in JOINT_NAMES
 
 
 def test_certificate_velocity_within_limits_for_normal_motion() -> None:
@@ -508,6 +511,8 @@ def test_certificate_velocity_within_limits_for_normal_motion() -> None:
         cert = simulate_certificate(retarget(generate_dance(duration=1.0), morph), morph)
         assert cert["metrics"]["joint_velocity_ratio"] < 1.0
         assert not any("速度上限超過" in r for r in cert["reasons"])
+        # PASS でも速度の律速関節は情報として出る（最も速度上限に近い関節）。
+        assert "velocity_limiting_joint" in cert["metrics"]
 
 
 def test_certificate_no_velocity_ratio_without_per_joint_limits() -> None:

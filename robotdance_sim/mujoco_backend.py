@@ -435,6 +435,9 @@ def simulate_certificate(
         metrics["torque_limiting_joint"] = torque_joint
     if velocity_ratio is not None:
         metrics["joint_velocity_ratio"] = round(velocity_ratio, 3)
+        # 速度の律速関節（torque と対称, PASS でも最も速度上限に近い関節を出す）。
+        if velocity_detail is not None:
+            metrics["velocity_limiting_joint"] = velocity_detail[0]
     if flexion_violation is not None:
         metrics["joint_flexion_violation_ratio"] = round(flexion_violation, 3)
     result: dict[str, Any] = {

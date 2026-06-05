@@ -5,6 +5,21 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.69.0] - 2026-06-05
+
+velocity 軸の律速関節を torque と対称に集約（pre-alpha）。feasibility 三軸（torque/velocity/balance）の
+legibility を揃える: torque は v0.65/v0.66 で律速関節を metrics・Model Card に出していたが、velocity は
+reason のみで非対称だった。Apollo の velocity は menagerie MJCF に実値が無く generic fallback のまま
+（存在しないデータは捏造せず正直に残す）。
+
+### Added
+- `simulate_certificate` の metrics に `velocity_limiting_joint`（実 per-joint 速度上限に最も近い関節。
+  PASS でも出す。`torque_limiting_joint` と対称）。
+- Model Card の `executability` に `tightest_velocity`（律速関節・`ratio`・余裕 `headroom`）と markdown
+  「**律速関節（速度）**: {関節} ×{ratio}（余裕 {±headroom}, 余裕/超過）」行。実例: H1 fast dance は
+  torque律速 left_shoulder ×1.77（超過）／velocity律速 left_elbow ×0.40（余裕）。
+- test: velocity_limiting_joint が metrics に出る（REJECT/PASS 両方）、Card に tightest_velocity が出る。
+
 ## [0.68.0] - 2026-06-05
 
 balance（ZMP×支持多角形）の可視化を追加（pre-alpha）。トルクを可読化した v0.64-66 と対に、これまで

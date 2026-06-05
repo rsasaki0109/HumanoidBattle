@@ -114,11 +114,16 @@ def test_executability_summary_pass_reject_and_remedy() -> None:
     assert ex_safe["blockers"] == []
     # 実 URDF feasibility 三軸（dynamics + 速度 + ROM）を検証したことを表出（v0.53）。
     assert set(ex_safe["checked_axes"]) == {"dynamics", "joint_velocity", "joint_rom"}
-    # PASS でも律速関節と余裕を出す（設計者が effort 上限に最も近い関節を把握, v0.65）。
+    # PASS でも律速関節と余裕を出す（設計者が上限に最も近い関節を把握, v0.65/v0.69）。
     tt = ex_safe["tightest_torque"]
     assert tt["joint"] in JOINT_NAMES
     assert tt["ratio"] < 1.0 and tt["headroom"] > 0.0  # PASS は余裕 > 0
-    assert "律速関節" in render_markdown(card_safe)
+    # 速度軸も torque と対称に律速関節＋余裕を出す（per_joint_limits 持ち機種）。
+    tv = ex_safe["tightest_velocity"]
+    assert tv["joint"] in JOINT_NAMES
+    assert tv["ratio"] < 1.0 and tv["headroom"] > 0.0
+    md_safe = render_markdown(card_safe)
+    assert "律速関節（トルク）" in md_safe and "律速関節（速度）" in md_safe
 
     # 過屈曲 → ROM 超過で executable: false、clamp の remedy を示す。
     bad = certify(retarget(generate_overbend(), g1), g1)
