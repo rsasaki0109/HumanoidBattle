@@ -5,6 +5,21 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.62.0] - 2026-06-05
+
+実データ深掘り（トルク評価に動的（慣性）成分を取り込み, pre-alpha）。v0.61 の sim-to-real doc で
+「最大の近似」と挙げた **重力保持（準静的）トルクの過小評価**を是正。速い運動の慣性トルクを含める。
+
+### Changed
+- `simulate_certificate` の `torque_ratio` を **重力＋慣性トルク**へ拡張。各 joint の負荷を subtree COM に
+  働く力 `m·(a_com − g)`（a_com=subtree COM 加速度, ZMP と同じ中心差分）の関節まわりモーメントとして
+  算出し、実 per-joint effort 上限と比較。重力保持（準静的）だけでは速い運動で過小評価していた。
+  **mj_inverse はこの ball-joint 浮遊モデルで特異性により非物理値（数千 N·m）を出すため使わず**、点質量
+  at COM の robust な解析法を採用（回転慣性×角加速度の項は二次的として省く）。metric に `dynamic_torque_nm`
+  を追加（`gravity_torque_nm`=静的も併記）。
+- 実例: **H1 dance_fast は静的トルク 0.63（PASS）だったが、慣性込みで 1.25 となり torque で REJECT**。
+  leaderboard を再生成（速い運動・足踏み・宙返りで torque× が上昇）。idle/squat 等の準静的運動は不変。
+
 ## [0.61.0] - 2026-06-05
 
 新展開（sim-to-real ギャップを明文化, pre-alpha）。多機能・多機種が揃った今、v0 の近似と「feasibility

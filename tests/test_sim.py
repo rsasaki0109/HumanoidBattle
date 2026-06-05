@@ -517,6 +517,25 @@ def test_certificate_no_velocity_ratio_without_per_joint_limits() -> None:
     assert "joint_velocity_ratio" not in cert["metrics"]
 
 
+def test_dynamic_torque_exceeds_static_for_fast_motion() -> None:
+    """torque_ratio は重力＋慣性（動的）。速い運動では静的（重力保持）を上回り過小評価を是正する。
+
+    H1 の速いダンスは静的トルクでは actuator 上限内（過小評価）だが、慣性トルクを含めると上限を
+    超え torque で REJECT する（v0.62）。遅い同型運動では動的≈静的で PASS。
+    """
+    morph = get_morphology("unitree_h1")
+    fast = simulate_certificate(retarget(generate_dance(duration=2.0, beats_per_second=1.6), morph), morph)
+    slow = simulate_certificate(retarget(generate_dance(duration=2.0, beats_per_second=0.5), morph), morph)
+    # 動的トルクは静的（重力保持）以上（速い運動で顕著）。
+    assert fast["metrics"]["dynamic_torque_nm"] > fast["metrics"]["gravity_torque_nm"]
+    # 速いダンスは慣性トルクで実 actuator 上限を超過 → torque で REJECT。
+    assert fast["metrics"]["torque_ratio"] > 1.0
+    assert fast["verdict"] == "REJECT"
+    assert any("トルク" in r for r in fast["reasons"])
+    # 遅い運動は動的≈静的で torque は上限内。
+    assert slow["metrics"]["torque_ratio"] < 1.0
+
+
 def test_squat_is_feasible_and_march_exercises_balance() -> None:
     """新 motion: squat は接地のまま深屈曲で feasible（膝 ROM/トルク exercise）、march は単脚支持で
     balance 軸を発火させる（airborne ではなく ZMP 違反）。feasibility 軸の判別力を広い運動で確認。"""

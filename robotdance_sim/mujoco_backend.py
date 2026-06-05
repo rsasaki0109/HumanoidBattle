@@ -268,31 +268,41 @@ def simulate_certificate(
         for j in range(1, len(JOINT_NAMES)) if j not in toe_joints
     }
 
-    # 各フレームの qpos / COM / 重力保持トルク。twist は時間方向に連続化（_poses_to_qpos）。
-    # 位置は単フレーム版と厳密一致するので COM/ZMP/トルクは不変。
+    # 各フレームの qpos / COM / 各 subtree COM・anchor 軌道。twist は時間方向に連続化（_poses_to_qpos）。
+    # 位置は単フレーム版と厳密一致するので COM/ZMP は不変。
     qpos = _poses_to_qpos(model, morphology, kps)
     com = np.zeros((n, 3))
-    per_frame_torque = []
+    csub_traj = np.zeros((n, len(grav_bodies), 3))   # 各 body の subtree COM（world）
+    anc_traj = np.zeros((n, len(grav_bodies), 3))     # 各 body の joint anchor（world）
     for f in range(n):
         data.qpos[:] = qpos[f]
         data.qvel[:] = 0
         mujoco.mj_forward(model, data)
         com[f] = data.subtree_com[root_id]
-        # joint j の重力保持トルク = m_subtree·g·(joint anchor と subtree COM の水平距離)。
-        # mj_inverse の ball-joint 特異性を避ける robust な解析計算。
-        # 負荷率 = 必要トルク / その関節の実 actuator 上限。最大「率」の関節が律速（強弱を区別）。
-        tmax = 0.0       # 絶対トルク最大（報告用）
-        rmax = 0.0       # 負荷率最大（判定用）
-        for bid in grav_bodies:
-            anchor = data.xpos[bid]
-            csub = data.subtree_com[bid]
-            d_horiz = float(np.hypot(csub[0] - anchor[0], csub[1] - anchor[1]))
-            tau_j = sub_mass[bid] * _G * d_horiz
-            tmax = max(tmax, tau_j)
-            rmax = max(rmax, tau_j / body_torque_limit[bid])
-        per_frame_torque.append((tmax, rmax))
-    gravity_torque = float(np.max([t for t, _ in per_frame_torque])) if per_frame_torque else 0.0
-    torque_ratio = float(np.max([r for _, r in per_frame_torque])) if per_frame_torque else 0.0
+        for i, bid in enumerate(grav_bodies):
+            csub_traj[f, i] = data.subtree_com[bid]
+            anc_traj[f, i] = data.xpos[bid]
+
+    # 関節トルク = subtree COM に働く力の関節まわりモーメント τ = m·|r × (a_com − g)|。
+    # 静的（重力保持, a_com=0）に加え、subtree COM 加速度 a_com 由来の**動的（慣性）トルク**を含める
+    # （速い運動で重力保持だけだと過小評価する。mj_inverse の ball-joint 特異性を避けた robust な解析法）。
+    # a_com は ZMP と同じ中心差分。回転慣性×角加速度の項は二次的として省く（点質量 at COM 近似, v0）。
+    g_vec = np.array([0.0, 0.0, -_G])
+    a_com = np.zeros((n, len(grav_bodies), 3))
+    if n >= 3:
+        a_com[1:-1] = (csub_traj[2:] - 2 * csub_traj[1:-1] + csub_traj[:-2]) / (dt * dt)
+    r_arm = csub_traj - anc_traj                                  # [n, B, 3]
+    limits = np.array([body_torque_limit[bid] for bid in grav_bodies])
+    sub_m = np.array([sub_mass[bid] for bid in grav_bodies])
+    # 静的（重力保持）: τ = m·|r × (−g)| = m·g·d_horiz。報告用。
+    f_stat = sub_m[None, :, None] * (-g_vec)[None, None, :]
+    tau_stat = np.linalg.norm(np.cross(r_arm, f_stat), axis=2)    # [n, B]
+    # 動的（重力＋慣性）: τ = m·|r × (a_com − g)|。判定用。
+    f_dyn = sub_m[None, :, None] * (a_com - g_vec[None, None, :])
+    tau_dyn = np.linalg.norm(np.cross(r_arm, f_dyn), axis=2)      # [n, B]
+    gravity_torque = float(tau_stat.max()) if tau_stat.size else 0.0
+    dynamic_torque = float(tau_dyn.max()) if tau_dyn.size else 0.0
+    torque_ratio = float((tau_dyn / limits[None, :]).max()) if tau_dyn.size else 0.0
 
     # joint 角速度: bone 方向の変化率（twist-free, _max_bone_angular_speed 参照）。
     # 旧来は再構成 qpos の差分だったが、leaf joint の未拘束 twist が偽スパイクを生んでいた。
@@ -353,7 +363,7 @@ def simulate_certificate(
     if balance_violation_ratio > 0.3:
         reasons.append(f"ZMP が支持多角形外 {balance_violation_ratio:.0%}（転倒リスク）")
     if torque_ratio > 1.0:
-        reasons.append(f"重力保持トルク ×{torque_ratio:.2f}（actuator 限界超過）")
+        reasons.append(f"関節トルク ×{torque_ratio:.2f}（重力＋慣性, 実 actuator 限界超過）")
     if velocity_ratio is not None:
         if velocity_ratio > 1.0:
             jn, sp, lim = velocity_detail
@@ -374,6 +384,7 @@ def simulate_certificate(
         "airborne_ratio": round(airborne_ratio, 3),
         "balance_violation_ratio": round(balance_violation_ratio, 3),
         "gravity_torque_nm": round(gravity_torque, 1),
+        "dynamic_torque_nm": round(dynamic_torque, 1),
         "torque_ratio": round(torque_ratio, 3),
         "max_joint_ang_speed_rad_s": round(max_joint_ang_speed, 2),
     }
@@ -401,8 +412,8 @@ def simulate_certificate(
             "physically-informed feasibility（"
             + ("実 URDF 慣性" if used_real_inertia else "capsule 近似慣性")
             + ", v0）— 実機保証ではない。動的（転倒/トルク/滞空/速度）＋運動学的（関節可動域）の両"
-            " feasibility を統合。gravity_torque は subtree COM から解析計算（mj_inverse の"
-            " ball-joint 特異性を回避した robust 値）。"
+            " feasibility を統合。torque_ratio は subtree COM への重力＋慣性力（a_com 由来）の関節モーメント"
+            "／実 actuator 上限（mj_inverse の ball-joint 特異性を回避した robust な解析法。回転慣性項は省く）。"
         ),
     }
 
