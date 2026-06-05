@@ -271,35 +271,47 @@ def simulate_certificate(
     # 各フレームの qpos / COM / 各 subtree COM・anchor 軌道。twist は時間方向に連続化（_poses_to_qpos）。
     # 位置は単フレーム版と厳密一致するので COM/ZMP は不変。
     qpos = _poses_to_qpos(model, morphology, kps)
+    # reference 速度（tangent 差分）: subtree 角運動量を得るため。twist は時間連続化済み（v0.47）で clean。
+    qvel = np.zeros((n, model.nv))
+    for f in range(n - 1):
+        dq = np.zeros(model.nv)
+        mujoco.mj_differentiatePos(model, dq, 1.0, qpos[f], qpos[f + 1])
+        qvel[f] = dq / dt
     com = np.zeros((n, 3))
     csub_traj = np.zeros((n, len(grav_bodies), 3))   # 各 body の subtree COM（world）
     anc_traj = np.zeros((n, len(grav_bodies), 3))     # 各 body の joint anchor（world）
+    angmom = np.zeros((n, len(grav_bodies), 3))       # subtree COM まわり角運動量（world, mj_subtreeVel）
     for f in range(n):
         data.qpos[:] = qpos[f]
-        data.qvel[:] = 0
+        data.qvel[:] = qvel[f]
         mujoco.mj_forward(model, data)
+        mujoco.mj_subtreeVel(model, data)             # subtree_angmom / subtree_linvel を計算
         com[f] = data.subtree_com[root_id]
         for i, bid in enumerate(grav_bodies):
             csub_traj[f, i] = data.subtree_com[bid]
             anc_traj[f, i] = data.xpos[bid]
+            angmom[f, i] = data.subtree_angmom[bid]
 
-    # 関節トルク = subtree COM に働く力の関節まわりモーメント τ = m·|r × (a_com − g)|。
-    # 静的（重力保持, a_com=0）に加え、subtree COM 加速度 a_com 由来の**動的（慣性）トルク**を含める
-    # （速い運動で重力保持だけだと過小評価する。mj_inverse の ball-joint 特異性を避けた robust な解析法）。
-    # a_com は ZMP と同じ中心差分。回転慣性×角加速度の項は二次的として省く（点質量 at COM 近似, v0）。
+    # 関節トルク（Newton-Euler）= COM まわり couple（角運動量変化）＋ アンカーでの力モーメント:
+    #   τ = dL_com/dt + r × m·(a_com − g)
+    # 第2項は重力＋並進慣性（v0.62）、第1項が **subtree 回転慣性の反作用**（dL_com/dt, v0.63 追加）。
+    # a_com（ZMP と同じ中心差分）と dL_com/dt も中心差分。mj_inverse は ball-joint 浮遊モデルで特異性に
+    # より非物理値を出すため使わず、subtree COM/角運動量から robust に解析計算（剛体 subtree 近似）。
     g_vec = np.array([0.0, 0.0, -_G])
     a_com = np.zeros((n, len(grav_bodies), 3))
+    dL = np.zeros((n, len(grav_bodies), 3))
     if n >= 3:
         a_com[1:-1] = (csub_traj[2:] - 2 * csub_traj[1:-1] + csub_traj[:-2]) / (dt * dt)
+        dL[1:-1] = (angmom[2:] - angmom[:-2]) / (2.0 * dt)
     r_arm = csub_traj - anc_traj                                  # [n, B, 3]
     limits = np.array([body_torque_limit[bid] for bid in grav_bodies])
     sub_m = np.array([sub_mass[bid] for bid in grav_bodies])
     # 静的（重力保持）: τ = m·|r × (−g)| = m·g·d_horiz。報告用。
-    f_stat = sub_m[None, :, None] * (-g_vec)[None, None, :]
-    tau_stat = np.linalg.norm(np.cross(r_arm, f_stat), axis=2)    # [n, B]
-    # 動的（重力＋慣性）: τ = m·|r × (a_com − g)|。判定用。
+    tau_stat = np.linalg.norm(
+        np.cross(r_arm, sub_m[None, :, None] * (-g_vec)[None, None, :]), axis=2)
+    # 動的（重力＋並進慣性＋回転慣性）: 判定用。
     f_dyn = sub_m[None, :, None] * (a_com - g_vec[None, None, :])
-    tau_dyn = np.linalg.norm(np.cross(r_arm, f_dyn), axis=2)      # [n, B]
+    tau_dyn = np.linalg.norm(dL + np.cross(r_arm, f_dyn), axis=2)  # [n, B]
     gravity_torque = float(tau_stat.max()) if tau_stat.size else 0.0
     dynamic_torque = float(tau_dyn.max()) if tau_dyn.size else 0.0
     torque_ratio = float((tau_dyn / limits[None, :]).max()) if tau_dyn.size else 0.0

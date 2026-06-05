@@ -10,7 +10,7 @@ RobotDance の `sim_certificate` は **"physically-informed feasibility"** — *
 | --- | --- |
 | 参照姿勢が実機の関節 ROM 内か（実 URDF limit） | 閉ループ制御下で実機が転ばず追従できるか |
 | 関節速度が実 actuator 速度上限内か | 接触・スリップ・地形・外乱への頑健性 |
-| 関節トルク（重力＋慣性）が実 effort 上限内か | 衝撃・接触トルク・回転慣性項が上限内か |
+| 関節トルク（重力＋並進＋回転慣性）が実 effort 上限内か | 衝撃・接触トルク・関節摩擦/ゲアが上限内か |
 | 準静的 ZMP が支持多角形内か（平地） | 実機の balance 制御が成立するか |
 
 > **受動ヒューマノイドはバランス制御なしでは何でも倒れる**ため、forward physics sim は判別力を持ちません。
@@ -36,12 +36,12 @@ RobotDance の `sim_certificate` は **"physically-informed feasibility"** — *
   この準静的・受動モデルゆえで、実機は balance 制御で単脚支持を実現しうる。
 
 ### トルク
-- `torque_ratio` は subtree COM に働く**重力＋慣性力**（`m·(a_com − g)`, a_com=subtree COM 加速度）の
-  関節まわりモーメント／実 per-joint effort 上限（v0.62）。**重力保持（準静的）に加え運動の加速度由来の
-  動的トルクを含む**（速い運動での過小評価を是正）。mj_inverse は本 ball-joint 浮遊モデルで特異性により
-  非物理値（数千 N·m）を出すため使わず、点質量 at COM の解析法で算出。
-- ⚠️ **回転慣性 × 角加速度の項**（subtree の自転トルク）と**衝撃・接触トルク**は未モデル（二次的だが速い
-  自転を伴う運動では過小評価方向）。`gravity_torque_nm`（静的）と `dynamic_torque_nm`（重力＋慣性）を別途報告。
+- `torque_ratio` は Newton-Euler の関節トルク **`τ = dL_com/dt + r × m·(a_com − g)`**／実 per-joint effort
+  上限（v0.62 で重力＋並進慣性, v0.63 で **subtree 角運動量変化 dL_com/dt（回転慣性反作用）**を追加）。
+  a_com・dL_com/dt は ZMP と同じ中心差分（subtree_angmom は `mj_subtreeVel`）。mj_inverse は本 ball-joint
+  浮遊モデルで特異性により非物理値（数千 N·m）を出すため使わず、剛体 subtree 近似の解析法で算出。
+- ⚠️ **衝撃・接触トルク**、関節摩擦/ゲア比/バックラッシュは未モデル。**重力保持**（準静的）成分は
+  `gravity_torque_nm`、重力＋並進＋回転慣性の合計は `dynamic_torque_nm` として別途報告。
 
 ### 速度
 - 関節速度を **実 per-joint velocity 上限**（v0.38/v0.50）と比較。実値の無い機種（Apollo）は generic

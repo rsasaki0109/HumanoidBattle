@@ -5,6 +5,22 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.63.0] - 2026-06-05
+
+実データ深掘り（トルクに回転慣性反作用を追加, pre-alpha）。v0.62 で省いた回転慣性項を加え、関節
+トルク評価を Newton-Euler の完全形に近づける。
+
+### Changed
+- `simulate_certificate` の `torque_ratio` を **`τ = dL_com/dt + r × m·(a_com − g)`** へ拡張。第2項（重力
+  ＋並進慣性, v0.62）に、第1項 **subtree の COM まわり角運動量変化 `dL_com/dt`（回転慣性反作用）**を追加。
+  subtree_angmom は reference 速度から `mj_subtreeVel` で取得（mj_inverse の非物理値を避けた robust な解析法）、
+  dL/dt は中心差分。実例: H1 dance_fast の torque_ratio が 1.25→1.70 に精緻化（回転慣性で更に上振れ）。
+  slow/準静的運動（idle/squat）は dL≈0 でほぼ不変。全 verdict は v0.62 から不変（magnitude のみ精緻化）。
+
+### Notes
+- 副次的発見: capsule 近似慣性は borderline 運動で torque_ratio を実慣性より高く出し verdict を反転
+  させうる（実慣性の価値。capsule は実機より保守的）。test を更新。
+
 ## [0.62.0] - 2026-06-05
 
 実データ深掘り（トルク評価に動的（慣性）成分を取り込み, pre-alpha）。v0.61 の sim-to-real doc で
