@@ -32,6 +32,25 @@
 利用者がローカル取得。GIF は RobotDance パイプライン出力（actuator-IK 関節角）の可視化で、
 [`scripts/render_robot_gif.py`](scripts/render_robot_gif.py)（pybullet headless）で生成。</sub>
 
+### 🎬 Gallery — 色々な振付 → 実 G1 が踊る
+
+<table>
+<tr>
+<td align="center"><img src="assets/readme/gallery/g1_groove.gif" width="150" alt="G1 groove dance"><br><sub><b>groove</b></sub></td>
+<td align="center"><img src="assets/readme/gallery/g1_fast.gif" width="150" alt="G1 fast dance"><br><sub><b>fast dance</b></sub></td>
+<td align="center"><img src="assets/readme/gallery/g1_wave.gif" width="150" alt="G1 arm wave"><br><sub><b>arm wave</b></sub></td>
+<td align="center"><img src="assets/readme/gallery/g1_march.gif" width="150" alt="G1 march"><br><sub><b>march</b></sub></td>
+<td align="center"><img src="assets/readme/gallery/g1_squat.gif" width="150" alt="G1 squat"><br><sub><b>squat</b></sub></td>
+</tr>
+</table>
+
+<sub>↑ **色々な「short 動画」を入れたら、ヒューマノイドが色々に踊る** のイメージ。5 つの異なる振付（RD-MIR）を
+それぞれ **actuator-space IK** で実 G1 の 23 関節角へ retarget し、**公式 g1_23dof URDF の実メッシュ**で
+レンダリング（IK 位置誤差 0.05〜0.09m）。<br>※ ⚠️ **実動画はライセンス上同梱できない**ため、ここでの
+「色々な入力」は**合成モーション群が代役**です（実動画は `video-to-robot` でユーザーが持ち込み、
+`license_state="unknown"` の派生 motion は非公開）。<br>※ メッシュ © Unitree Robotics（`unitree_ros`, BSD-3-Clause、
+repo 非同梱）。GIF はパイプライン出力の可視化（render）。[`scripts/render_gallery.py`](scripts/render_gallery.py) で一括生成。</sub>
+
 </div>
 
 ---

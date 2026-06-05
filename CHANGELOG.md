@@ -5,6 +5,19 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.72.0] - 2026-06-05
+
+README に「色々な振付 → 実 G1 が踊る」GIF ギャラリーを追加（pre-alpha）。「色々な short 動画を入れたら
+ヒューマノイドが色々に踊る」という一行説明を、複数振付の hero GIF の壁で見せる。
+
+### Added
+- `scripts/render_gallery.py`: 複数の合成モーション（groove / fast / wave / march / squat）を actuator-space IK で
+  実 Unitree の関節角へ retarget し、pybullet headless TinyRenderer で実メッシュを 1 振付 = 1 GIF として一括生成。
+  `render_robot_gif.py` の単発レンダリングをループ化し、振付定義を `_build_motions()` に集約。
+- README に「🎬 Gallery」セクション（実 g1_23dof メッシュの 5 振付 GIF、IK 誤差 0.05〜0.09m）。
+  ⚠️ 実動画はライセンス上同梱不可のため「色々な入力」は合成モーション群が代役、メッシュは Unitree（BSD-3, 非同梱）
+  と正直に注記。GIF はパイプライン出力（render）でメッシュ再配布ではない。
+
 ## [0.71.0] - 2026-06-05
 
 律速軸（binding axis）を benchmark leaderboard に出す（pre-alpha）。v0.70 で Model Card に出した
