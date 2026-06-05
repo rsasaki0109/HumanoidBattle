@@ -5,6 +5,20 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.70.0] - 2026-06-05
+
+feasibility 三軸の legibility を 1 ビューに統合（pre-alpha）。v0.64-69 で torque/velocity/balance を
+個別に可読化したのを、各軸の「限界に対する使用率」で並べて**律速軸（binding）**を一目で示す統合
+サマリにまとめる。設計者が「どの軸が一番危ないか・PASS でもどの軸が詰まっているか」を即座に把握できる。
+
+### Added
+- Model Card の `executability` に `feasibility`（各軸の `util = metric / 閾値`＝1.0 で境界・>1.0 で違反、
+  と律速軸 `binding_axis`/`binding_util`）。torque/velocity/balance/airborne/joint_rom を共通スケールで並べる
+  （ROM は閾値 0 なので util=1+違反率）。markdown に「**feasibility headroom**」セクション（util% 降順・binding 明示）。
+  実例: H1 dance_fast は binding=torque 177%（left_shoulder 超過）、march は binding=balance 150%（torque 107% も超過）、
+  PASS な dance_normal は binding=torque 86%（余裕 14%）。
+- test: PASS は全軸 util<1 で binding=最大 util 軸、overbend は binding=joint_rom（util>1）。
+
 ## [0.69.0] - 2026-06-05
 
 velocity 軸の律速関節を torque と対称に集約（pre-alpha）。feasibility 三軸（torque/velocity/balance）の

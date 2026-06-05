@@ -126,6 +126,46 @@ def build_mir_card(mir: RdMir) -> dict[str, Any]:
     }
 
 
+def _feasibility_headroom(cert: dict[str, Any]) -> Optional[dict[str, Any]]:
+    """feasibility 各軸の「限界に対する使用率」を 1 か所に集約し、律速軸（binding）を示す。
+
+    util = metric / feasibility 閾値（1.0=境界ちょうど, >1.0=違反）。torque/velocity/balance/airborne/
+    joint_rom を共通スケールで並べ、設計者が「どの軸が一番危ないか」を即座に把握できるようにする
+    （v0.64-69 で各軸に出した数値の統合ビュー）。ROM は閾値 0（どの違反も不可）なので util=1+違反率で表す。
+    """
+    m = cert.get("metrics", {})
+    thr = cert.get("thresholds", {})
+    rows: list[dict[str, Any]] = []
+
+    def add(axis: str, metric: Optional[float], threshold: Optional[float], detail: str) -> None:
+        if metric is None:
+            return
+        if threshold and threshold > 0:
+            util = metric / threshold
+        else:  # 閾値 0（ROM 等, どの違反も不可）→ 違反があれば over として表現。
+            util = 1.0 + metric if metric > 0 else 0.0
+        rows.append({"axis": axis, "util": round(util, 3),
+                     "metric": round(float(metric), 3), "detail": detail})
+
+    bal = m.get("balance_violation_ratio")
+    add("balance", bal, thr.get("balance_violation_ratio"),
+        f"{(bal or 0):.0%} frames ZMP 支持外")
+    add("torque", m.get("torque_ratio"), thr.get("gravity_torque_ratio"),
+        m.get("torque_limiting_joint") or "")
+    add("velocity", m.get("joint_velocity_ratio"), thr.get("joint_velocity_ratio"),
+        m.get("velocity_limiting_joint") or "")
+    air = m.get("airborne_ratio")
+    add("airborne", air, thr.get("airborne_ratio"), f"{(air or 0):.0%} frames 滞空")
+    rom = m.get("joint_flexion_violation_ratio")
+    if rom is not None:
+        add("joint_rom", rom, thr.get("joint_flexion_violation_ratio"), f"{rom:.0%} frames ROM超過")
+
+    if not rows:
+        return None
+    binding = max(rows, key=lambda r: r["util"])
+    return {"binding_axis": binding["axis"], "binding_util": binding["util"], "axes": rows}
+
+
 def _executability(cert: dict[str, Any], flexion: Optional[dict[str, Any]]) -> dict[str, Any]:
     """動的（sim_certificate）＋運動学的（joint_flexion）feasibility を 1 つの実行可否に集約する。
 
@@ -137,6 +177,7 @@ def _executability(cert: dict[str, Any], flexion: Optional[dict[str, Any]]) -> d
     速度・ROM 違反も sim_certificate.verdict に統合済み（v0.44/v0.50）なので、verdict が権威。
     - sim_certificate あり: その verdict が権威。律速関節（torque/velocity_limiting_joint）と余裕を
       `tightest_torque`/`tightest_velocity` に出す（PASS でも「どの関節が上限に最も近いか」を設計者へ, v0.65/v0.69）。
+      `feasibility` に各軸の限界使用率（util）と律速軸（binding）を集約する（v0.70, 統合ビュー）。
     - sim_certificate なし: 動的 feasibility 未検証なので executable=null（不明）。可動域だけは
       joint_flexion があれば報告する（kinematic 経路でも実機可動域超過は分かる）。
     """
@@ -178,6 +219,10 @@ def _executability(cert: dict[str, Any], flexion: Optional[dict[str, Any]]) -> d
         out["tightest_torque"] = tightest_torque
     if tightest_velocity is not None:
         out["tightest_velocity"] = tightest_velocity
+    if cert:
+        fh = _feasibility_headroom(cert)
+        if fh is not None:
+            out["feasibility"] = fh
     if any("可動域" in b or "ROM" in b for b in blockers):
         out["remedy"] = "retarget(..., clamp_flexion=True) で可動域内へ補正可"
     if not cert:
@@ -425,6 +470,14 @@ def render_markdown(card: dict[str, Any]) -> str:
                 f"- **律速関節（速度）**: {tv['joint']} ×{tv['ratio']:.2f}"
                 f"（余裕 {tv['headroom']:+.2f}, {margin}）"
             )
+        fh = ex.get("feasibility")
+        if fh is not None:
+            lines.append("- **feasibility headroom**（限界に対する使用率, 100%超で違反 ⛔）:")
+            for r in sorted(fh["axes"], key=lambda x: -x["util"]):
+                mark = "⛔" if r["util"] > 1.0 else "✅"
+                tag = " ← binding" if r["axis"] == fh["binding_axis"] else ""
+                detail = f" [{r['detail']}]" if r.get("detail") else ""
+                lines.append(f"  - {mark} {r['axis']}: {r['util'] * 100:.0f}%{tag}{detail}")
         for b in ex.get("blockers", []):
             lines.append(f"- ⛔ {b}")
         if ex.get("remedy"):

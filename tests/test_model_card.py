@@ -124,6 +124,12 @@ def test_executability_summary_pass_reject_and_remedy() -> None:
     assert tv["ratio"] < 1.0 and tv["headroom"] > 0.0
     md_safe = render_markdown(card_safe)
     assert "律速関節（トルク）" in md_safe and "律速関節（速度）" in md_safe
+    # feasibility headroom（三軸統合ビュー, v0.70）: PASS は全軸 util<1、binding は最大 util 軸。
+    fh = ex_safe["feasibility"]
+    assert {r["axis"] for r in fh["axes"]} >= {"torque", "velocity", "balance", "airborne"}
+    assert all(r["util"] < 1.0 for r in fh["axes"])  # PASS は全軸が限界内
+    assert fh["binding_util"] == max(r["util"] for r in fh["axes"])
+    assert "feasibility headroom" in md_safe
 
     # 過屈曲 → ROM 超過で executable: false、clamp の remedy を示す。
     bad = certify(retarget(generate_overbend(), g1), g1)
@@ -131,6 +137,9 @@ def test_executability_summary_pass_reject_and_remedy() -> None:
     assert ex_bad["executable"] is False
     assert any("可動域" in b for b in ex_bad["blockers"])
     assert "clamp_flexion" in ex_bad["remedy"]
+    # ROM 違反は feasibility headroom で binding（util>1）になる。
+    fh_bad = ex_bad["feasibility"]
+    assert fh_bad["binding_axis"] == "joint_rom" and fh_bad["binding_util"] > 1.0
 
     # clamp で補正 → executable: true。
     fixed = certify(retarget(generate_overbend(), g1, clamp_flexion=True), g1)
