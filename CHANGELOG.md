@@ -5,6 +5,23 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.82.0] - 2026-06-05
+
+非空手デモを残しつつ、複数 OSS pose 検出器の比較を追加（pre-alpha）。
+
+### Added
+
+- `scripts/compare_pose_backends.py`: 同一実動画に **MediaPipe / YOLO11-pose(Ultralytics) /
+  RTMPose(rtmlib)** を当て、各骨格を共通 COCO-17 に揃えて 3 パネル overlay GIF と
+  検出率・平均 confidence・推論時間を出力する比較スクリプト（dev 専用依存。パッケージ依存には含めない）。
+- README に "Pose detection — swap in different OSS detectors" 節を追加（比較 GIF + 指標表）。
+  MediaPipe のみ 3D world landmarks を返し robot retarget に使える点を明記（YOLO/RTMPose は 2D）。
+
+### Changed
+
+- README の "More clips" 行に squat→G1（動的接地版）を復帰させ、karate だけでなく
+  squat・kathak の非空手デモも併記（多様性を維持）。
+
 ## [0.81.0] - 2026-06-05
 
 実動画→ロボットの動きの一致を改善（pre-alpha）。「人間とロボットの動きが合っていない」を 2 点で修正。

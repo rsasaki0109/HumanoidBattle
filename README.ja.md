@@ -77,16 +77,31 @@ Output: ロボット実行可能モーション + RD-MIR データセット + mo
 
 <sub>3 段は同一 extract から生成 — 前屈立ちと腕の技が overlay・復元スケルトン・ロボットで揃う。ロボットは各フレームで動的に接地（最下点を床へ）するので、骨盤固定で浮かず人間と一緒に屈伸・踏み込みする。</sub>
 
-**ダンスの実クリップも → 実 G1 / H1:**
+**他の実クリップも → 実 G1 / H1:**
 
 <table>
 <tr>
+<td align="center"><img src="assets/readme/real/squat_g1_robot.gif" width="150" alt="G1 squat"><br><sub>squat → G1</sub></td>
 <td align="center"><img src="assets/readme/real/kathak3_g1_robot.gif" width="150" alt="G1 kathak dance"><br><sub>kathak → G1</sub></td>
 <td align="center"><img src="assets/readme/real/kathak3_h1_robot.gif" width="150" alt="H1 kathak dance"><br><sub>kathak → H1</sub></td>
 </tr>
 </table>
 
-<sub>※ **入力動画は repo に同梱しません。** overlay のみソース動画ピクセルを含む派生物（CC-BY 出典明記で可）、他は抽出 motion の可視化でピクセル非含有。Sources（Wikimedia Commons）: karate kata — Sdcsabac (CC BY-SA 4.0) / kathak — Suyash Dwivedi (CC BY-SA 4.0) / squat（下の物理検証）— FitnessScape (CC BY 3.0)。生成は [`scripts/render_real_video_gif.py`](scripts/render_real_video_gif.py)。</sub>
+<sub>※ **入力動画は repo に同梱しません。** overlay のみソース動画ピクセルを含む派生物（CC-BY 出典明記で可）、他は抽出 motion の可視化でピクセル非含有。Sources（Wikimedia Commons）: karate kata — Sdcsabac (CC BY-SA 4.0) / kathak — Suyash Dwivedi (CC BY-SA 4.0) / squat — FitnessScape (CC BY 3.0)。生成は [`scripts/render_real_video_gif.py`](scripts/render_real_video_gif.py)。</sub>
+
+### Pose 検出 — 色々な OSS 検出器を差し替え
+
+既定は MediaPipe Pose（retarget に要る **3D world landmarks** を返す）だが、抽出は差し替え可能なステージ。同一クリップに 3 つの OSS 2D 検出器を当て、COCO-17 に揃えて重ねた比較:
+
+<img src="assets/readme/pose/pose_compare_squat.gif" width="640" alt="MediaPipe vs YOLO11-pose vs RTMPose on the same squat clip">
+
+| backend | 検出率 | 平均 conf | ms/frame | 3D? |
+| --- | --- | --- | --- | --- |
+| MediaPipe (BlazePose) | 1.00 | 0.92 | 59 | ✅ world landmarks |
+| YOLO11-pose (Ultralytics) | 1.00 | 0.78 | 38 | ❌ 2D のみ |
+| RTMPose (rtmlib) | 1.00 | 0.72 | 201 | ❌ 2D のみ |
+
+<sub>この単一人物・近接クリップでは 3 者とも良好に追従（YOLO11 が最速）。下流では **3D world landmarks** も返す MediaPipe を既定にしている。2D 検出器でロボットを動かすには 2D→3D lifting が別途必要。生成は [`scripts/compare_pose_backends.py`](scripts/compare_pose_backends.py)。</sub>
 
 ### 物理検証が安全弁 — 無理な運動は止める
 

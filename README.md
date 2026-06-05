@@ -77,16 +77,31 @@ Recover 3D from a local video with MediaPipe Pose, then go end-to-end: RD-MIR �
 
 <sub>All three stages come from one extract — the forward stance and arm techniques line up across the overlay, the recovered skeleton, and the robot. The robot is dynamically grounded each frame (lowest point on the floor), so it bends and steps with the human instead of floating at a fixed pelvis height.</sub>
 
-**A dance clip too → real G1 / H1:**
+**More clips → real G1 / H1:**
 
 <table>
 <tr>
+<td align="center"><img src="assets/readme/real/squat_g1_robot.gif" width="150" alt="G1 squat"><br><sub>squat → G1</sub></td>
 <td align="center"><img src="assets/readme/real/kathak3_g1_robot.gif" width="150" alt="G1 kathak dance"><br><sub>kathak → G1</sub></td>
 <td align="center"><img src="assets/readme/real/kathak3_h1_robot.gif" width="150" alt="H1 kathak dance"><br><sub>kathak → H1</sub></td>
 </tr>
 </table>
 
-<sub>※ **Source videos are not bundled in this repo.** Only the overlay is a derivative containing source pixels (allowed under CC-BY with attribution); the rest visualize the extracted motion and contain no source pixels. Sources (Wikimedia Commons): karate kata — Sdcsabac (CC BY-SA 4.0); kathak — Suyash Dwivedi (CC BY-SA 4.0); squat (in the physics check below) — FitnessScape (CC BY 3.0). Generated with [`scripts/render_real_video_gif.py`](scripts/render_real_video_gif.py).</sub>
+<sub>※ **Source videos are not bundled in this repo.** Only the overlay is a derivative containing source pixels (allowed under CC-BY with attribution); the rest visualize the extracted motion and contain no source pixels. Sources (Wikimedia Commons): karate kata — Sdcsabac (CC BY-SA 4.0); kathak — Suyash Dwivedi (CC BY-SA 4.0); squat — FitnessScape (CC BY 3.0). Generated with [`scripts/render_real_video_gif.py`](scripts/render_real_video_gif.py).</sub>
+
+### Pose detection — swap in different OSS detectors
+
+MediaPipe Pose is the default (it returns **3D world landmarks** needed for retargeting), but extraction is a pluggable stage. Here are three OSS 2D detectors on the same clip, all normalized to COCO-17 for a fair overlay:
+
+<img src="assets/readme/pose/pose_compare_squat.gif" width="640" alt="MediaPipe vs YOLO11-pose vs RTMPose on the same squat clip">
+
+| backend | det rate | mean conf | ms/frame | 3D? |
+| --- | --- | --- | --- | --- |
+| MediaPipe (BlazePose) | 1.00 | 0.92 | 59 | ✅ world landmarks |
+| YOLO11-pose (Ultralytics) | 1.00 | 0.78 | 38 | ❌ 2D only |
+| RTMPose (rtmlib) | 1.00 | 0.72 | 201 | ❌ 2D only |
+
+<sub>On this clean single-person clip all three track well (YOLO11 is fastest). MediaPipe stays the default downstream because it also yields **3D world landmarks**; the 2D detectors would need a 2D→3D lifting stage to drive the robot. Generated with [`scripts/compare_pose_backends.py`](scripts/compare_pose_backends.py).</sub>
 
 ### The physics check is the safety valve — it stops infeasible motion
 
