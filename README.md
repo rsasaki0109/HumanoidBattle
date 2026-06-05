@@ -217,6 +217,8 @@ robotdance_sim/         MuJoCo / Isaac Lab backend
 
 pre-alpha (latest version and full changelog in [CHANGELOG](CHANGELOG.md)). Working: specs v0, extraction (MediaPipe/HMR), dataset, embedding/generation, retarget (real URDF), MuJoCo physics check, RL tracking, ROS2 runtime, and benchmark. Roadmap in [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
+How RobotDance relates to GMR, GVHMR/WHAM, H2O/OmniH2O, PHC, PHUMA and the rest of the *human-video → humanoid* landscape — and what makes it different (a license-safe, feasibility-gated compiler) — is mapped in [`docs/RELATED_WORK.md`](docs/RELATED_WORK.md).
+
 ## License
 
 Code is [Apache-2.0](LICENSE). Verify dataset/model usage terms separately per source.

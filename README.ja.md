@@ -217,6 +217,8 @@ robotdance_sim/         MuJoCo / Isaac Lab backend
 
 pre-alpha（最新版・全変更は [CHANGELOG](CHANGELOG.md)）。specs v0、抽出（MediaPipe/HMR）・データセット・埋め込み/生成・retarget（実 URDF）・MuJoCo 物理検証・RL tracking・ROS2 runtime・benchmark まで動作。ロードマップは [`docs/ROADMAP.md`](docs/ROADMAP.md)。
 
+GMR・GVHMR/WHAM・H2O/OmniH2O・PHC・PHUMA など *人間動画→ヒューマノイド* 周辺の研究/OSS との関係と、RobotDance の差別化（license-safe な feasibility-gated コンパイラ）は [`docs/RELATED_WORK.md`](docs/RELATED_WORK.md) に整理。
+
 ## License
 
 Code は [Apache-2.0](LICENSE)。データセット/モデルの利用許諾は source ごとに別途確認してください。

@@ -5,6 +5,15 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.93.0] - 2026-06-06
+
+### Added
+
+- `docs/RELATED_WORK.md`: *人間動画→ヒューマノイド* 周辺の研究/OSS マップ（抽出: GVHMR/WHAM/TRAM、
+  retarget: GMR、制御/teleop: H2O/OmniH2O/ExBody/TWIST 等、物理模倣: PHC、データセット curation:
+  PHUMA/OpenT2M）と、RobotDance の差別化（透明な解析的 feasibility certificate / license-safe な
+  provenance / コンパイラ統合 / 単眼限界への正直さ）・取り込むべきギャップを整理。README からリンク。
+
 ## [0.92.0] - 2026-06-06
 
 ### Added
