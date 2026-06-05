@@ -5,6 +5,25 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.75.0] - 2026-06-05
+
+実動画ショーケースを拡充（pre-alpha）。実動画パイプラインを ①overlay ②武道/ダンス多機種 ③physics 検証
+の 3 方向に広げ、README の「Real video → humanoid」を本命デモへ。
+
+### Added
+- **2D overlay**: 実 squat 動画に MediaPipe 2D 骨格を重ねた検出確認 GIF（`extract`+`overlay`、400px/10fps）。
+  3 段パイプライン（overlay → canonical スケルトン → 実 G1）を README に並置。
+- **武道・ダンスの実クリップ → 多機種**: karate kata（CC BY-SA 4.0, conf 0.92）→ G1、kathak dance
+  （CC BY-SA 4.0, conf 0.95）→ G1（IK 0.068m）+ H1（IK 0.113m）。`render_real_video_gif.py` で生成。
+- **実動画の physics 検証**: 抽出 squat を MuJoCo feasibility certificate にかけ **REJECT**（airborne 48% /
+  ZMP 支持外 60%、torque 0.88・速度 0.31 は範囲内）+ balance plot を README に掲載。単眼抽出の接地・根高さの
+  不確実性を certificate が捉え「動画→即実機」を gate する様子を実証。`validate-sim --balance-plot` で生成。
+
+### Notes
+- overlay のみソース動画ピクセルを含む派生物（CC-BY 出典明記で可）。スケルトン/ロボット/balance plot は
+  パイプライン出力の可視化でピクセル非含有。入力動画は全て repo 非同梱。Sources: FitnessScape (CC BY 3.0) /
+  Sdcsabac (CC BY-SA 4.0) / Suyash Dwivedi (CC BY-SA 4.0), via Wikimedia Commons。
+
 ## [0.74.0] - 2026-06-05
 
 本命「Shorts to humanoid」を**実動画**で実証（pre-alpha）。合成代役ではなく、ライセンスがクリアな実

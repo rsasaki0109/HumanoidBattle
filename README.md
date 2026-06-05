@@ -159,22 +159,72 @@ Output: Unitree G1 simulation motion + RD-MIR dataset + motion embedding
 本命の **"Shorts to humanoid"**。ローカル動画を MediaPipe Pose で 3D 復元し、canonical RD-MIR →
 G1/H1 retarget → MuJoCo 物理検証まで一気通貫します。
 
-**実例: ライセンスがクリアな実スポーツ動画 → 実 G1**（合成ではなく本物の動画から）:
+**実例: ライセンスがクリアな実スポーツ動画 → 実 G1**（合成ではなく本物の動画から）。
+**① 原動画に骨格 overlay → ② canonical スケルトン復元 → ③ 実 G1 が再現**の 3 段:
 
 <table>
 <tr>
-<td align="center"><img src="assets/readme/real/squat_g1_skeleton.gif" width="220" alt="canonical skeleton extracted from a real squat video"><br><sub>① 実動画 → MediaPipe で<br><b>canonical RD-MIR スケルトン</b>を復元</sub></td>
-<td align="center"><img src="assets/readme/real/squat_g1_robot.gif" width="240" alt="Unitree G1 mesh performing the squat extracted from the real video"><br><sub>② actuator-IK で<br><b>実 G1（23 関節）</b>が同じ動きを再現</sub></td>
+<td align="center"><img src="assets/readme/real/squat_overlay.gif" width="230" alt="2D skeleton overlaid on the source squat video"><br><sub>① 原動画 + 2D 骨格 overlay<br>（実ピクセルで検出確認）</sub></td>
+<td align="center"><img src="assets/readme/real/squat_g1_skeleton.gif" width="180" alt="canonical skeleton extracted from a real squat video"><br><sub>② canonical RD-MIR<br>スケルトンを復元</sub></td>
+<td align="center"><img src="assets/readme/real/squat_g1_robot.gif" width="190" alt="Unitree G1 mesh performing the squat extracted from the real video"><br><sub>③ actuator-IK で<br><b>実 G1（23 関節）</b>が再現</sub></td>
 </tr>
 </table>
 
-<sub>↑ **本物のスポーツ動画 → ヒューマノイド。** ソース動画を MediaPipe Pose にかけて canonical 19-joint
-スケルトン（①, mean confidence 0.88 / smoothed jitter 0.005）を復元し、**actuator-space IK** で実 g1_23dof URDF の
-23 関節角へ retarget（IK 位置誤差 0.094m）して実メッシュで render（②）。<br>※ **入力動画は repo に同梱せず**、
-出力 GIF はパイプライン出力（抽出 motion / 関節角）の可視化で**ソース動画のピクセルを一切含みません**。
-[`scripts/render_real_video_gif.py`](scripts/render_real_video_gif.py) で生成。<br>※ Source: 『Squat – exercise
-demonstration video』by **FitnessScape**, **CC BY 3.0**, via [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Squat_-_exercise_demonstration_video.webm)。
+<sub>↑ **本物のスポーツ動画 → ヒューマノイド。** ① は MediaPipe の 2D 骨格を原フレームに重ねた検出確認
+（mean confidence 0.89）。② は world landmark から復元した canonical 19-joint（smoothed jitter 0.005）。
+③ は **actuator-space IK** で実 g1_23dof URDF の 23 関節角へ retarget（IK 位置誤差 0.094m）し実メッシュで render。
+<br>※ ① の overlay はソース動画のピクセルを含む派生物（CC BY なので出典明記で可）。②③ は抽出 motion /
+関節角の可視化で**ソース動画のピクセルを含みません**。**入力動画は repo に同梱しません。**
+[`scripts/render_real_video_gif.py`](scripts/render_real_video_gif.py) / `extract`+`overlay` で生成。<br>※ Source:
+『Squat – exercise demonstration video』by **FitnessScape**, **CC BY 3.0**, via
+[Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Squat_-_exercise_demonstration_video.webm)。
 ロボットメッシュ © Unitree Robotics（`unitree_ros`, BSD-3-Clause, repo 非同梱）。</sub>
+
+#### 実動画はそのままでは実機に流せない — feasibility certificate が止める
+
+抽出した実 squat を**そのまま** MuJoCo feasibility certificate（実 URDF 慣性, v0）にかけると **REJECT** になります。
+理由が診断的で、「動画を入れたら即ロボットが踊る」を**設計として**防いでいることが分かります:
+
+<table>
+<tr><td>
+
+| 軸 | 値 | 判定 |
+| --- | --- | --- |
+| airborne_ratio | 0.484 | ⛔ 48% 接地なし |
+| balance（ZMP 支持外） | 0.601 | ⛔ 60% 転倒リスク |
+| torque_ratio | 0.878 | ✅ actuator 上限内 |
+| joint_velocity_ratio | 0.314 | ✅ 速度上限内 |
+| joint_flexion（ROM） | 0.0 | ✅ 可動域内 |
+| **verdict** | **REJECT** | executable: ❌ |
+
+</td><td>
+
+<img src="assets/readme/real/squat_g1_balance.png" width="260" alt="ZMP path vs support polygon for the extracted squat (60% out of support)">
+
+</td></tr>
+</table>
+
+<sub>↑ **律速は torque ではなく接地・バランス。** 単眼抽出は**根の高さ・足接地が不確実**なので airborne/ZMP が
+暴れる（右図: ZMP が支持多角形外に散乱, 緑=支持内 / 赤×=支持外 60%）。一方 torque（0.88）・速度（0.31）は実 actuator
+上限内 — つまり「G1 の力では出せるが、抽出 motion の接地が信用できない」状態。**生の抽出 motion を実機に直結しない**
+ための正しい gate。接地推定の改善 / contact-aware retarget は今後（v0 の正直な限界）。`validate-sim ... --balance-plot` で生成。</sub>
+
+#### もっと実クリップ → 実ヒューマノイド（武道・ダンス, 多機種）
+
+<table>
+<tr>
+<td align="center"><img src="assets/readme/real/karate_g1_skeleton.gif" width="150" alt="karate kata skeleton"><br><sub>karate kata<br>（抽出骨格）</sub></td>
+<td align="center"><img src="assets/readme/real/karate_g1_robot.gif" width="150" alt="G1 performing karate kata"><br><sub>→ 実 <b>G1</b></sub></td>
+<td align="center"><img src="assets/readme/real/kathak_g1_skeleton.gif" width="150" alt="kathak dance skeleton"><br><sub>kathak dance<br>（抽出骨格）</sub></td>
+<td align="center"><img src="assets/readme/real/kathak_g1_robot.gif" width="150" alt="G1 performing kathak dance"><br><sub>→ 実 <b>G1</b></sub></td>
+<td align="center"><img src="assets/readme/real/kathak_h1_robot.gif" width="150" alt="H1 performing kathak dance"><br><sub>→ 実 <b>H1</b></sub></td>
+</tr>
+</table>
+
+<sub>↑ **武道（karate kata, 空手の型）と古典舞踊（kathak）の実動画 → 実 G1 / H1。** 同じ kathak を G1（IK 0.068m）
+と H1（IK 0.113m）の両方へ retarget。検出 mean confidence は karate 0.92 / kathak 0.95。<br>※ 入力動画は非同梱。
+Source: 『Karate, Hean Shodan』by **Sdcsabac** (CC BY-SA 4.0) / 『Vishvadeep performing Kathak…』by **Suyash Dwivedi**
+(CC BY-SA 4.0), via Wikimedia Commons。メッシュ © Unitree Robotics（BSD-3-Clause, repo 非同梱）。GIF はパイプライン出力の可視化。</sub>
 
 ```bash
 pip install -e ".[demo,sim,perception]"
