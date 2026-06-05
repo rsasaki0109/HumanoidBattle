@@ -5,6 +5,16 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.89.1] - 2026-06-05
+
+### Fixed
+
+- real-video hero の ① source video + skeleton overlay がズレていた問題を修正。元の karate クリップが
+  **多人数の道場引き shot**で、MediaPipe（num_poses=1）が前景の演武者でなく小さい/別の人物を掴み、
+  2D overlay が被写体外に固まっていた（3D skeleton だけは「人の形」に見えるため見落とされていた）。
+  演武者領域に**クロップした版から ①②③ を一括再生成**（mean_conf 0.918→0.923、overlay が演武者に追従）。
+  overlay GIF も 64 色最適化で 2.3MB→1.1MB に圧縮。出典・ライセンス（Sdcsabac, CC BY-SA 4.0）は不変。
+
 ## [0.89.0] - 2026-06-05
 
 README の pose セクションを整理し、詳細を専用 docs ページへ移動（pre-alpha）。
