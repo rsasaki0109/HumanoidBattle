@@ -5,6 +5,21 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.89.0] - 2026-06-05
+
+README の pose セクションを整理し、詳細を専用 docs ページへ移動（pre-alpha）。
+
+### Added
+
+- `docs/POSE_BACKENDS.md`: pose 検出バックエンドの詳細ページ。CLI の使い方、3 検出器の比較、
+  `*+lift` coarse baseline の説明・kata 定量比較・robot 横並びデモ（GIF 3 本＋指標表）を集約。
+
+### Changed
+
+- README（en/ja）の "Pose detection" 節を要約＋比較表＋`docs/POSE_BACKENDS.md` へのリンクに圧縮
+  （GIF 3 本＋表 2 つで肥大化していた pose 詳細を docs へ退避し、hero の流れを読みやすく）。
+  lift_vs_native_*.gif は docs から参照され引き続き利用。
+
 ## [0.88.0] - 2026-06-05
 
 planar lift を実ロボットまで通し、native と横並びで実証（pre-alpha）。

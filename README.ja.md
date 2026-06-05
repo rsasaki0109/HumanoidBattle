@@ -91,7 +91,7 @@ Output: ロボット実行可能モーション + RD-MIR データセット + mo
 
 ### Pose 検出 — 色々な OSS 検出器を差し替え
 
-既定は MediaPipe Pose（retarget に要る **3D world landmarks** を返す）だが、抽出は差し替え可能なステージ。各バックエンドは能力付きで登録され、`robotdance list-backends` で一覧、`robotdance pose-compare <clip> -o out.gif` で手元のクリップを横並び比較、`extract --backend <name>` で抽出器を選択できる（2D-only 検出器は 3D が要るフル抽出では拒否される）。同一クリップに 3 つの OSS 2D 検出器を当て、COCO-17 に揃えて重ねた比較:
+抽出は差し替え可能なステージ。既定は MediaPipe Pose（retarget に要る **3D world landmarks** を返す）だが、各バックエンドは能力付きで登録され、`list-backends` で一覧、`pose-compare <clip>` で横並び比較、`extract --backend <name>` で選択できる。同一クリップに 3 つの OSS 2D 検出器を当て、COCO-17 に揃えた比較:
 
 <img src="assets/readme/pose/pose_compare_squat.gif" width="640" alt="MediaPipe vs YOLO11-pose vs RTMPose on the same squat clip">
 
@@ -101,28 +101,7 @@ Output: ロボット実行可能モーション + RD-MIR データセット + mo
 | YOLO11-pose (Ultralytics) | 1.00 | 0.78 | 38 | ❌ 2D のみ |
 | RTMPose (rtmlib) | 1.00 | 0.72 | 201 | ❌ 2D のみ |
 
-<sub>この単一人物・近接クリップでは 3 者とも良好に追従（YOLO11 が最速）。下流では **3D world landmarks** も返す MediaPipe を既定にしている。2D 検出器でロボットを動かすには 2D→3D lifting が別途必要。生成は [`scripts/compare_pose_backends.py`](scripts/compare_pose_backends.py)。</sub>
-
-2D 検出器には `*+lift` backend（`yolo11-pose+lift` / `rtmpose+lift`）を用意した。COCO-17 を**正面平面**へ人体寸法プライアでメートル化して埋め込む（`extract --backend yolo11-pose+lift`）。これは意図的に**粗いベースライン**で、**深度を復元しない**ため矢状面（しゃがみ）は潰れ、冠状面（型）は残る。既定は MediaPipe の native 3D のまま——lift はトレードオフを明示・定量化するための位置づけ。
-
-型クリップでの定量比較 — native MediaPipe 3D（青）vs YOLO11→planar lift（赤）、同一動画:
-
-<img src="assets/readme/pose/lift_vs_native_karate.gif" width="460" alt="native MediaPipe 3D vs planar lift on a karate kata">
-
-| 指標（147 フレーム・pelvis 中心） | 値 |
-| --- | --- |
-| native 深度 x の std | 0.175 m |
-| lift 深度 x の std | **0.000 m**（構造上 平面） |
-| MPJPE native↔lift, full | 0.274 m |
-| MPJPE native↔lift, frontal（y-z のみ） | 0.222 m |
-
-<sub>lift は前後運動を全て捨てる（深度 std→0）ため 0.27m の差のうち約 0.16m を説明し、残りは面内のズレ（検出器違い・透視/ヨー未モデル化）。識別はできるが粗い——まさに正直なトレードオフ。生成は [`scripts/compare_lift_vs_native.py`](scripts/compare_lift_vs_native.py)。</sub>
-
-しかも実ロボットまで通る — 両経路を Unitree G1 メッシュに retarget（左 native, 右 lift のみ）:
-
-<img src="assets/readme/pose/lift_vs_native_robot.gif" width="460" alt="Unitree G1 driven by native MediaPipe 3D vs by a 2D detector + planar lift">
-
-<sub>2D 検出器だけ（native 3D なし）でも、ロボット上で識別可能な型になる——retarget IK 誤差 0.097m vs native 0.071m で約 38% 悪い。高速な 2D モデルで試作するには十分で、深度のコストも可視化されている。生成は [`scripts/render_lift_vs_native_robot.py`](scripts/render_lift_vs_native_robot.py)。</sub>
+<sub>2D 検出器も `*+lift`（解析的 2D→正面平面 lift・深度なしの粗いベースライン）で実ロボットを駆動できる——YOLO11 のみの型で retarget IK 誤差 0.097m（native 0.071m）。完全な比較・指標・ロボットデモ: **[docs/POSE_BACKENDS.md](docs/POSE_BACKENDS.md)**。</sub>
 
 ### 物理検証が安全弁 — 無理な運動は止める
 
