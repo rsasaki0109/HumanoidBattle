@@ -5,6 +5,27 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.76.0] - 2026-06-05
+
+実動画の接地クリーンアップ（pre-alpha）。v0.75 で実証した「単眼抽出 → certificate REJECT」の主因のうち
+**接地アーティファクト（airborne 誤検出 / foot skate）**を除去する foot-locking を追加。balance の残差が
+**深度律速**であることを切り分けて可視化する。
+
+### Added
+- `robotdance_motion/grounding.py` の `ground_contact_cleanup(mir)`: 接地足を毎フレーム z=0 に固定し、
+  接地フラグを高さから再生成（grounded performance 前提・跳躍未対応）。軽い再平滑も任意。入力は非破壊。
+- `validate-sim --ground-clean`: retarget 前に接地クリーンアップを適用。
+- test: 接地足が毎フレーム z≈0 に固定される・接地フラグ/メトリクス再生成・入力非破壊を検証。
+
+### Changed
+- README の実動画 certificate ブロックを before→after 比較に更新。実 squat で **airborne 0.484→0.000・
+  torque 0.878→0.615** と接地アーティファクトが消え支持多角形が安定。**balance は 0.601→0.474 だが閾値 0.3 超で
+  REJECT のまま**で、残った ZMP のはみ出しは前後 x（単眼で最も不確実な深度）方向に偏る。cleaned balance plot 掲載。
+
+### Notes
+- 接地（contact）は cleanup で直せるが **balance は深度復元の精度律速**という v0 の frontier を明示。完全 PASS には
+  深度推定 / contact-aware retarget の改善が要る（過平滑で見かけ PASS にする gimmick は採らない方針を堅持）。
+
 ## [0.75.0] - 2026-06-05
 
 実動画ショーケースを拡充（pre-alpha）。実動画パイプラインを ①overlay ②武道/ダンス多機種 ③physics 検証

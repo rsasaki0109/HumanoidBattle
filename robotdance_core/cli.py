@@ -1105,6 +1105,7 @@ def _sim_backends() -> int:
 def _validate_sim(
     path: Path, robot: str, out: Path | None, backend: str = "mujoco",
     clamp_flexion: bool = False, balance_plot: Path | None = None,
+    ground_clean: bool = False,
 ) -> int:
     from .model_card import build_motion_card
     from .rd_mir import RdMir
@@ -1113,7 +1114,14 @@ def _validate_sim(
     from robotdance_unitree import get_morphology
 
     morph = get_morphology(robot)
-    motion = retarget(RdMir.load(path), morph, clamp_flexion=clamp_flexion)
+    mir = RdMir.load(path)
+    if ground_clean:
+        # 単眼抽出の接地アーティファクト（airborne 誤検出・foot skate）を除去してから検証。
+        from robotdance_motion.grounding import ground_contact_cleanup
+
+        mir = ground_contact_cleanup(mir)
+        print("  🦶 ground-clean: 接地足を z=0 に固定し接地フラグを再生成（grounded 前提・跳躍未対応）")
+    motion = retarget(mir, morph, clamp_flexion=clamp_flexion)
     if balance_plot is not None and backend == "mujoco":
         # ZMP×支持多角形の可視化には per-frame trace が要るので mujoco backend を直接呼ぶ。
         from robotdance_sim.mujoco_backend import simulate_certificate
@@ -1456,6 +1464,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="膝・肘を実機可動域へ補正してから検証（ROM 違反の remedy）")
     p_vsim.add_argument("--balance-plot", type=Path, default=None,
                         help="ZMP×支持多角形の上面図 PNG を出力（balance 違反を可視化, mujoco backend）")
+    p_vsim.add_argument("--ground-clean", action="store_true",
+                        help="単眼抽出の接地アーティファクト（airborne 誤検出/foot skate）を除去してから検証")
 
     sub.add_parser("sim-backends", help="登録済み sim backend と利用可否を表示（§4.3）")
 
@@ -1519,7 +1529,7 @@ def main(argv: list[str] | None = None) -> int:
         return _demo_multi(args.out, args.robots, args.stride)
     if args.command == "validate-sim":
         return _validate_sim(args.path, args.robot, args.out, args.backend, args.clamp_flexion,
-                             args.balance_plot)
+                             args.balance_plot, args.ground_clean)
     if args.command == "sim-backends":
         return _sim_backends()
     if args.command == "demo-pipeline":

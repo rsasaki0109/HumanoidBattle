@@ -188,26 +188,30 @@ G1/H1 retarget → MuJoCo 物理検証まで一気通貫します。
 <table>
 <tr><td>
 
-| 軸 | 値 | 判定 |
+| 軸 | 生抽出 | `--ground-clean` 後 |
 | --- | --- | --- |
-| airborne_ratio | 0.484 | ⛔ 48% 接地なし |
-| balance（ZMP 支持外） | 0.601 | ⛔ 60% 転倒リスク |
-| torque_ratio | 0.878 | ✅ actuator 上限内 |
-| joint_velocity_ratio | 0.314 | ✅ 速度上限内 |
-| joint_flexion（ROM） | 0.0 | ✅ 可動域内 |
-| **verdict** | **REJECT** | executable: ❌ |
+| airborne_ratio | ⛔ 0.484 | ✅ **0.000** |
+| torque_ratio | ✅ 0.878 | ✅ **0.615** |
+| balance（ZMP 支持外） | ⛔ 0.601 | ⛔ **0.474** |
+| joint_velocity_ratio | ✅ 0.314 | ✅ 0.314 |
+| joint_flexion（ROM） | ✅ 0.0 | ✅ 0.0 |
+| **verdict** | **REJECT** | **REJECT**（balance 残） |
 
 </td><td>
 
-<img src="assets/readme/real/squat_g1_balance.png" width="260" alt="ZMP path vs support polygon for the extracted squat (60% out of support)">
+<img src="assets/readme/real/squat_g1_balance_cleaned.png" width="280" alt="ZMP vs support polygon after ground-clean: airborne gone, residual ZMP spread in forward (depth) axis">
 
 </td></tr>
 </table>
 
-<sub>↑ **律速は torque ではなく接地・バランス。** 単眼抽出は**根の高さ・足接地が不確実**なので airborne/ZMP が
-暴れる（右図: ZMP が支持多角形外に散乱, 緑=支持内 / 赤×=支持外 60%）。一方 torque（0.88）・速度（0.31）は実 actuator
-上限内 — つまり「G1 の力では出せるが、抽出 motion の接地が信用できない」状態。**生の抽出 motion を実機に直結しない**
-ための正しい gate。接地推定の改善 / contact-aware retarget は今後（v0 の正直な限界）。`validate-sim ... --balance-plot` で生成。</sub>
+<sub>↑ **接地クリーンアップで airborne を 0 に — 残る壁は torque ではなく深度由来の balance。** 単眼抽出は
+**根の高さ・足接地が不確実**で生のままだと airborne 48% / ZMP外 60%。`--ground-clean`（接地足を毎フレーム z=0 に
+固定 + 接地フラグ再生成, [`robotdance_motion/grounding.py`](robotdance_motion/grounding.py)）で **airborne 0.48→0.00・
+torque 0.88→0.62** と接地アーティファクトが消え、右図のとおり**支持多角形が安定**する。それでも **balance 0.47 は閾値
+0.3 超で REJECT**。残った ZMP のはみ出しは**前後 x（＝単眼で最も不確実な深度）方向に偏る**（右図: 赤×が前方へ伸びる）。
+つまり接地（contact）は直せても、**balance は深度復元の精度律速**という所が v0 の正直な frontier。完全な PASS には
+深度推定 / contact-aware retarget の改善が要る。<br>※ 跳躍を含む動作は本 cleanup の対象外（grounded 前提）。
+`validate-sim ... --ground-clean --balance-plot` で生成。</sub>
 
 #### もっと実クリップ → 実ヒューマノイド（武道・ダンス, 多機種）
 
@@ -235,6 +239,9 @@ robotdance video-to-robot my_clip.mp4 --robot unitree_g1 -o shorts_to_humanoid.g
 # 抽出（Savitzky-Golay 平滑化込み）/ 原動画への骨格オーバーレイ
 robotdance extract my_clip.mp4 -o clip.rdmir.json
 robotdance overlay my_clip.mp4 clip.rdmir.json -o overlay.gif
+
+# 物理検証（接地クリーンアップ + balance 可視化）
+robotdance validate-sim clip.rdmir.json --robot unitree_g1 --ground-clean --balance-plot balance.png
 ```
 
 **実ピクセルでの検出（公有データで検証）** — 抽出した 2D 骨格を原フレームに重ねて目視確認できます:
