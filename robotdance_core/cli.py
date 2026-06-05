@@ -332,7 +332,7 @@ def _import_hmr(path: Path, source: str, fps: float | None, out: Path) -> int:
     return 0
 
 
-def _extract(video: Path, out: Path, model: Path | None, backend: str) -> int:
+def _extract(video: Path, out: Path, model: Path | None, backend: str, num_poses: int) -> int:
     from robotdance_perception.backends import get_backend
 
     b = get_backend(backend)
@@ -344,13 +344,16 @@ def _extract(video: Path, out: Path, model: Path | None, backend: str) -> int:
     else:
         from robotdance_perception.mediapipe_adapter import extract_motion
 
-        mir = extract_motion(video, model_path=model, backend=backend)
+        mir = extract_motion(video, model_path=model, backend=backend, num_poses=num_poses)
     mir.save(out)
     print(f"✓ {video.name} → RD-MIR: {out}")
     q = mir.quality_metrics or {}
     print(f"  frames={mir.num_frames} fps={mir.fps:g} "
           f"mean_confidence={q.get('mean_confidence')} "
+          f"subjects={q.get('n_subjects_max', 1)} "
           f"lift={q.get('lift', 'none')} license_state={mir.license_state}")
+    if (q.get("n_subjects_max") or 1) > 1:
+        print("  ⚠️ 複数人を検出 → 最大人物を起点に追跡。意図と違えば演武者領域に crop を。")
     return 0
 
 
@@ -1436,6 +1439,8 @@ def main(argv: list[str] | None = None) -> int:
     p_extract.add_argument("--model", type=Path, default=None, help="pose model (.task) パス")
     p_extract.add_argument("--backend", default="mediapipe",
                            help="pose 検出バックエンド（list-backends で一覧）")
+    p_extract.add_argument("--num-poses", type=int, default=4,
+                           help="検出させる最大人数（多人数シーンで前景被写体を追跡）")
 
     sub.add_parser("list-backends", help="登録済み pose 検出バックエンドと能力を一覧する")
 
@@ -1647,7 +1652,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "overlay":
         return _overlay(args.video, args.mir, args.out, args.stride)
     if args.command == "extract":
-        return _extract(args.video, args.out, args.model, args.backend)
+        return _extract(args.video, args.out, args.model, args.backend, args.num_poses)
     if args.command == "list-backends":
         return _list_backends()
     if args.command == "pose-compare":

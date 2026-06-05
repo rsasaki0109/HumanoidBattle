@@ -5,6 +5,23 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.90.0] - 2026-06-05
+
+多人数シーンの被写体取り違えを抽出側で根治（pre-alpha）。
+
+### Added
+
+- `extract_motion(..., num_poses=4)`: MediaPipe を複数人検出に切り替え、**最大人物を起点に
+  前フレーム被写体を最近接で追跡**する（`_select_subject`）。多人数シーンで背景の人へ乗り移らず
+  前景の主被写体に固定。検出最大人数を `quality_metrics["n_subjects_max"]` に記録、>1 で警告。
+- CLI `extract --num-poses N`。出力に `subjects=` を表示し、複数人検出時は crop を促す注意を出す。
+- `tests/test_perception.py` に `_select_subject` の 3 テスト（初フレーム最大選択・追跡・空入力）。
+
+### Fixed
+
+- v0.89.1 で crop して回避していた多人数 overlay ズレを、**crop なしでも**前景被写体に追従するよう
+  抽出側で解消（実 karate 引き shot で 2D overlay が演武者に乗ることを確認）。
+
 ## [0.89.1] - 2026-06-05
 
 ### Fixed

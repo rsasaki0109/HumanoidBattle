@@ -133,6 +133,25 @@ def ensure_model(model_path: Optional[str | Path] = None) -> Path:
     return path
 
 
+def _select_subject(norms: list[np.ndarray], prev_center: Optional[np.ndarray]) -> int:
+    """複数検出から追跡対象の index を返す。
+
+    最初のフレーム（prev_center=None）は **bbox 面積が最大の人物**（前景被写体）を選ぶ。
+    以降は **前フレームの被写体中心に最も近い**人物を選び、同一人物を追跡する
+    （多人数シーンで背景の人へ乗り移るのを防ぐ）。norms は各人の正規化 2D landmarks [N,2]。
+    """
+    if not norms:
+        return 0
+    if prev_center is None:
+        areas = [
+            (lm[:, 0].max() - lm[:, 0].min()) * (lm[:, 1].max() - lm[:, 1].min())
+            for lm in norms
+        ]
+        return int(np.argmax(areas))
+    dists = [float(np.linalg.norm(lm.mean(axis=0) - prev_center)) for lm in norms]
+    return int(np.argmin(dists))
+
+
 def extract_motion(
     video_path: str | Path,
     *,
@@ -141,6 +160,7 @@ def extract_motion(
     ground_align: bool = True,
     smooth: bool = True,
     backend: str = "mediapipe",
+    num_poses: int = 4,
 ) -> RdMir:
     """local 動画から canonical RD-MIR を抽出する。
 
@@ -150,6 +170,10 @@ def extract_motion(
 
     backend は pose 検出器名（既定 "mediapipe"）。2D-only の検出器（yolo11-pose/rtmpose）は
     3D world landmarks を返さないため、フル抽出では拒否される（backends.resolve_extract_backend）。
+
+    num_poses は MediaPipe に検出させる最大人数（既定 4）。多人数シーンでは最大人物を起点に
+    前フレーム被写体を追跡し、**前景の主被写体に固定**する（背景の人へ乗り移らない）。
+    検出された最大人数は quality_metrics["n_subjects_max"] に記録し、>1 なら警告を出す。
     """
     from robotdance_perception.backends import resolve_extract_backend
 
@@ -171,13 +195,15 @@ def extract_motion(
     options = vision.PoseLandmarkerOptions(
         base_options=BaseOptions(model_asset_path=str(model)),
         running_mode=vision.RunningMode.VIDEO,
-        num_poses=1,
+        num_poses=max(1, num_poses),
     )
     landmarker = vision.PoseLandmarker.create_from_options(options)
 
     kps_frames: list[np.ndarray] = []
     conf_frames: list[np.ndarray] = []
     kp2d_frames: list[np.ndarray] = []
+    n_subjects_max = 0
+    prev_center: Optional[np.ndarray] = None
     idx = 0
     while True:
         ok, frame = cap.read()
@@ -189,8 +215,12 @@ def extract_motion(
             mp.Image(image_format=mp.ImageFormat.SRGB, data=np.ascontiguousarray(rgb)), ts_ms
         )
         if res.pose_world_landmarks:
-            wl = res.pose_world_landmarks[0]
-            nl = res.pose_landmarks[0]
+            n_subjects_max = max(n_subjects_max, len(res.pose_world_landmarks))
+            norms = [np.array([[p.x, p.y] for p in pl]) for pl in res.pose_landmarks]
+            sidx = _select_subject(norms, prev_center)
+            prev_center = norms[sidx].mean(axis=0)
+            wl = res.pose_world_landmarks[sidx]
+            nl = res.pose_landmarks[sidx]
             world = np.array([[p.x, p.y, p.z] for p in wl])
             vis = np.array([p.visibility for p in nl])
             image = np.array([[p.x, p.y, p.visibility] for p in nl])
@@ -203,6 +233,15 @@ def extract_motion(
     if not kps_frames:
         raise RuntimeError(f"人物姿勢を検出できませんでした: {path}")
 
+    if n_subjects_max > 1:
+        import warnings as _warnings
+
+        _warnings.warn(
+            f"複数人（最大 {n_subjects_max} 人）を検出。最大人物を起点に前景被写体を追跡しました。"
+            "意図しない人物が選ばれる場合は演武者領域に crop してください。",
+            stacklevel=2,
+        )
+
     kps = np.stack(kps_frames)  # [T, 19, 3]
     conf = np.stack(conf_frames)
     kp2d = np.stack(kp2d_frames)  # [T, 19, 3]（正規化 x,y,vis）
@@ -211,7 +250,10 @@ def extract_motion(
         # 足の最下点を地面(z=0)付近へ。全フレーム共通オフセット。
         kps[:, :, 2] -= kps[:, [index_of("left_ankle"), index_of("right_ankle")], 2].min()
 
-    quality: dict[str, object] = {"mean_confidence": round(float(conf.mean()), 3)}
+    quality: dict[str, object] = {
+        "mean_confidence": round(float(conf.mean()), 3),
+        "n_subjects_max": n_subjects_max,
+    }
     if smooth:
         from robotdance_motion.smoothing import jitter, savgol_smooth
 

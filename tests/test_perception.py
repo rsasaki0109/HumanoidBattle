@@ -12,6 +12,7 @@ import pytest
 from robotdance_core.skeleton import NUM_JOINTS, index_of
 from robotdance_perception.mediapipe_adapter import (
     _MP,
+    _select_subject,
     mp_image_landmarks_to_canonical_2d,
     mp_world_landmarks_to_canonical,
 )
@@ -137,3 +138,34 @@ def test_real_pixels_astronaut(tmp_path) -> None:
     assert vis[index_of("left_shoulder")] > 0.5
     # 頭は肩より上。
     assert c[index_of("head")][2] > c[index_of("chest")][2]
+
+
+# --- 多人数シーンの被写体選択（純関数・mediapipe 不要） ---
+
+def _person(cx: float, cy: float, w: float, h: float) -> np.ndarray:
+    """中心 (cx,cy)・幅 w・高さ h の bbox に広がる擬似 33 点 landmarks [33,2]。"""
+    rng = np.linspace(-0.5, 0.5, 33)
+    xy = np.zeros((33, 2))
+    xy[:, 0] = cx + rng * w
+    xy[:, 1] = cy + rng * h
+    return xy
+
+
+def test_select_subject_first_frame_picks_largest():
+    big = _person(0.7, 0.5, 0.25, 0.6)      # 前景の演武者（大）
+    small = _person(0.15, 0.45, 0.06, 0.15)  # 背景の着座者（小）
+    assert _select_subject([small, big], None) == 1
+    assert _select_subject([big, small], None) == 0
+
+
+def test_select_subject_tracks_previous_center():
+    # 前フレーム被写体（右側）に近い方を選び、背景の人へ乗り移らない。
+    perf = _person(0.7, 0.5, 0.25, 0.6)
+    bg = _person(0.15, 0.45, 0.2, 0.6)       # 背景だが今度は大きい
+    prev = perf.mean(axis=0)
+    # bg の方が面積大でも、追跡では前フレームに近い perf を選ぶ。
+    assert _select_subject([bg, perf], prev) == 1
+
+
+def test_select_subject_empty_returns_zero():
+    assert _select_subject([], None) == 0
