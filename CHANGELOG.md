@@ -5,6 +5,14 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.79.0] - 2026-06-05
+
+README を英語化（pre-alpha, docs のみ）。OSS の裾野を広げるため英語を主 README に。
+
+### Changed
+- `README.md` を英語に翻訳（v0.77 の簡潔版がベース、構成・画像・コードブロック・ライセンス注記は不変）。
+- 既存の日本語版を `README.ja.md` として保存。両 README 冒頭に言語スイッチャー（English · 日本語）を追加。
+
 ## [0.78.0] - 2026-06-05
 
 未参照アセットの整理（pre-alpha, repo 軽量化）。v0.77 の README 簡潔化で表示されなくなった GIF/PNG を削除。
