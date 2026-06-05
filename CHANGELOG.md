@@ -5,6 +5,17 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.73.0] - 2026-06-05
+
+README Gallery を 2 機種化（pre-alpha）。v0.72 の実 G1 ギャラリーに実 H1 行を追加し、「同じ振付 ×
+別 morphology」で身長・DOF の違いがそのまま出ることを見せる。
+
+### Added
+- `assets/readme/gallery/h1_*.gif`: 5 振付（groove / fast / wave / march / squat）を実 H1（19 関節, 1.66m）
+  メッシュでレンダリング（`render_gallery.py --robot h1`、IK 位置誤差 0.09〜0.11m）。
+- README「🎬 Gallery」を G1 行（1.29m）+ H1 行（1.66m）の 2 段テーブルに拡張。同一振付で実寸 morphology の
+  違いが見える旨を注記。
+
 ## [0.72.0] - 2026-06-05
 
 README に「色々な振付 → 実 G1 が踊る」GIF ギャラリーを追加（pre-alpha）。「色々な short 動画を入れたら

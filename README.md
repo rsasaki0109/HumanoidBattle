@@ -32,24 +32,34 @@
 利用者がローカル取得。GIF は RobotDance パイプライン出力（actuator-IK 関節角）の可視化で、
 [`scripts/render_robot_gif.py`](scripts/render_robot_gif.py)（pybullet headless）で生成。</sub>
 
-### 🎬 Gallery — 色々な振付 → 実 G1 が踊る
+### 🎬 Gallery — 色々な振付 × 2 機種が踊る
 
 <table>
 <tr>
-<td align="center"><img src="assets/readme/gallery/g1_groove.gif" width="150" alt="G1 groove dance"><br><sub><b>groove</b></sub></td>
-<td align="center"><img src="assets/readme/gallery/g1_fast.gif" width="150" alt="G1 fast dance"><br><sub><b>fast dance</b></sub></td>
-<td align="center"><img src="assets/readme/gallery/g1_wave.gif" width="150" alt="G1 arm wave"><br><sub><b>arm wave</b></sub></td>
-<td align="center"><img src="assets/readme/gallery/g1_march.gif" width="150" alt="G1 march"><br><sub><b>march</b></sub></td>
-<td align="center"><img src="assets/readme/gallery/g1_squat.gif" width="150" alt="G1 squat"><br><sub><b>squat</b></sub></td>
+<td align="center"><sub><b>G1</b><br>1.29m</sub></td>
+<td align="center"><img src="assets/readme/gallery/g1_groove.gif" width="140" alt="G1 groove dance"><br><sub><b>groove</b></sub></td>
+<td align="center"><img src="assets/readme/gallery/g1_fast.gif" width="140" alt="G1 fast dance"><br><sub><b>fast dance</b></sub></td>
+<td align="center"><img src="assets/readme/gallery/g1_wave.gif" width="140" alt="G1 arm wave"><br><sub><b>arm wave</b></sub></td>
+<td align="center"><img src="assets/readme/gallery/g1_march.gif" width="140" alt="G1 march"><br><sub><b>march</b></sub></td>
+<td align="center"><img src="assets/readme/gallery/g1_squat.gif" width="140" alt="G1 squat"><br><sub><b>squat</b></sub></td>
+</tr>
+<tr>
+<td align="center"><sub><b>H1</b><br>1.66m</sub></td>
+<td align="center"><img src="assets/readme/gallery/h1_groove.gif" width="140" alt="H1 groove dance"><br><sub><b>groove</b></sub></td>
+<td align="center"><img src="assets/readme/gallery/h1_fast.gif" width="140" alt="H1 fast dance"><br><sub><b>fast dance</b></sub></td>
+<td align="center"><img src="assets/readme/gallery/h1_wave.gif" width="140" alt="H1 arm wave"><br><sub><b>arm wave</b></sub></td>
+<td align="center"><img src="assets/readme/gallery/h1_march.gif" width="140" alt="H1 march"><br><sub><b>march</b></sub></td>
+<td align="center"><img src="assets/readme/gallery/h1_squat.gif" width="140" alt="H1 squat"><br><sub><b>squat</b></sub></td>
 </tr>
 </table>
 
-<sub>↑ **色々な「short 動画」を入れたら、ヒューマノイドが色々に踊る** のイメージ。5 つの異なる振付（RD-MIR）を
-それぞれ **actuator-space IK** で実 G1 の 23 関節角へ retarget し、**公式 g1_23dof URDF の実メッシュ**で
-レンダリング（IK 位置誤差 0.05〜0.09m）。<br>※ ⚠️ **実動画はライセンス上同梱できない**ため、ここでの
-「色々な入力」は**合成モーション群が代役**です（実動画は `video-to-robot` でユーザーが持ち込み、
-`license_state="unknown"` の派生 motion は非公開）。<br>※ メッシュ © Unitree Robotics（`unitree_ros`, BSD-3-Clause、
-repo 非同梱）。GIF はパイプライン出力の可視化（render）。[`scripts/render_gallery.py`](scripts/render_gallery.py) で一括生成。</sub>
+<sub>↑ **色々な「short 動画」を入れたら、色々なヒューマノイドが色々に踊る** のイメージ。5 つの異なる振付（RD-MIR）を
+それぞれ **actuator-space IK** で **実 G1（上, 23 関節, 1.29m）と H1（下, 19 関節, 1.66m）**の関節角へ retarget し、
+**公式 URDF の実メッシュ**でレンダリング（IK 位置誤差 G1 0.05〜0.09m / H1 0.09〜0.11m）。同じ振付でも実寸 morphology の
+違い（身長・DOF）がそのまま出る。<br>※ ⚠️ **実動画はライセンス上同梱できない**ため、ここでの「色々な入力」は
+**合成モーション群が代役**です（実動画は `video-to-robot` でユーザーが持ち込み、`license_state="unknown"` の派生 motion は非公開）。
+<br>※ メッシュ © Unitree Robotics（`unitree_ros`, BSD-3-Clause、repo 非同梱）。GIF はパイプライン出力の可視化（render）。
+[`scripts/render_gallery.py`](scripts/render_gallery.py)（`--robot g1|h1`）で一括生成。</sub>
 
 </div>
 
