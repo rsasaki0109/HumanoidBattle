@@ -5,6 +5,25 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.83.0] - 2026-06-05
+
+pose 検出バックエンドを能力付きレジストリで抽象化（pre-alpha）。
+
+### Added
+
+- `robotdance_perception/backends.py`: pose 検出バックエンドのレジストリ。各バックエンドの
+  能力メタデータ（出力次元 2D/3D・keypoint 形式・retarget 可否・必要モジュール・dev 印）を 1 か所に束ねる。
+  heavy 依存（mediapipe/ultralytics/rtmlib）は読み込み時に import せず、`available()` が遅延 spec チェックで可否判定。
+- CLI `list-backends`: 登録済みバックエンドと能力（次元/形式/retarget 可否/導入状況）を一覧表示。
+- CLI `extract --backend <name>`: 抽出バックエンドを選択。2D-only 検出器（yolo11-pose/rtmpose）は
+  3D world landmarks を返さないため、`resolve_extract_backend` がフル抽出で明示的に拒否する。
+- `tests/test_pose_backends.py`: レジストリ一覧/未知名エラー/3D-2D 能力区別/抽出解決/遅延判定の 7 テスト。
+
+### Changed
+
+- `extract_motion(..., backend="mediapipe")` 引数を追加し、抽出前にバックエンド能力を検証。
+- README に backend レジストリと `list-backends` / `extract --backend` の使い方を追記。
+
 ## [0.82.0] - 2026-06-05
 
 非空手デモを残しつつ、複数 OSS pose 検出器の比較を追加（pre-alpha）。

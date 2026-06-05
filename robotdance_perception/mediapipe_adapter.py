@@ -140,13 +140,21 @@ def extract_motion(
     motion_id: Optional[str] = None,
     ground_align: bool = True,
     smooth: bool = True,
+    backend: str = "mediapipe",
 ) -> RdMir:
     """local 動画から canonical RD-MIR を抽出する。
 
     入力動画は再配布しない。license_state は "unknown"（source 未確認）。
     smooth=True なら Savitzky-Golay で平滑化し jitter_before/after を記録する。
     keypoints_2d（画像正規化座標）も格納し、overlay 描画に使える。
+
+    backend は pose 検出器名（既定 "mediapipe"）。2D-only の検出器（yolo11-pose/rtmpose）は
+    3D world landmarks を返さないため、フル抽出では拒否される（backends.resolve_extract_backend）。
     """
+    from robotdance_perception.backends import resolve_extract_backend
+
+    resolve_extract_backend(backend)
+
     import cv2
     import mediapipe as mp
     from mediapipe.tasks.python import BaseOptions, vision
