@@ -105,6 +105,19 @@ MediaPipe Pose is the default (it returns **3D world landmarks** needed for reta
 
 For the 2D detectors there is a `*+lift` backend (`yolo11-pose+lift`, `rtmpose+lift`) that embeds the COCO-17 pose into a **frontal plane** with an analytic anthropometric scale (`extract --backend yolo11-pose+lift`). It is a deliberately **coarse baseline** — it recovers *no depth*, so sagittal moves (squats) collapse while coronal moves (kata) survive. MediaPipe's native 3D stays the default; the lift exists to make the trade-off explicit and quantifiable.
 
+Quantifying it on a kata clip — native MediaPipe 3D (blue) vs YOLO11→planar lift (red), same video:
+
+<img src="assets/readme/pose/lift_vs_native_karate.gif" width="460" alt="native MediaPipe 3D vs planar lift on a karate kata">
+
+| metric (147 frames, pelvis-centred) | value |
+| --- | --- |
+| native depth-x std | 0.175 m |
+| lift depth-x std | **0.000 m** (planar by construction) |
+| MPJPE native↔lift, full | 0.274 m |
+| MPJPE native↔lift, frontal (y-z only) | 0.222 m |
+
+<sub>The lift drops all forward/back motion (depth std → 0), which accounts for ~0.16 m of the 0.27 m gap; the rest is in-plane disagreement (different detector, no perspective/yaw model). Recognisable but coarse — exactly the honest trade-off. Generated with [`scripts/compare_lift_vs_native.py`](scripts/compare_lift_vs_native.py).</sub>
+
 ### The physics check is the safety valve — it stops infeasible motion
 
 Feed the extracted real squat into the feasibility certificate (real URDF inertia) and it **REJECTs**. The reasons are diagnostic, by design stopping "drop a video, robot dances now". `--ground-clean` (locking the contact foot to z=0) removes contact artifacts, but **the remaining balance is limited by monocular depth error**:

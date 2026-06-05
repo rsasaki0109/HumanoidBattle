@@ -10,7 +10,7 @@ import pytest
 
 from robotdance_core.skeleton import NUM_JOINTS, index_of
 from robotdance_perception.lifting import (
-    DEFAULT_HIP_WIDTH_M,
+    DEFAULT_TORSO_M,
     compose_canonical_coco,
     lift_coco17_to_canonical,
 )
@@ -69,18 +69,20 @@ def test_lift_grounds_feet_and_orders_height():
     assert kps[index_of("head"), 2] > kps[index_of("left_knee"), 2] > 0.0
 
 
-def test_lift_metric_scale_matches_hip_prior():
+def test_lift_metric_scale_matches_torso_prior():
+    # 胴体長（pelvis→chest）が torso_m プライアに一致するよう metric 化される。
     xy = _synthetic_coco17_standing()
-    kps, _ = lift_coco17_to_canonical(xy, np.ones(17), hip_width_m=DEFAULT_HIP_WIDTH_M)
-    hip_dist = np.linalg.norm(kps[index_of("left_hip")] - kps[index_of("right_hip")])
-    assert hip_dist == pytest.approx(DEFAULT_HIP_WIDTH_M, rel=1e-6)
+    kps, _ = lift_coco17_to_canonical(xy, np.ones(17), torso_m=DEFAULT_TORSO_M)
+    torso = np.linalg.norm(kps[index_of("pelvis")] - kps[index_of("chest")])
+    assert torso == pytest.approx(DEFAULT_TORSO_M, rel=1e-6)
 
 
-def test_lift_left_is_positive_y():
-    # canonical は y:左。被写体の左肩（画像では cx 左側＝x 小）が +y 側に来る。
+def test_lift_uses_native_handedness_image_right_to_negative_y():
+    # native MediaPipe と同手系: 画像右側（cx 右＝x 大）の点は -y 側に来る。
     xy = _synthetic_coco17_standing()
     kps, _ = lift_coco17_to_canonical(xy, np.ones(17))
-    assert kps[index_of("left_shoulder"), 1] > kps[index_of("right_shoulder"), 1]
+    # COCO r_shoulder は画像右（cx+50）→ canonical -y。l_shoulder は +y。
+    assert kps[index_of("right_shoulder"), 1] < kps[index_of("left_shoulder"), 1]
 
 
 def test_lift_rejects_bad_shape():
@@ -88,8 +90,8 @@ def test_lift_rejects_bad_shape():
         lift_coco17_to_canonical(np.zeros((19, 2)), np.ones(19))
 
 
-def test_lift_handles_degenerate_zero_hip_width():
-    # hip 幅 0px でも 0 割せず有限値を返す（scale=0 → 原点崩壊）。
+def test_lift_handles_degenerate_zero_torso():
+    # 胴体長 0px でも 0 割せず有限値を返す（scale=0 → 原点崩壊）。
     xy = np.zeros((17, 2))
     kps, _ = lift_coco17_to_canonical(xy, np.ones(17))
     assert np.all(np.isfinite(kps))

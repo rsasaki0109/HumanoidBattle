@@ -5,6 +5,25 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.87.0] - 2026-06-05
+
+planar lift を実 kata クリップで native 3D と定量比較し、スケールを堅牢化（pre-alpha）。
+
+### Added
+
+- `scripts/compare_lift_vs_native.py`: 同一動画に native(MediaPipe 3D) と lift(2D→planar) を当て、
+  深度 x の std・MPJPE（full / frontal y-z）を算出し、native|lift の canonical skeleton 横並び GIF を出力。
+- README に kata クリップでの定量比較（GIF + 指標表）を追加。native 深度 std 0.175m に対し
+  lift は 0.000m（平面）、MPJPE full 0.274m / frontal 0.222m。差の約 0.16m が深度由来であることを明示。
+
+### Changed
+
+- **lift のスケール基準を hip 幅 → 胴体長（pelvis→chest）に変更**。hip 幅は被写体が横を向くと画像上で
+  0 に潰れ per-frame スケールが発散していた（z レンジ 34m）。縦方向の胴体長はヨー回転に強く、
+  実 kata で z レンジが native 並み（1.86m vs 1.74m）に収まる。`DEFAULT_TORSO_M=0.50`。
+- lift の左右（y）符号を native MediaPipe と同手系に統一（画像右→ -y）。実データで frontal MPJPE が
+  最小になる向きを採用（0.222 vs 反転 0.292）。`lift_coco17_to_canonical` の引数 `hip_width_m`→`torso_m`。
+
 ## [0.86.0] - 2026-06-05
 
 2D 検出器を 3D 化する解析的 planar lift backend を追加（pre-alpha・coarse baseline）。

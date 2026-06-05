@@ -28,8 +28,9 @@ _COCO = {
     "l_knee": 13, "r_knee": 14, "l_ankle": 15, "r_ankle": 16,
 }
 
-# 人体寸法プライア: 左右 ASIS（腰骨）間の幅 [m]。メートル化のスケール基準。
-DEFAULT_HIP_WIDTH_M = 0.26
+# 人体寸法プライア: 胴体長（pelvis→chest）[m]。メートル化のスケール基準。
+# 縦方向のため**ヨー回転に強い**（hip 幅は被写体が横を向くと画像上で 0 に潰れスケールが発散する）。
+DEFAULT_TORSO_M = 0.50
 
 
 def compose_canonical_coco(pts: np.ndarray) -> np.ndarray:
@@ -94,27 +95,28 @@ def lift_coco17_to_canonical(
     xy: np.ndarray,
     conf: np.ndarray,
     *,
-    hip_width_m: float = DEFAULT_HIP_WIDTH_M,
+    torso_m: float = DEFAULT_TORSO_M,
 ) -> tuple[np.ndarray, np.ndarray]:
     """COCO-17 の画像座標 [17,2]（x:右, y:下, px）→ canonical 19-joint 3D [19,3]。
 
     深度は復元せず x（前後）=0 の平面へ埋め込む。canonical は x:前, y:左, z:上。
-    画像 x(右)→ -y、画像 y(下)→ -z に写し、hip 幅で metric 化、足を z=0 へ接地する。
+    画像 x(右)→ -y（native MediaPipe と同じ手系）、画像 y(下)→ -z に写し、胴体長で metric 化、
+    足を z=0 へ接地する。スケール基準は縦方向の胴体長（pelvis→chest）で**ヨー回転に強い**。
     返り値: (kps[19,3], conf[19])。
     """
     if xy.shape != (17, 2):
         raise ValueError(f"COCO-17 xy は [17,2] が必要: {xy.shape}")
     can2d = compose_canonical_coco(xy)  # [19, 2]（px, x右/y下）
 
-    # hip 幅（px）でメートルスケールを決める。0 割は回避。
-    lh, rh = can2d[index_of("left_hip")], can2d[index_of("right_hip")]
-    px_hip = float(np.linalg.norm(lh - rh))
-    scale = hip_width_m / px_hip if px_hip > 1e-6 else 0.0
+    # 胴体長（px, pelvis→chest）でメートルスケールを決める。0 割は回避。
+    pelvis2d, chest2d = can2d[index_of("pelvis")], can2d[index_of("chest")]
+    px_torso = float(np.linalg.norm(pelvis2d - chest2d))
+    scale = torso_m / px_torso if px_torso > 1e-6 else 0.0
 
-    pelvis_x = can2d[index_of("pelvis"), 0]
+    pelvis_x = pelvis2d[0]
     out = np.zeros((NUM_JOINTS, 3))
     out[:, 0] = 0.0  # 前後（深度）は未復元 → 平面
-    out[:, 1] = -(can2d[:, 0] - pelvis_x) * scale  # 左右（pelvis を原点に）
+    out[:, 1] = -(can2d[:, 0] - pelvis_x) * scale  # 左右（pelvis を原点・native と同手系）
     out[:, 2] = -(can2d[:, 1]) * scale  # 上下（画像下方向が負 → 上が正）
     out[:, 2] -= out[[index_of("left_foot"), index_of("right_foot")], 2].min()  # 足接地 z=0
 
@@ -126,7 +128,7 @@ def extract_via_lift(
     *,
     detector: str = "yolo11-pose",
     motion_id: Optional[str] = None,
-    hip_width_m: float = DEFAULT_HIP_WIDTH_M,
+    torso_m: float = DEFAULT_TORSO_M,
     smooth: bool = True,
 ):
     """2D 検出器 + planar lift で local 動画から canonical RD-MIR を抽出する（coarse baseline）。
@@ -162,7 +164,7 @@ def extract_via_lift(
         if res is not None:
             xy, c = res
             k3d, c19 = lift_coco17_to_canonical(np.asarray(xy), np.asarray(c),
-                                                hip_width_m=hip_width_m)
+                                                torso_m=torso_m)
             kps_frames.append(k3d)
             conf_frames.append(c19)
         idx += 1

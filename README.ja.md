@@ -105,6 +105,19 @@ Output: ロボット実行可能モーション + RD-MIR データセット + mo
 
 2D 検出器には `*+lift` backend（`yolo11-pose+lift` / `rtmpose+lift`）を用意した。COCO-17 を**正面平面**へ人体寸法プライアでメートル化して埋め込む（`extract --backend yolo11-pose+lift`）。これは意図的に**粗いベースライン**で、**深度を復元しない**ため矢状面（しゃがみ）は潰れ、冠状面（型）は残る。既定は MediaPipe の native 3D のまま——lift はトレードオフを明示・定量化するための位置づけ。
 
+型クリップでの定量比較 — native MediaPipe 3D（青）vs YOLO11→planar lift（赤）、同一動画:
+
+<img src="assets/readme/pose/lift_vs_native_karate.gif" width="460" alt="native MediaPipe 3D vs planar lift on a karate kata">
+
+| 指標（147 フレーム・pelvis 中心） | 値 |
+| --- | --- |
+| native 深度 x の std | 0.175 m |
+| lift 深度 x の std | **0.000 m**（構造上 平面） |
+| MPJPE native↔lift, full | 0.274 m |
+| MPJPE native↔lift, frontal（y-z のみ） | 0.222 m |
+
+<sub>lift は前後運動を全て捨てる（深度 std→0）ため 0.27m の差のうち約 0.16m を説明し、残りは面内のズレ（検出器違い・透視/ヨー未モデル化）。識別はできるが粗い——まさに正直なトレードオフ。生成は [`scripts/compare_lift_vs_native.py`](scripts/compare_lift_vs_native.py)。</sub>
+
 ### 物理検証が安全弁 — 無理な運動は止める
 
 抽出した実 squat を feasibility certificate（実 URDF 慣性）にかけると **REJECT**。理由が診断的で「動画→即ロボット」を設計として防ぎます。`--ground-clean`（接地足を z=0 固定）で接地アーティファクトは消えるが、**残る balance は単眼の深度誤差律速**:
