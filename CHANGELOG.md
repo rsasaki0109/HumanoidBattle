@@ -5,6 +5,24 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.74.0] - 2026-06-05
+
+本命「Shorts to humanoid」を**実動画**で実証（pre-alpha）。合成代役ではなく、ライセンスがクリアな実
+スポーツ動画を MediaPipe Pose にかけて canonical RD-MIR を復元 → actuator-IK で実 G1 へ retarget →
+実メッシュ render まで通し、README に実例 GIF を掲載。
+
+### Added
+- `scripts/render_real_video_gif.py`: 実動画 → `extract_motion`（MediaPipe）→ 抽出スケルトン GIF +
+  `actuator_retarget` → 実 Unitree メッシュ GIF を一括生成（`--robot g1|h1`）。
+- `assets/readme/real/squat_g1_{skeleton,robot}.gif`: 実スポーツ動画から復元した squat 動作
+  （mean confidence 0.88 / smoothed jitter 0.005 / IK 位置誤差 0.094m）。
+- README「Real video → humanoid」節に実例 GIF（① 抽出スケルトン → ② 実 G1）と CC-BY 出典。
+
+### Notes
+- 入力動画は repo に同梱せず（license-safe）。出力 GIF はパイプライン出力の可視化で**ソース動画の
+  ピクセルを含まない**。Source: 『Squat – exercise demonstration video』by FitnessScape, CC BY 3.0,
+  via Wikimedia Commons。「実動画は処理できるが生ファイルは非同梱・renderのみコミット」を実証。
+
 ## [0.73.0] - 2026-06-05
 
 README Gallery を 2 機種化（pre-alpha）。v0.72 の実 G1 ギャラリーに実 H1 行を追加し、「同じ振付 ×

@@ -159,6 +159,23 @@ Output: Unitree G1 simulation motion + RD-MIR dataset + motion embedding
 本命の **"Shorts to humanoid"**。ローカル動画を MediaPipe Pose で 3D 復元し、canonical RD-MIR →
 G1/H1 retarget → MuJoCo 物理検証まで一気通貫します。
 
+**実例: ライセンスがクリアな実スポーツ動画 → 実 G1**（合成ではなく本物の動画から）:
+
+<table>
+<tr>
+<td align="center"><img src="assets/readme/real/squat_g1_skeleton.gif" width="220" alt="canonical skeleton extracted from a real squat video"><br><sub>① 実動画 → MediaPipe で<br><b>canonical RD-MIR スケルトン</b>を復元</sub></td>
+<td align="center"><img src="assets/readme/real/squat_g1_robot.gif" width="240" alt="Unitree G1 mesh performing the squat extracted from the real video"><br><sub>② actuator-IK で<br><b>実 G1（23 関節）</b>が同じ動きを再現</sub></td>
+</tr>
+</table>
+
+<sub>↑ **本物のスポーツ動画 → ヒューマノイド。** ソース動画を MediaPipe Pose にかけて canonical 19-joint
+スケルトン（①, mean confidence 0.88 / smoothed jitter 0.005）を復元し、**actuator-space IK** で実 g1_23dof URDF の
+23 関節角へ retarget（IK 位置誤差 0.094m）して実メッシュで render（②）。<br>※ **入力動画は repo に同梱せず**、
+出力 GIF はパイプライン出力（抽出 motion / 関節角）の可視化で**ソース動画のピクセルを一切含みません**。
+[`scripts/render_real_video_gif.py`](scripts/render_real_video_gif.py) で生成。<br>※ Source: 『Squat – exercise
+demonstration video』by **FitnessScape**, **CC BY 3.0**, via [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Squat_-_exercise_demonstration_video.webm)。
+ロボットメッシュ © Unitree Robotics（`unitree_ros`, BSD-3-Clause, repo 非同梱）。</sub>
+
 ```bash
 pip install -e ".[demo,sim,perception]"
 
