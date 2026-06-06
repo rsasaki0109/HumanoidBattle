@@ -5,6 +5,21 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.102.0] - 2026-06-07
+
+RD-MIR の pydantic モデルと JSON schema のドリフトを修正（Stable Specs）。
+
+### Fixed
+
+- **schema↔model ドリフト**: `rd-mir.schema.json` は `joint_rotations` / `smpl_params` を許可
+  （additionalProperties:false）するが、`RdMir` モデル（extra="forbid"）に両フィールドが無く、
+  **schema 適合の RD-MIR がモデルで load 失敗していた**。両 optional フィールドをモデルに追加し解消。
+
+### Added
+
+- `tests/test_specs.py` に **RdMir モデル ↔ rd-mir schema の properties 完全一致**テストを追加。
+  以後フィールドがどちらか一方だけに増えると CI が落ち、Stable Specs のドリフトを防ぐ。
+
 ## [0.101.0] - 2026-06-07
 
 spec の machine-readable バージョン整備と一覧 CLI（v1.0/Stable Specs に向けて）。

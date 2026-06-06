@@ -58,6 +58,10 @@ class RdMir(BaseModel):
     privacy_flags: Optional[dict[str, bool]] = None
     extractor_versions: Optional[dict[str, str]] = None
     retarget_certificates: Optional[list[dict[str, Any]]] = None
+    # spec(rd-mir.schema.json)が許可する optional フィールド。core は使わないが、schema 適合の
+    # RD-MIR（joint 回転や SMPL を含むもの）を extra="forbid" でも load できるよう受け口を持つ。
+    joint_rotations: Optional[dict[str, Any]] = None
+    smpl_params: Optional[dict[str, Any]] = None
 
     # --- convenience ---
 

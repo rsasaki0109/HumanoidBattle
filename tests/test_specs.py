@@ -44,6 +44,22 @@ def test_example_conforms_to_schema(name: str) -> None:
     jsonschema.Draft202012Validator(schema).validate(instance)
 
 
+def test_rdmir_model_and_schema_fields_in_sync() -> None:
+    """pydantic RdMir モデルと rd-mir.schema.json の properties が一致する。
+
+    schema は additionalProperties:false・モデルは extra=forbid なので、両者がズレると
+    「片方では valid だが他方では reject」という RD-MIR が生まれる（Stable Specs の drift）。
+    """
+    from robotdance_core.rd_mir import RdMir
+
+    schema = _load(_SCHEMAS["mir"])
+    schema_props = set(schema.get("properties", {}))
+    model_fields = set(RdMir.model_fields)
+    assert model_fields == schema_props, (
+        f"RdMir model ↔ schema drift: "
+        f"model-only={model_fields - schema_props}, schema-only={schema_props - model_fields}")
+
+
 def test_mir_rejects_unknown_license_state_value() -> None:
     """license_state は enum 外の値を拒否すること（ライセンス安全性の最低限の担保）。"""
     schema = _load(_SCHEMAS["mir"])
