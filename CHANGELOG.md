@@ -5,6 +5,15 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.94.1] - 2026-06-06
+
+### Added
+
+- v0.94 で登録した `gvhmr` backend の文書化ワークフローを **CLI で end-to-end smoke test 化**:
+  GVHMR 出力を模した `.npy` → `import-hmr` → RD-MIR → `motion-doctor` を `tests/test_hmr.py` で検証。
+  `extract --backend gvhmr` が import-hmr へ誘導し exit 2 を返すことも確認。
+- docs/POSE_BACKENDS.md に world-grounded ワークフローの具体コマンド例を追記。
+
 ## [0.94.0] - 2026-06-06
 
 世界座標（world-grounded）抽出をレジストリの一級バックエンドに（pre-alpha）。

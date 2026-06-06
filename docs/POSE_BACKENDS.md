@@ -22,6 +22,13 @@ backends recover depth and a global trajectory, which is the most reliable way t
 monocular depth limit; `extract --backend gvhmr` prints the redirect to that workflow. See
 [`docs/RELATED_WORK.md`](RELATED_WORK.md) for how these relate to the wider landscape.
 
+```bash
+# world-grounded workflow: run the external tool, then ingest + sanity-check its SMPL output
+python -m gvhmr ... --output gvhmr_out.npz          # (external; produces SMPL params)
+robotdance import-hmr gvhmr_out.npz --source gvhmr -o clip.rdmir.json
+robotdance motion-doctor clip.rdmir.json            # depth_collapse should now pass
+```
+
 ## Detector comparison
 
 Three OSS 2D detectors on the same clip, all normalized to COCO-17 for a fair overlay:

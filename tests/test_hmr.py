@@ -175,3 +175,39 @@ def test_load_hmr_file_npz_with_betas(tmp_path: Path) -> None:
     mir = load_hmr_file(p)
     assert mir.quality_metrics["shape_conditioned"] is True
     _valid(mir)
+
+
+def test_cli_import_hmr_then_motion_doctor_gvhmr_workflow(tmp_path: Path) -> None:
+    """v0.94 で登録した gvhmr backend の文書化ワークフローを CLI で通す:
+    外部ツール(GVHMR)出力を模した .npy → `import-hmr` → RD-MIR → `motion-doctor`。
+    """
+    from robotdance_core.cli import main
+
+    go, bp, transl = _synthetic_smpl()
+    t = len(go)
+    # GVHMR の native 出力（dict）を .npy で保存（load_hmr_file が dict を判別）。
+    result = {"smpl_params_global": {"global_orient": go, "body_pose": bp.reshape(t, 63),
+                                     "transl": transl}}
+    smpl = tmp_path / "gvhmr_out.npy"
+    np.save(smpl, np.array(result, dtype=object), allow_pickle=True)
+
+    out = tmp_path / "from_gvhmr.rdmir.json"
+    assert main(["import-hmr", str(smpl), "--source", "gvhmr", "-o", str(out)]) == 0
+    assert out.exists()
+
+    mir = RdMir.load(out)
+    assert mir.num_frames == t
+    assert mir.extractor_versions["hmr"] == "gvhmr"
+    _valid(mir)
+
+    # 取り込んだ RD-MIR は motion-doctor を通せる（exit 0=健全 / 1=warn のどちらか）。
+    assert main(["motion-doctor", str(out)]) in (0, 1)
+
+
+def test_cli_extract_gvhmr_redirects_to_import_hmr(tmp_path: Path, capsys) -> None:
+    """extract --backend gvhmr は推論せず import-hmr ワークフローへ誘導する（exit 2）。"""
+    from robotdance_core.cli import main
+
+    rc = main(["extract", str(tmp_path / "nope.mp4"), "--backend", "gvhmr"])
+    assert rc == 2
+    assert "import-hmr" in capsys.readouterr().out
