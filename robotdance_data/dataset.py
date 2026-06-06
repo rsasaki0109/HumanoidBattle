@@ -60,10 +60,12 @@ def build_dataset(
     out_dir: str | Path = "build",
     dedupe: bool = False,
     dedupe_threshold: float = 0.98,
+    qc: bool = True,
 ) -> dict[str, Any]:
     """manifest 群から RD-MIR を構築し、Data Bill of Materials を返す。
 
     dedupe=True なら motion embedding で near-duplicate を検出し、各グループから 1 本だけ残す。
+    qc=True なら export 済み RD-MIR を motion-doctor で健全性診断し report["health"] に集計する。
     """
     data_root = Path(data_root)
     out_dir = Path(out_dir)
@@ -119,9 +121,48 @@ def build_dataset(
         "withheld": len(manifests) - exported,
         "bill_of_materials": bom,
     }
+    if qc:
+        report["health"] = _qc_exported(exported_mirs)
     (out_dir / "build_report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
     (out_dir / "DATA_CARD.md").write_text(_render_data_card(report), encoding="utf-8")
     return report
+
+
+def _qc_exported(
+    exported: list[tuple[dict[str, Any], RdMir, Path]],
+) -> dict[str, Any]:
+    """export 済み（dedupe 後に残った）RD-MIR を motion-doctor で診断し集計する。
+
+    各 row の "health"（warn 名リスト）も埋める。keypoints_3d が無い等で診断不能な場合は skip。
+    """
+    from collections import Counter
+
+    from robotdance_motion.doctor import diagnose_motion, warn_names
+
+    counts: Counter[str] = Counter()
+    healthy = warn = skipped = 0
+    for row, mir, _ in exported:
+        if not row.get("exported"):
+            continue  # dedupe で落ちたものは対象外
+        try:
+            ws = warn_names(diagnose_motion(mir))
+        except Exception:  # noqa: BLE001 - keypoints_3d 無し等は診断不能 → skip
+            row["health"] = "skipped"
+            skipped += 1
+            continue
+        row["health"] = ws or "ok"
+        counts.update(ws)
+        if ws:
+            warn += 1
+        else:
+            healthy += 1
+    return {
+        "checked": healthy + warn,
+        "healthy": healthy,
+        "warn": warn,
+        "skipped": skipped,
+        "warn_breakdown": dict(counts.most_common()),
+    }
 
 
 def _dedupe_exported(
@@ -174,6 +215,7 @@ def build_from_file(
     data_root: str | Path = ".",
     out_dir: str | Path = "build",
     dedupe: bool = False,
+    qc: bool = True,
 ) -> dict[str, Any]:
     """JSON 配列の manifest ファイルから build する（各要素を schema 検証）。"""
     import jsonschema
@@ -185,7 +227,7 @@ def build_from_file(
     validator = jsonschema.Draft202012Validator(schema)
     for e in entries:
         validator.validate(e)
-    return build_dataset(entries, data_root=data_root, out_dir=out_dir, dedupe=dedupe)
+    return build_dataset(entries, data_root=data_root, out_dir=out_dir, dedupe=dedupe, qc=qc)
 
 
 def _render_data_card(report: dict[str, Any]) -> str:
@@ -206,4 +248,16 @@ def _render_data_card(report: dict[str, Any]) -> str:
             f"{r['license_state']} | {r['reason']} |"
         )
     lines += ["", "> ⛔ = license firewall により派生 motion 非公開。raw source は再配布しない。"]
+    h = report.get("health")
+    if h:
+        lines += [
+            "",
+            "## Health (motion-doctor)",
+            "",
+            f"- checked: **{h['checked']}**  healthy: **{h['healthy']}**  "
+            f"warn: **{h['warn']}**  skipped: **{h['skipped']}**",
+        ]
+        if h["warn_breakdown"]:
+            lines.append("- warn 内訳: "
+                         + ", ".join(f"{k}×{v}" for k, v in h["warn_breakdown"].items()))
     return "\n".join(lines) + "\n"

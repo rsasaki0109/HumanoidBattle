@@ -1147,16 +1147,25 @@ def _demo_motion_map(out: Path, checkpoint: Path | None = None) -> int:
     return 0
 
 
-def _build_dataset(manifest_file: Path, data_root: Path, out_dir: Path, dedupe: bool) -> int:
+def _build_dataset(manifest_file: Path, data_root: Path, out_dir: Path, dedupe: bool,
+                   qc: bool = True) -> int:
     from robotdance_data.dataset import build_from_file
 
-    report = build_from_file(manifest_file, data_root=data_root, out_dir=out_dir, dedupe=dedupe)
+    report = build_from_file(manifest_file, data_root=data_root, out_dir=out_dir, dedupe=dedupe,
+                             qc=qc)
     print(f"✓ dataset build: exported {report['exported']} / withheld {report['withheld']} "
           f"(total {report['total']})")
     print(f"  Data Bill of Materials: {out_dir / 'DATA_CARD.md'}")
     for r in report["bill_of_materials"]:
         mark = "✅" if r["exported"] else "⛔"
         print(f"  {mark} {r['clip_id']:16s} [{r['license_state']}] {r['reason']}")
+    h = report.get("health")
+    if h:
+        print(f"  🩺 health: {h['healthy']}/{h['checked']} healthy, {h['warn']} warn"
+              + (f", {h['skipped']} skipped" if h["skipped"] else ""))
+        if h["warn_breakdown"]:
+            print("     warn 内訳: "
+                  + ", ".join(f"{k}×{v}" for k, v in h["warn_breakdown"].items()))
     return 0
 
 
@@ -1509,6 +1518,8 @@ def main(argv: list[str] | None = None) -> int:
     p_build.add_argument("manifest", type=Path, help="manifest JSON（配列 or 単体）")
     p_build.add_argument("--data-root", type=Path, default=Path("."), help="ローカル source の基準ディレクトリ")
     p_build.add_argument("--dedupe", action="store_true", help="motion embedding で near-duplicate を除去")
+    p_build.add_argument("--no-qc", action="store_true",
+                         help="export 済み RD-MIR の motion-doctor 健全性 QC をスキップ")
     p_build.add_argument("-o", "--out", type=Path, default=Path("build"))
 
     p_smooth = sub.add_parser("smooth", help="RD-MIR を Savitzky-Golay で平滑化する")
@@ -1746,7 +1757,8 @@ def main(argv: list[str] | None = None) -> int:
         return _generate_text(args.caption, args.checkpoint, args.out, args.gif,
                               args.temperature, args.seed, args.stride)
     if args.command == "build-dataset":
-        return _build_dataset(args.manifest, args.data_root, args.out, args.dedupe)
+        return _build_dataset(args.manifest, args.data_root, args.out, args.dedupe,
+                              qc=not args.no_qc)
     if args.command == "smooth":
         return _smooth(args.path, args.out, args.window)
     if args.command == "demo-smoothing":

@@ -5,6 +5,16 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.98.0] - 2026-06-07
+
+### Added
+
+- `build-dataset` に **motion-doctor 健全性 QC を統合**。export 済み（dedupe 後に残った）RD-MIR を
+  診断し、`build_report.json` の `report["health"]`（checked/healthy/warn/skipped/warn_breakdown）と
+  各 BOM 行の `health`、`DATA_CARD.md` の "Health (motion-doctor)" 節に集計する。CLI は health 一行サマリを表示。
+- `build-dataset --no-qc` で QC をスキップ可能（既定 on）。`build_dataset(..., qc=True)` /
+  `build_from_file(..., qc=True)` 引数。`tests/test_data.py` に QC テスト 2 件。計 320。
+
 ## [0.97.0] - 2026-06-06
 
 ### Added

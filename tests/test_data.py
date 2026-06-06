@@ -143,6 +143,39 @@ def test_build_dataset_respects_firewall(tmp_path: Path) -> None:
     assert bom["blocked_clip"]["exported"] is False
 
 
+def test_build_dataset_qc_reports_health(tmp_path: Path) -> None:
+    """build 時に motion-doctor 健全性 QC が走り report["health"] と DATA_CARD に出る。"""
+    _write_fake_amass(tmp_path / "walk.npz")
+    manifests = [{
+        "manifest_version": "0", "clip_id": "ok_clip", "source_type": "dataset",
+        "source_uri": "dataset://amass/walk.npz", "license_declared": "creativeCommon",
+        "derived_motion_allowed": True, "training_allowed": True,
+        "rebuild_method": "manual_download", "status": "active",
+    }]
+    out = tmp_path / "build"
+    report = ds.build_dataset(manifests, data_root=tmp_path, out_dir=out)  # qc=True 既定
+    h = report["health"]
+    assert h["checked"] == 1
+    assert h["healthy"] + h["warn"] == 1
+    assert set(h) >= {"checked", "healthy", "warn", "skipped", "warn_breakdown"}
+    # export 済み row に health が付く。
+    bom = {r["clip_id"]: r for r in report["bill_of_materials"]}
+    assert "health" in bom["ok_clip"]
+    assert "Health (motion-doctor)" in (out / "DATA_CARD.md").read_text("utf-8")
+
+
+def test_build_dataset_no_qc_skips_health(tmp_path: Path) -> None:
+    _write_fake_amass(tmp_path / "walk.npz")
+    m = [{
+        "manifest_version": "0", "clip_id": "c", "source_type": "dataset",
+        "source_uri": "dataset://amass/walk.npz", "license_declared": "creativeCommon",
+        "derived_motion_allowed": True, "training_allowed": True,
+        "rebuild_method": "manual_download", "status": "active",
+    }]
+    report = ds.build_dataset(m, data_root=tmp_path, out_dir=tmp_path / "b", qc=False)
+    assert "health" not in report
+
+
 def test_build_dataset_dedupe(tmp_path: Path) -> None:
     """同一振付の clip を motion embedding で 1 本に集約する。"""
     _write_fake_aist(tmp_path / "orig.pkl", phase=0.0)
