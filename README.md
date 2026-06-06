@@ -155,9 +155,10 @@ Inputs (synthetic / real video / mocap) → RD-MIR → the pipeline below. See `
 
 | area | main commands |
 | --- | --- |
-| extraction | `extract` `import-hmr` `import-humanml3d` `import-babel` `import-motionx` `smooth` `overlay` |
+| extraction | `extract` (`--backend`) `import-hmr` `import-humanml3d` `import-babel` `import-motionx` `smooth` `overlay` |
+| pose backends & QC | `list-backends` (mediapipe / 2D+lift / gvhmr·wham) `pose-compare` `motion-doctor` (mirror/depth/grounding) |
 | dataset | `build-dataset` (RD-Manifest + license firewall / Data BOM) `dedupe-dir` |
-| retarget | `retarget` `retarget-ik` (real G1 23 joint angles) `demo-multi` (G1/H1/T1/Apollo) |
+| retarget | `retarget` `retarget-ik` (real G1 23 joint angles) `list-retargeters` (builtin / GMR) `demo-multi` (G1/H1/T1/Apollo) |
 | physics check | `validate-sim` (sim_certificate, MuJoCo) `--ground-clean` `--balance-plot` `sim-backends` |
 | embedding & search | `demo-motion-map` `train-encoder` `train-text-motion` `search-text` |
 | generation | `train-tokenizer` (VQ-VAE) `train-prior` `demo-generate` `train-text2motion` `generate-text` `train-denoiser` |

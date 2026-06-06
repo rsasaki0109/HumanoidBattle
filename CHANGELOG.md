@@ -5,6 +5,13 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.95.1] - 2026-06-06
+
+### Changed
+
+- README（en/ja）の機能表に最近のコマンドを追記し発見性を改善: `list-backends` / `pose-compare` /
+  `motion-doctor`（新行 "pose backends & QC"）、`list-retargeters`（retarget 行）、`extract --backend`。
+
 ## [0.95.0] - 2026-06-06
 
 retarget バックエンドをレジストリ化し、GMR を一級の外部バックエンドとして登録（pre-alpha）。
