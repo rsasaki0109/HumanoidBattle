@@ -5,6 +5,15 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.106.0] - 2026-06-07
+
+### Changed
+
+- README 冒頭のヒーロー GIF を、合成 human(RD-MIR) vs G1 から **実 karate 動画＋骨格 overlay ｜ 実 G1
+  再現** の横並びに刷新（本命「Shorts to humanoid」を実映像で提示）。既存の同期済み素材
+  （karate3_g1_overlay / robot, v0.89.1）を結合し PIL 48 色で軽量化（1.78MB）。
+  孤立した `assets/readme/human_vs_g1.gif` を削除。出典 Sdcsabac, CC BY-SA 4.0（生動画は非再配布）。
+
 ## [0.105.1] - 2026-06-07
 
 ### Fixed

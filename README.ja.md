@@ -13,9 +13,9 @@
 ![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
 ![ROS2](https://img.shields.io/badge/ROS2-Jazzy-22314E.svg)
 
-<img src="assets/readme/human_vs_g1.gif" width="520" alt="Human motion on the left, Unitree G1 dancing the same motion on the right">
+<img src="assets/readme/karate_hero.gif" width="560" alt="Real karate video with skeleton overlay on the left, Unitree G1 reproducing the same kata on the right">
 
-<sub>左の人間の動き（RD-MIR）→ 右の実 Unitree G1 が同じ振付で踊る。これが RobotDance の一行説明。</sub>
+<sub>左: 実際の空手動画（映像に 2D 骨格を重ね）→ 右: 実 Unitree G1 が同じ型を再現。これが「Shorts to humanoid」の一行説明。出典: Sdcsabac, CC BY-SA 4.0 (Wikimedia)、生動画は非再配布（レンダリングのみ）。</sub>
 
 ### 🎬 色々な振付 × 2 機種
 

@@ -13,9 +13,9 @@ English · [**日本語**](README.ja.md)
 ![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
 ![ROS2](https://img.shields.io/badge/ROS2-Jazzy-22314E.svg)
 
-<img src="assets/readme/human_vs_g1.gif" width="520" alt="Human motion on the left, Unitree G1 dancing the same motion on the right">
+<img src="assets/readme/karate_hero.gif" width="560" alt="Real karate video with skeleton overlay on the left, Unitree G1 reproducing the same kata on the right">
 
-<sub>Human motion on the left (RD-MIR) → a real Unitree G1 dances the same choreography on the right. That's RobotDance in one line.</sub>
+<sub>A real karate video (left, 2D skeleton overlaid on the footage) → a real Unitree G1 reproduces the same kata on the right. That's "Shorts to humanoid" in one line. Source: Sdcsabac, CC BY-SA 4.0 (Wikimedia); raw video is not redistributed (renders only).</sub>
 
 ### 🎬 Many motions × two robots
 
