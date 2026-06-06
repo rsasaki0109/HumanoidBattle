@@ -56,3 +56,34 @@ def test_cleanup_does_not_mutate_input() -> None:
     before = mir.keypoints_3d_array().copy()
     _ = ground_contact_cleanup(mir)
     assert np.array_equal(mir.keypoints_3d_array(), before)  # deep copy
+
+
+def test_lock_horizontal_removes_foot_skate() -> None:
+    """接地足を水平に滑らせたモーションで、lock_horizontal が skate を大幅に減らす。"""
+    mir = generate_squat(duration=2.0)
+    kps = mir.keypoints_3d_array()
+    n = kps.shape[0]
+    # foot-skate を注入: 全身を x 方向へ一定速度でドリフトさせる（足は接地のまま滑る）。
+    drift = np.linspace(0, 0.5, n)  # 0.5 m を全フレームかけて
+    kps[:, :, 0] += drift[:, None]
+    mir.keypoints_3d = kps.tolist()
+
+    locked = ground_contact_cleanup(mir, smooth=False, lock_horizontal=True)
+    gc = locked.quality_metrics["ground_cleanup"]
+    assert gc["lock_horizontal"] is True
+    # skate が大きく減る（接地足の frame 間水平移動が縮む）。
+    assert gc["foot_skate_after_m"] < 0.5 * gc["foot_skate_before_m"] + 1e-9
+    assert gc["foot_skate_before_m"] > gc["foot_skate_after_m"]
+
+
+def test_lock_horizontal_off_by_default_preserves_xy() -> None:
+    """既定（lock_horizontal=False）では xy を変えない（z 接地のみ）。"""
+    mir = generate_squat(duration=1.5)
+    base = ground_contact_cleanup(mir, smooth=False)  # default False
+    kps = base.keypoints_3d_array()
+    raw = mir.keypoints_3d_array()
+    # xy は z 接地では不変（z のみオフセット）。
+    assert np.allclose(kps[:, :, :2], raw[:, :, :2], atol=1e-9)
+    gc = base.quality_metrics["ground_cleanup"]
+    assert gc["lock_horizontal"] is False
+    assert gc["foot_skate_before_m"] == gc["foot_skate_after_m"]

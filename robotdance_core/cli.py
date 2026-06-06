@@ -1198,7 +1198,7 @@ def _sim_backends() -> int:
 def _validate_sim(
     path: Path, robot: str, out: Path | None, backend: str = "mujoco",
     clamp_flexion: bool = False, balance_plot: Path | None = None,
-    ground_clean: bool = False,
+    ground_clean: bool = False, lock_foot_xy: bool = False,
 ) -> int:
     from .model_card import build_motion_card
     from .rd_mir import RdMir
@@ -1212,8 +1212,12 @@ def _validate_sim(
         # 単眼抽出の接地アーティファクト（airborne 誤検出・foot skate）を除去してから検証。
         from robotdance_motion.grounding import ground_contact_cleanup
 
-        mir = ground_contact_cleanup(mir)
+        mir = ground_contact_cleanup(mir, lock_horizontal=lock_foot_xy)
         print("  🦶 ground-clean: 接地足を z=0 に固定し接地フラグを再生成（grounded 前提・跳躍未対応）")
+        if lock_foot_xy:
+            gc = (mir.quality_metrics or {}).get("ground_cleanup", {})
+            print(f"     + foot-skate 除去: {gc.get('foot_skate_before_m')}→"
+                  f"{gc.get('foot_skate_after_m')} m/frame")
     motion = retarget(mir, morph, clamp_flexion=clamp_flexion)
     if balance_plot is not None and backend == "mujoco":
         # ZMP×支持多角形の可視化には per-frame trace が要るので mujoco backend を直接呼ぶ。
@@ -1580,6 +1584,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="ZMP×支持多角形の上面図 PNG を出力（balance 違反を可視化, mujoco backend）")
     p_vsim.add_argument("--ground-clean", action="store_true",
                         help="単眼抽出の接地アーティファクト（airborne 誤検出/foot skate）を除去してから検証")
+    p_vsim.add_argument("--lock-foot-xy", action="store_true",
+                        help="--ground-clean 時に接地足の水平滑り（foot-skate）も除去する（opt-in）")
 
     sub.add_parser("sim-backends", help="登録済み sim backend と利用可否を表示（§4.3）")
 
@@ -1643,7 +1649,7 @@ def main(argv: list[str] | None = None) -> int:
         return _demo_multi(args.out, args.robots, args.stride)
     if args.command == "validate-sim":
         return _validate_sim(args.path, args.robot, args.out, args.backend, args.clamp_flexion,
-                             args.balance_plot, args.ground_clean)
+                             args.balance_plot, args.ground_clean, args.lock_foot_xy)
     if args.command == "sim-backends":
         return _sim_backends()
     if args.command == "demo-pipeline":

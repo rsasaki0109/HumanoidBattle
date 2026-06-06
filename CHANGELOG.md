@@ -5,6 +5,23 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.96.0] - 2026-06-06
+
+接地クリーンアップに foot-skate（接地足の水平滑り）除去を追加（pre-alpha, ROADMAP の contact-preserving 一歩）。
+
+### Added
+
+- `ground_contact_cleanup(..., lock_horizontal=False)`: opt-in で接地足の水平滑りを除去。各フレームで
+  支持足（接地中・最下, ヒステリシス付き）を選び、その補正後 xy が一定になるよう全関節 xy を平行移動
+  （切替時は飛び無く再アンカー）。foot_skate_before/after_m を quality_metrics に記録。
+- CLI `validate-sim --lock-foot-xy`（`--ground-clean` と併用）。`tests/test_grounding.py` に 2 テスト。
+
+### Notes
+
+- **正直な所見**: 実 squat で foot-skate は 0.0158→0.0059 m/frame（約 63% 減）まで縮むが、**balance は
+  0.82 のまま REJECT**。深度（前後 x）誤差由来の balance は水平 lock では直らず、深度復元が別軸の課題
+  であることを再確認。既定挙動・README certificate 数値は不変。
+
 ## [0.95.1] - 2026-06-06
 
 ### Changed
