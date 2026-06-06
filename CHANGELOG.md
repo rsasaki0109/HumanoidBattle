@@ -5,6 +5,17 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.103.0] - 2026-06-07
+
+model↔schema 同期チェックを全 spec に拡大（Stable Specs）。
+
+### Added
+
+- `tests/test_specs.py` の model↔schema 同期テストを **RD-MIR / RD-Motion / RD-Policy** に parametrize で
+  一般化（全て properties 完全一致＝ドリフト無しを確認）。さらに **RobotMorphology.to_rd_embodiment()** が
+  rd-embodiment schema に適合し、出力キーが schema properties の部分集合であることを検証。
+  RD-MIR 以外もドリフトすると CI が落ちる。RD-Manifest は schema 直接利用（pydantic モデル無し）。
+
 ## [0.102.0] - 2026-06-07
 
 RD-MIR の pydantic モデルと JSON schema のドリフトを修正（Stable Specs）。

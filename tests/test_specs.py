@@ -44,20 +44,38 @@ def test_example_conforms_to_schema(name: str) -> None:
     jsonschema.Draft202012Validator(schema).validate(instance)
 
 
-def test_rdmir_model_and_schema_fields_in_sync() -> None:
-    """pydantic RdMir モデルと rd-mir.schema.json の properties が一致する。
-
-    schema は additionalProperties:false・モデルは extra=forbid なので、両者がズレると
-    「片方では valid だが他方では reject」という RD-MIR が生まれる（Stable Specs の drift）。
-    """
+def _pydantic_models() -> dict:
+    """spec 名 → 対応 pydantic モデル（properties 完全一致を要求するもの）。"""
     from robotdance_core.rd_mir import RdMir
+    from robotdance_core.rd_motion import RdMotion
+    from robotdance_core.rd_policy import RdPolicy
 
-    schema = _load(_SCHEMAS["mir"])
-    schema_props = set(schema.get("properties", {}))
-    model_fields = set(RdMir.model_fields)
+    return {"mir": RdMir, "motion": RdMotion, "policy": RdPolicy}
+
+
+@pytest.mark.parametrize("name", sorted(_pydantic_models()))
+def test_pydantic_model_and_schema_fields_in_sync(name: str) -> None:
+    """pydantic モデル（extra=forbid）と schema（additionalProperties:false）の properties が一致。
+
+    両者がズレると「片方では valid だが他方では reject」という instance が生まれる（Stable Specs drift）。
+    対象: RD-MIR / RD-Motion / RD-Policy。RD-Manifest/RD-Embodiment は pydantic でないため別途検査。
+    """
+    model = _pydantic_models()[name]
+    schema_props = set(_load(_SCHEMAS[name]).get("properties", {}))
+    model_fields = set(model.model_fields)
     assert model_fields == schema_props, (
-        f"RdMir model ↔ schema drift: "
+        f"{name} model ↔ schema drift: "
         f"model-only={model_fields - schema_props}, schema-only={schema_props - model_fields}")
+
+
+def test_embodiment_emitter_conforms_to_schema() -> None:
+    """RobotMorphology.to_rd_embodiment() が rd-embodiment schema に適合し、キーが props の部分集合。"""
+    from robotdance_unitree import get_morphology
+
+    schema = _load(_SCHEMAS["embodiment"])
+    emitted = get_morphology("unitree_g1").to_rd_embodiment()
+    jsonschema.Draft202012Validator(schema).validate(emitted)
+    assert set(emitted) <= set(schema.get("properties", {})), "emitter が schema 外キーを出している"
 
 
 def test_mir_rejects_unknown_license_state_value() -> None:
