@@ -5,6 +5,22 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.116.0] - 2026-06-07
+
+### Changed
+
+- **text→motion のテキスト特徴を同義語・語形に頑健化**（`robotdance_models/text.py`）。ハッシュ
+  n-gram は「同じ綴り → 同じ次元」しか保証せず、未学習の言い換え（"jog"≠"run"、"twirl"≠"spin"、
+  "flipping"≠"somersault"）が別バケットに落ちて contrastive retrieval が外れやすかった。hashing の
+  前段に **curated な概念正規化 + 軽量ステミング**（`normalize_token` / `normalize_tokens`）を挟み、
+  同義語を共通コンセプト・トークン（`concept:*`）へ畳む。事前学習 LM ではなく決定的な手書き辞書なので
+  依存ゼロ・プロセス間決定的を維持。`text_features` の次元・L2 正規化・空文字→zero 契約は不変。
+
+### Added
+
+- `tests/test_text_features.py`（torch 非依存で CI 実行）: 同義語畳み込み・屈折形の語幹共有・
+  言い換え同士の特徴相関・既存契約の保持を検証。
+
 ## [0.115.0] - 2026-06-07
 
 ### Changed
