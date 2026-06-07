@@ -5,6 +5,10 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.123.0] - 2026-06-07
+### Added
+- `export-joints` CLI: retarget-ik 出力（`.rdmotion`）を実機/シム SDK 向けの関節角軌道に書き出す「出口」。CSV（`time_s` + 関節角列、コメントなしで最大互換）/ JSON（`fps`・`joint_names`・`units`・`control_mode` 付きメタ）の 2 形式。motor index = 列 index（実 URDF 定義順 = Unitree LowCmd の慣例）。参照軌道のため base/接地/バランスは含まず、実機投入前に `sim_certificate` 等で別途検証。`robotdance_retarget/sdk_export.py`。
+
 ## [0.122.0] - 2026-06-07
 
 ### Changed

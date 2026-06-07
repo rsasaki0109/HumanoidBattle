@@ -691,6 +691,24 @@ def _retarget_ik(path: Path, urdf: Path, out: Path, steps: int,
     return 0
 
 
+def _export_joints(path: Path, out: Path, fmt: str) -> int:
+    from robotdance_retarget.sdk_export import export_joint_trajectory
+
+    from .rd_motion import RdMotion
+
+    motion = RdMotion.load(path)
+    export_joint_trajectory(motion, out, fmt=fmt)
+    jr = motion.joint_rotations or {}
+    names = jr.get("actuated_joint_names") or []
+    n_frames = len(jr.get("angles_rad") or [])
+    print(f"✓ 関節角軌道を {fmt.upper()} で export → {out}")
+    print(f"  robot={motion.robot_name} control={motion.control_mode} "
+          f"joints={len(names)} frames={n_frames} fps={motion.fps}")
+    print("  motor index = 列 index（実 URDF 定義順 = Unitree LowCmd 慣例）。"
+          "参照軌道のため base/接地/バランスは sim_certificate 等で別途検証。")
+    return 0
+
+
 def _import_urdf(urdf: Path, name: str, save: Path | None) -> int:
     import json
 
@@ -1519,6 +1537,13 @@ def main(argv: list[str] | None = None) -> int:
     p_ik.add_argument("--conf-gate", type=float, default=None,
                       help="遮蔽ガード: 信頼度がこの値未満の bone 方向を直近の高信頼へ hold（0..1, 例 0.5）")
 
+    p_xj = sub.add_parser("export-joints",
+                          help="retarget-ik 出力（.rdmotion）を実機/シム SDK 向け関節角軌道（CSV/JSON）に書き出す")
+    p_xj.add_argument("path", type=Path, help="retarget-ik が出力した RD-Motion JSON")
+    p_xj.add_argument("-o", "--out", type=Path, default=Path("g1_joints.csv"))
+    p_xj.add_argument("--format", choices=["csv", "json"], default="csv", dest="fmt",
+                      help="出力フォーマット（csv: time_s+関節角列 / json: fps・joint_names 付きメタ）")
+
     p_urdf = sub.add_parser("import-urdf", help="実 URDF から実寸 RobotMorphology を構築する")
     p_urdf.add_argument("urdf", type=Path, help="URDF ファイル（例: g1_23dof.urdf）")
     p_urdf.add_argument("--name", default="unitree_g1")
@@ -1841,6 +1866,8 @@ def main(argv: list[str] | None = None) -> int:
         return _demo_motion_map(args.out, args.checkpoint)
     if args.command == "retarget-ik":
         return _retarget_ik(args.path, args.urdf, args.out, args.steps, args.conf_gate)
+    if args.command == "export-joints":
+        return _export_joints(args.path, args.out, args.fmt)
     if args.command == "import-urdf":
         return _import_urdf(args.urdf, args.name, args.save)
     if args.command == "train-encoder":
