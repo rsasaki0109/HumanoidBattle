@@ -24,6 +24,20 @@ from robotdance_core.rd_motion import RdMotion, Skeleton
 from robotdance_core.skeleton import JOINT_NAMES, PARENTS, index_of
 from robotdance_unitree.urdf_import import G1_LINK_MAP
 
+# IK ターゲットの既定重み（canonical joint → 重み）。
+# 肩・股は実機ではトルソにほぼ固定された準剛体リンクで、人間の体幹前傾を再現できないため
+# ターゲット誤差が構造的に大きい。これを等重みで合わせると、その到達不能なターゲットが loss を
+# 支配して手先・足先の追従や腕の向きを歪める（例: karate の突きで腕が上に暴れる）。retargeting の
+# 定石どおり **end-effector（手首・足首）を重く、近位（肩・股）を軽く**する。
+_DEFAULT_IK_WEIGHTS = {
+    "left_wrist": 4.0, "right_wrist": 4.0,
+    "left_ankle": 4.0, "right_ankle": 4.0,
+    "left_elbow": 1.5, "right_elbow": 1.5,
+    "left_knee": 1.5, "right_knee": 1.5,
+    "left_shoulder": 0.25, "right_shoulder": 0.25,
+    "left_hip": 0.25, "right_hip": 0.25,
+}
+
 
 @dataclass
 class _Link:
@@ -122,10 +136,15 @@ def actuator_retarget(
     device: Optional[str] = None,
     link_map: Optional[dict[str, str]] = None,
     robot_name: str = "unitree_g1",
+    target_weights: Optional[dict[str, float]] = None,
 ) -> RdMotion:
     """RD-MIR を実 URDF のアクチュエータ関節角へ IK retarget して RD-Motion を返す。
 
     link_map（canonical joint → URDF link）で G1 以外（H1 等）にも対応する（既定 G1_LINK_MAP）。
+
+    target_weights（canonical joint → 重み）で IK ターゲットごとの重要度を変えられる（既定
+    `_DEFAULT_IK_WEIGHTS`: 手先・足先を重く, 肩・股を軽く）。準剛体の近位ターゲットに引っ張られて
+    手先追従や腕の向きが歪むのを防ぐ。未指定 joint は 1.0。
     """
     from robotdance_retarget.kinematic import retarget
     from robotdance_unitree.urdf_import import urdf_to_morphology
@@ -142,10 +161,16 @@ def actuator_retarget(
     target_rel = kp - pelvis
 
     # IK 対象 = 実リンクにマップされる limb（pelvis 除く）。
-    pairs = [(index_of(c), chain.link_index(L)) for c, L in lmap.items() if c != "pelvis"]
-    canon_idx = [p[0] for p in pairs]
-    link_idx = [p[1] for p in pairs]
+    pairs = [(c, index_of(c), chain.link_index(L)) for c, L in lmap.items() if c != "pelvis"]
+    canon_names = [p[0] for p in pairs]
+    canon_idx = [p[1] for p in pairs]
+    link_idx = [p[2] for p in pairs]
     tgt = torch.tensor(target_rel[:, canon_idx, :], dtype=torch.float32, device=dev)  # [T, M, 3]
+
+    # ターゲット重み [1, M, 1]（手先>近位）。loss を重み付けし、平均は重み和で割って規模を保つ。
+    wmap = target_weights if target_weights is not None else _DEFAULT_IK_WEIGHTS
+    w_vec = torch.tensor([float(wmap.get(c, 1.0)) for c in canon_names],
+                         dtype=torch.float32, device=dev).view(1, -1, 1)
 
     t = kp.shape[0]
     q = torch.zeros(t, chain.n_act, device=dev, requires_grad=True)
@@ -153,10 +178,11 @@ def actuator_retarget(
     hi = torch.tensor(chain.limits[:, 1], device=dev, dtype=torch.float32)
     opt = torch.optim.Adam([q], lr=lr)
     link_idx_t = torch.tensor(link_idx, device=dev)
+    w_sum = float(w_vec.sum()) * t
     for _ in range(steps):
         pos = chain.fk(q)                                  # [T, n_link, 3]（pelvis=root=0）
         fk_rel = pos[:, link_idx_t, :]
-        pos_loss = ((fk_rel - tgt) ** 2).sum(-1).mean()
+        pos_loss = (w_vec * (fk_rel - tgt) ** 2).sum() / w_sum
         limit_pen = (torch.relu(q - hi) + torch.relu(lo - q)).pow(2).mean()
         smooth = ((q[1:] - q[:-1]) ** 2).mean() if t > 1 else torch.zeros((), device=dev)
         loss = pos_loss + 10.0 * limit_pen + smooth_w * smooth
@@ -167,17 +193,24 @@ def actuator_retarget(
     with torch.no_grad():
         q_final = torch.clamp(q, lo, hi)
         fk_rel = chain.fk(q_final)[:, link_idx_t, :]
-        err = torch.linalg.norm(fk_rel - tgt, dim=-1)       # [T, M] m
+        err = torch.linalg.norm(fk_rel - tgt, dim=-1)       # [T, M] m（重みなしの素の誤差）
         viol = ((q.detach() < lo) | (q.detach() > hi)).float().mean()
     q_np = q_final.cpu().numpy()
 
+    # 手先・足先だけの素の誤差（重み付けの効きを正直に示す）。
+    ee_names = ("left_wrist", "right_wrist", "left_ankle", "right_ankle")
+    ee_cols = [i for i, c in enumerate(canon_names) if c in ee_names]
+    ee_err = float(err[:, ee_cols].mean()) if ee_cols else float(err.mean())
     metrics = {
         "method": "differentiable_fk_gradient_ik",
         "actuated_joints": chain.n_act,
         "ik_mean_pos_error_m": round(float(err.mean()), 4),
         "ik_max_pos_error_m": round(float(err.max()), 4),
+        "ik_endeffector_pos_error_m": round(ee_err, 4),
+        "weighted_targets": len({round(float(x), 6) for x in w_vec.flatten().tolist()}) > 1,
         "joint_limit_violation_ratio_preclamp": round(float(viol), 4),
-        "note": "参照 IK（位置合わせ）。バランス policy ではない。torso/toe は IK 対象外（合成 target）。",
+        "note": "参照 IK（位置合わせ）。バランス policy ではない。torso/toe は IK 対象外（合成 target）。"
+                " 手先・足先を重く近位を軽く重み付け（end-effector 優先）。",
     }
     return RdMotion(
         robot_name=robot_name,

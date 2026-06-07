@@ -76,6 +76,28 @@ def test_actuator_retarget_outputs_joint_angles(tmp_path) -> None:
     assert motion.retarget_metrics["ik_mean_pos_error_m"] < 0.2
 
 
+def test_endeffector_weighting_improves_endeffector_tracking(tmp_path) -> None:
+    """end-effector 重み付け（既定）が手先・足先の追従誤差を等重みより悪化させない。
+
+    肩・股のような準剛体の近位ターゲットに loss を引っ張られるのを防ぐのが狙い。手先を重く
+    すると end-effector 誤差が下がる（or 同等）。"""
+    urdf = _fixture(tmp_path / "g1.urdf")
+    mir = generate_dance(duration=1.5, arm_amp=1.6)
+
+    uniform = actuator_retarget(mir, urdf, steps=200,
+                                target_weights={})  # 全 joint 既定 1.0 → 等重み
+    weighted = actuator_retarget(mir, urdf, steps=200)  # 既定 end-effector 重み
+
+    assert uniform.retarget_metrics["weighted_targets"] is False
+    assert weighted.retarget_metrics["weighted_targets"] is True
+    # 手先・足先の素の誤差は重み付けで等重み以下（5% 許容で悪化しない）。
+    ue = uniform.retarget_metrics["ik_endeffector_pos_error_m"]
+    we = weighted.retarget_metrics["ik_endeffector_pos_error_m"]
+    assert we <= ue * 1.05
+    # メトリクスに end-effector 誤差キーがある。
+    assert "ik_endeffector_pos_error_m" in weighted.retarget_metrics
+
+
 def test_actuator_rdmotion_schema(tmp_path) -> None:
     urdf = _fixture(tmp_path / "g1.urdf")
     motion = actuator_retarget(generate_dance(duration=0.7), urdf, steps=60)

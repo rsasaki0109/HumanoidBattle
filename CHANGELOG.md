@@ -5,6 +5,19 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.115.0] - 2026-06-07
+
+### Changed
+
+- **actuator-IK retarget を end-effector 重み付けに**（`actuator_retarget` の新 `target_weights`,
+  既定 `_DEFAULT_IK_WEIGHTS`: 手先・足先 4.0 / 肘・膝 1.5 / 肩・股 0.25）。肩・股は実機ではトルソに
+  ほぼ固定された準剛体リンクで人間の体幹前傾を再現できず、等重みではこの**到達不能ターゲットが loss を
+  支配**して手先追従や腕の向きを歪めていた（例: karate の突きで腕が頭上に暴れ、中腰で静止して見える）。
+  end-effector 優先で突き・蹴りが伸び、腕の暴発が解消。新メトリクス `ik_endeffector_pos_error_m` /
+  `weighted_targets` を追加。
+- README 冒頭の **karate hero GIF を新しい重み付き retarget で再生成**（G1 が前屈立ち・前突き・脚上げと
+  動的に型を再現するように改善）。overlay/skeleton/robot を同一 extract から同期再生成。
+
 ## [0.114.0] - 2026-06-07
 
 ### Added
