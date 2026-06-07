@@ -1385,6 +1385,7 @@ def _validate_sim(
     path: Path, robot: str, out: Path | None, backend: str = "mujoco",
     clamp_flexion: bool = False, balance_plot: Path | None = None,
     ground_clean: bool = False, lock_foot_xy: bool = False,
+    balance_refine: bool = False,
 ) -> int:
     from .model_card import build_motion_card
     from .rd_mir import RdMir
@@ -1404,6 +1405,16 @@ def _validate_sim(
             gc = (mir.quality_metrics or {}).get("ground_cleanup", {})
             print(f"     + foot-skate 除去: {gc.get('foot_skate_before_m')}→"
                   f"{gc.get('foot_skate_after_m')} m/frame")
+    if balance_refine:
+        # 単眼で ill-posed な前後 x 深度のみを quasi-static balance prior で精緻化（y,z は不変）。
+        from robotdance_motion.depth_refine import balance_depth_refine
+
+        mir = balance_depth_refine(mir)
+        dr = (mir.quality_metrics or {}).get("depth_refine", {})
+        print("  📐 balance-refine: 前後 x 深度を balance prior で精緻化（観測 y,z 不変・接地前提）")
+        print(f"     COM-支持 x gap: {dr.get('com_support_x_gap_before_m')}→"
+              f"{dr.get('com_support_x_gap_after_m')} m"
+              f"（誘発 bone 歪み {dr.get('induced_bone_length_drift')}）")
     motion = retarget(mir, morph, clamp_flexion=clamp_flexion)
     if balance_plot is not None and backend == "mujoco":
         # ZMP×支持多角形の可視化には per-frame trace が要るので mujoco backend を直接呼ぶ。
@@ -1816,6 +1827,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="単眼抽出の接地アーティファクト（airborne 誤検出/foot skate）を除去してから検証")
     p_vsim.add_argument("--lock-foot-xy", action="store_true",
                         help="--ground-clean 時に接地足の水平滑り（foot-skate）も除去する（opt-in）")
+    p_vsim.add_argument("--balance-refine", action="store_true",
+                        help="単眼 ill-posed な前後 x 深度を quasi-static balance prior で精緻化（y,z 不変）")
 
     sub.add_parser("sim-backends", help="登録済み sim backend と利用可否を表示（§4.3）")
 
@@ -1879,7 +1892,8 @@ def main(argv: list[str] | None = None) -> int:
         return _demo_multi(args.out, args.robots, args.stride)
     if args.command == "validate-sim":
         return _validate_sim(args.path, args.robot, args.out, args.backend, args.clamp_flexion,
-                             args.balance_plot, args.ground_clean, args.lock_foot_xy)
+                             args.balance_plot, args.ground_clean, args.lock_foot_xy,
+                             args.balance_refine)
     if args.command == "sim-backends":
         return _sim_backends()
     if args.command == "demo-pipeline":

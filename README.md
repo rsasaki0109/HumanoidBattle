@@ -132,7 +132,7 @@ Feed the extracted real squat into the feasibility certificate (real URDF inerti
 </td></tr>
 </table>
 
-<sub>The residual ZMP excursion concentrates along the forward x axis (depth — the least reliable axis in monocular). A full PASS needs better depth estimation / contact-aware retargeting — v0's honest frontier.</sub>
+<sub>The residual ZMP excursion concentrates along the forward x axis (depth — the least reliable axis in monocular). A full PASS needs better depth estimation / contact-aware retargeting — v0's honest frontier. `--balance-refine` is a first step: it refines **only** the unobserved fore-aft x depth with a quasi-static balance prior (COM over the support polygon), freezing the observed lateral/vertical (y, z) image-plane axes — refinement, not violation-hiding smoothing.</sub>
 
 ### Benchmark — why each motion passes or fails
 
@@ -188,7 +188,7 @@ Inputs (synthetic / real video / mocap) → RD-MIR → the pipeline below. See `
 | pose backends & QC | `list-backends` (mediapipe / 2D+lift / gvhmr·wham) `pose-compare` `motion-doctor` (mirror/depth/grounding) |
 | dataset | `build-dataset` (RD-Manifest + license firewall / Data BOM) `dedupe-dir` |
 | retarget | `retarget` `retarget-ik` (real G1 23 joint angles, end-effector-weighted, `--conf-gate` occlusion guard) `export-joints` (joint-angle + optional `--with-velocity` CSV/JSON for real-robot/sim SDKs) `list-retargeters` (builtin / GMR) `demo-multi` (G1/H1/H2/T1/Apollo/N1) |
-| physics check | `validate-sim` (sim_certificate, MuJoCo) `--ground-clean` `--balance-plot` `sim-backends` |
+| physics check | `validate-sim` (sim_certificate, MuJoCo) `--ground-clean` `--balance-refine` `--balance-plot` `sim-backends` |
 | embedding & search | `demo-motion-map` `train-encoder` `train-text-motion` `search-text` `search-motion` (`--text` zero-dep concept search, `--healthy-only` quality-aware) |
 | generation | `train-tokenizer` (VQ-VAE) `train-prior` `demo-generate` `train-text2motion` `generate-text` `train-denoiser` |
 | learned policy | `train-tracking` (PPO) `demo-track` `demo-track-multi` `export-policy` (RD-Policy + ONNX) |

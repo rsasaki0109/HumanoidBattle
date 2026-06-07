@@ -5,6 +5,10 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.130.0] - 2026-06-08
+### Added
+- `validate-sim --balance-refine`: 単眼で ill-posed な**前後 x（深度）だけ**を quasi-static balance prior（接地動作なら COM_x は支持多角形の x 重心近傍にあるべき）で精緻化。観測できている横 y・高さ z の画像面は**厳密に凍結**し、x-z せん断（足首ピボットの前後リーン近似）で COM を支持上へ寄せる。`com_support_x_gap_before/after` と**誘発 bone 長歪み**を正直に報告。合成 squat で MIR 空間 gap 0.27→0.14 m・retarget 後のロボット空間 pelvis-支持 gap 0.055→0.020 m（誘発歪み 0.7–2.3%）。**violation を隠す過平滑 gimmick ではなく、本質的に未観測な深度自由度を物理事前分布で解く**——README の「深度律速 frontier」への第一歩。`robotdance_motion/depth_refine.py` の `balance_depth_refine()`。
+
 ## [0.129.0] - 2026-06-08
 ### Added
 - `download-hf`: Hugging Face Hub からファイルを取得（`huggingface_hub` 経由）し、既存の `import-humanml3d` / `import-motionx` / `import-babel` / `import-hmr` に繋ぐ取り込み経路。**著作権・規約上扱いにくい YouTube/TikTok の license-safe な代替**——ライセンスが明示された HF データセット（HumanML3D/Motion-X/BABEL 由来、多くは research_only）を取り込む。生ファイルは HF キャッシュ（repo 外・非同梱）。取得時にライセンス確認の警告を表示。`robotdance_data/hf_fetch.py`、`download-hf` CLI。
