@@ -5,6 +5,16 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.110.0] - 2026-06-07
+
+### Added
+
+- benchmark の **feasibility 可視化**: `robotdance_benchmarks/chart.py` の `render_benchmark_chart` が
+  各 (motion, robot) run を **torque比 × balance違反率**の散布図に描き、PASS/REJECT 色分け・実行可能領域の
+  塗り・robot 別マーカーで「動作がどの軸で律速か（torque/balance）」を可視化。CLI `benchmark --chart`。
+- README（en/ja）に "Benchmark — why each motion passes or fails" 節と図 `benchmark_feasibility.png` を追加
+  （backflip/march=balance律速・上、dance_fast=torque律速・右、PASS は左下に集まる）。`tests/test_benchmark.py` に 2 テスト。
+
 ## [0.109.0] - 2026-06-07
 
 ### Added

@@ -126,6 +126,14 @@ Output: ロボット実行可能モーション + RD-MIR データセット + mo
 
 <sub>残った ZMP のはみ出しは前後 x（単眼で最も不確実な深度）方向に偏る。完全 PASS には深度推定 / contact-aware retarget の改善が要る — v0 の正直な frontier。</sub>
 
+### Benchmark — 各動作が PASS/REJECT する理由
+
+`robotdance benchmark --chart` は motion スイート × ロボットを回し、各 run を **torque 比（×actuator 上限）** vs **balance 違反率** で散布図にする。動作が**どの軸で律速か**が一目で分かる:
+
+<img src="assets/readme/benchmark_feasibility.png" width="560" alt="Feasibility scatter: torque ratio vs balance violation, PASS/REJECT per motion and robot">
+
+<sub>PASS（緑）は実行可能領域（torque ≤ 1.0・balance 違反小）に集まる。失敗は原因で分かれ、`backflip`/`march` は**バランス律速**（上）、`dance_fast` は**トルク律速**（右）。G1=○ / H1=□ — 同じ動作でも機種で可否が変わる。生成は `benchmark --chart`（MuJoCo）。motion 別/robot 別の表は `LEADERBOARD.md`。</sub>
+
 ```bash
 pip install -e ".[demo,sim,perception]"
 

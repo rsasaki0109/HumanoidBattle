@@ -126,6 +126,14 @@ Feed the extracted real squat into the feasibility certificate (real URDF inerti
 
 <sub>The residual ZMP excursion concentrates along the forward x axis (depth — the least reliable axis in monocular). A full PASS needs better depth estimation / contact-aware retargeting — v0's honest frontier.</sub>
 
+### Benchmark — why each motion passes or fails
+
+`robotdance benchmark --chart` runs the motion suite × robots and plots every run by **torque ratio (×actuator limit)** vs **balance-violation ratio**, so you can see *which axis* each motion is limited by:
+
+<img src="assets/readme/benchmark_feasibility.png" width="560" alt="Feasibility scatter: torque ratio vs balance violation, PASS/REJECT per motion and robot">
+
+<sub>PASS (green) cluster in the feasible region (torque ≤ 1.0, low balance violation). Failures split by cause: `backflip` / `march` are **balance-limited** (top), `dance_fast` is **torque-limited** (right). G1 = circle, H1 = square — same motion, different feasibility per embodiment. Generated with `benchmark --chart` (MuJoCo). Per-motion / per-robot tables: `LEADERBOARD.md`.</sub>
+
 ```bash
 pip install -e ".[demo,sim,perception]"
 

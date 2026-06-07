@@ -127,3 +127,32 @@ def test_run_benchmark_with_sim() -> None:
     verdicts = {r["motion_id"]: r["verdict"] for r in report["rows"]}
     assert verdicts["backflip"] == "REJECT"   # 危険動作は reject
     assert verdicts["dance_normal"] == "PASS"  # 安全動作は pass
+
+
+def test_render_benchmark_chart_smoke(tmp_path) -> None:
+    """feasibility 散布図が描ける（matplotlib のみ・mujoco 不要。合成 report で検証）。"""
+    pytest.importorskip("matplotlib")
+    from robotdance_benchmarks.chart import _has_plottable, render_benchmark_chart
+
+    report = {
+        "robots": ["unitree_g1", "unitree_h1"],
+        "motions": ["dance", "backflip"],
+        "rows": [
+            {"motion_id": "dance", "robot": "unitree_g1", "verdict": "PASS",
+             "torque_ratio": 0.6, "balance_violation_ratio": 0.05},
+            {"motion_id": "backflip", "robot": "unitree_h1", "verdict": "REJECT",
+             "torque_ratio": 1.2, "balance_violation_ratio": 0.9},
+            {"motion_id": "x", "robot": "unitree_g1", "verdict": None,  # sim 無し → 除外
+             "torque_ratio": None, "balance_violation_ratio": None},
+        ],
+    }
+    assert _has_plottable(report) is True
+    out = render_benchmark_chart(report, tmp_path / "feas.png")
+    assert out.exists() and out.stat().st_size > 0
+
+
+def test_has_plottable_false_without_verdict() -> None:
+    from robotdance_benchmarks.chart import _has_plottable
+
+    report = {"rows": [{"verdict": None, "torque_ratio": None}]}
+    assert _has_plottable(report) is False

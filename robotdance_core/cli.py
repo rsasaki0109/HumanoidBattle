@@ -626,7 +626,8 @@ def _demo_runtime() -> int:
     return 0
 
 
-def _benchmark(robots: list[str], motions_dir: Path | None, with_sim: bool, out_dir: Path) -> int:
+def _benchmark(robots: list[str], motions_dir: Path | None, with_sim: bool, out_dir: Path,
+               chart: bool = False) -> int:
     from robotdance_benchmarks.report import aggregate_by_robot, write_csv, write_markdown
     from robotdance_benchmarks.suite import default_motion_suite, run_benchmark, run_from_dir
 
@@ -639,6 +640,14 @@ def _benchmark(robots: list[str], motions_dir: Path | None, with_sim: bool, out_
     print(f"✓ benchmark: {len(report['rows'])} runs "
           f"(sim {'on' if report['sim_available'] else 'off'})")
     print(f"  {csv_path}\n  {md_path}")
+    if chart:
+        from robotdance_benchmarks.chart import _has_plottable, render_benchmark_chart
+
+        if _has_plottable(report):
+            cp = render_benchmark_chart(report, out_dir / "feasibility.png")
+            print(f"  🖼  {cp}")
+        else:
+            print("  ⚠️ chart: verdict が無い（--no-sim では描けません。mujoco 必要）")
     for a in aggregate_by_robot(report):
         print(f"  {a['robot']:12s} PASS率={a['pass_rate']} "
               f"bone_cos={a['mean_bone_dir_cos']} foot_sliding={a['mean_foot_sliding']}")
@@ -1467,6 +1476,8 @@ def main(argv: list[str] | None = None) -> int:
     p_bench.add_argument("--robots", nargs="+", default=["unitree_g1", "unitree_h1", "booster_t1", "apptronik_apollo"])
     p_bench.add_argument("--motions-dir", type=Path, default=None, help="*.rdmir.json のディレクトリ（既定: 合成スイート）")
     p_bench.add_argument("--no-sim", action="store_true", help="MuJoCo 物理検証を行わない")
+    p_bench.add_argument("--chart", action="store_true",
+                         help="feasibility 散布図（torque× vs balance）PNG も出力（要 sim）")
     p_bench.add_argument("-o", "--out", type=Path, default=Path("benchmark_out"))
 
     p_mmap = sub.add_parser("demo-motion-map", help="合成モーションを埋め込み Motion Map を描く")
@@ -1793,7 +1804,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "demo-runtime":
         return _demo_runtime()
     if args.command == "benchmark":
-        return _benchmark(args.robots, args.motions_dir, not args.no_sim, args.out)
+        return _benchmark(args.robots, args.motions_dir, not args.no_sim, args.out, args.chart)
     if args.command == "demo-motion-map":
         return _demo_motion_map(args.out, args.checkpoint)
     if args.command == "retarget-ik":
