@@ -5,6 +5,14 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.107.0] - 2026-06-07
+
+### Added
+
+- `scripts/make_hero_gif.py`: 2 本の同期 GIF を共通の高さに揃え、ラベル付きで横並び結合して
+  README hero（実 karate overlay ｜ 実 G1）を**再現可能に**するユーティリティ（v0.106 の手作業を script 化）。
+  PIL adaptive palette で減色（既定 48 色）。`tests/test_make_hero_gif.py` に smoke テスト（cv2/PIL 無しは skip）。
+
 ## [0.106.0] - 2026-06-07
 
 ### Changed
