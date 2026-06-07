@@ -5,6 +5,15 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.111.0] - 2026-06-07
+
+### Added
+
+- planar lift に **bone-length 正規化**（`enforce_bone_lengths`）を追加。各骨（parent→child）の長さを
+  全フレーム中央値に揃え、2D 検出ノイズ＋平面投影由来の **rubber-limb ジッタ**を除く。向きは生の相対方向を
+  保ち平面性（x≈0）も維持。`extract_via_lift(..., rigid_bones=True)`（既定 on）で適用、quality に記録。
+  `tests/test_lifting.py` に 2 テスト（骨長が一定化・平面維持 / 不正形状）。計 343。
+
 ## [0.110.0] - 2026-06-07
 
 ### Added

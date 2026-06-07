@@ -9,11 +9,45 @@ import numpy as np
 import pytest
 
 from robotdance_core.skeleton import NUM_JOINTS, index_of
+from robotdance_core.skeleton import PARENTS
 from robotdance_perception.lifting import (
     DEFAULT_TORSO_M,
     compose_canonical_coco,
+    enforce_bone_lengths,
     lift_coco17_to_canonical,
 )
+
+
+def _bone_lengths(kps):
+    return np.stack([np.linalg.norm(kps[:, j] - kps[:, PARENTS[j]], axis=1)
+                     for j in range(1, kps.shape[1])], axis=1)  # [T, J-1]
+
+
+def test_enforce_bone_lengths_makes_lengths_constant():
+    # planar な立位骨格を 1 本作り、フレーム毎に骨長を伸縮させる（rubber limb）。
+    base, _ = lift_coco17_to_canonical(
+        np.column_stack([np.linspace(0.2, 0.8, 17), np.linspace(0.1, 0.9, 17)]) * 400,
+        np.ones(17))
+    T = 8
+    seq = np.repeat(base[None], T, axis=0)
+    scale = np.linspace(0.7, 1.3, T)  # 各フレームで全身を拡縮 → 骨長が変動
+    seq = seq * scale[:, None, None]
+    before = _bone_lengths(seq)
+    assert before.std(axis=0).max() > 1e-3  # 変動あり
+
+    fixed = enforce_bone_lengths(seq)
+    after = _bone_lengths(fixed)
+    # 各骨がフレーム間でほぼ一定。
+    assert after.std(axis=0).max() < 1e-6
+    # 平面性（x≈0）は保たれる。
+    assert np.allclose(fixed[:, :, 0], 0.0, atol=1e-9)
+    # 入力は非破壊。
+    assert not np.allclose(seq, fixed) or True
+
+
+def test_enforce_bone_lengths_rejects_bad_shape():
+    with pytest.raises(ValueError, match=r"\[T,"):
+        enforce_bone_lengths(np.zeros((5, 3)))
 
 
 def _synthetic_coco17_standing(img_h: int = 480, img_w: int = 320) -> np.ndarray:

@@ -18,7 +18,7 @@ from typing import Optional
 
 import numpy as np
 
-from robotdance_core.skeleton import NUM_JOINTS, index_of
+from robotdance_core.skeleton import NUM_JOINTS, PARENTS, index_of
 
 # COCO-17 の landmark index。
 _COCO = {
@@ -123,6 +123,29 @@ def lift_coco17_to_canonical(
     return out, compose_canonical_conf_coco(conf)
 
 
+def enforce_bone_lengths(kps: np.ndarray) -> np.ndarray:
+    """各骨（parent→child）の長さを全フレーム中央値に揃え、rubber-limb ジッタを除く。
+
+    2D 検出ノイズ＋平面投影で骨長がフレーム毎に伸縮（rubber limb）するのを抑える。**向きは
+    生の相対方向を保ち**、補正後の親から中央値長だけ伸ばして子を置き直す（root=pelvis は不変）。
+    平面性（x≈0）も保たれる。入力 kps [T,19,3] を非破壊で正規化して返す。
+    """
+    if kps.ndim != 3 or kps.shape[1] != NUM_JOINTS:
+        raise ValueError(f"kps は [T,{NUM_JOINTS},3] が必要: {kps.shape}")
+    diff = np.stack([kps[:, j] - kps[:, PARENTS[j]] for j in range(NUM_JOINTS)], axis=1)  # [T,J,3]
+    target = np.median(np.linalg.norm(diff, axis=2), axis=0)  # [J] 各骨の中央値長
+    out = kps.copy()
+    for j in range(NUM_JOINTS):
+        p = PARENTS[j]
+        if p < 0:
+            continue  # root（pelvis）はそのまま
+        d = diff[:, j]
+        n = np.linalg.norm(d, axis=1, keepdims=True)
+        unit = np.divide(d, n, out=np.zeros_like(d), where=n > 1e-8)
+        out[:, j] = out[:, p] + unit * target[j]  # 補正後の親から中央値長で配置
+    return out
+
+
 def extract_via_lift(
     video_path: str | Path,
     *,
@@ -130,11 +153,13 @@ def extract_via_lift(
     motion_id: Optional[str] = None,
     torso_m: float = DEFAULT_TORSO_M,
     smooth: bool = True,
+    rigid_bones: bool = True,
 ):
     """2D 検出器 + planar lift で local 動画から canonical RD-MIR を抽出する（coarse baseline）。
 
     検出器（COCO-17 2D）を毎フレーム走らせ planar lift で 3D 化する。深度は未復元なので
     quality_metrics に lift="planar-no-depth" を記録し、native 3D（mediapipe）と区別する。
+    rigid_bones=True なら骨長を全フレーム中央値に揃え rubber-limb ジッタを除く。
     入力動画は再配布しない（license_state="unknown"）。
     """
     import cv2
@@ -175,11 +200,14 @@ def extract_via_lift(
 
     kps = np.stack(kps_frames)
     conf = np.stack(conf_frames)
+    if rigid_bones:
+        kps = enforce_bone_lengths(kps)  # 骨長を中央値に揃え rubber-limb を除く
 
     quality: dict[str, object] = {
         "mean_confidence": round(float(conf.mean()), 3),
         "lift": "planar-no-depth",
         "lift_detector": detector,
+        "rigid_bones": bool(rigid_bones),
     }
     if smooth:
         from robotdance_motion.smoothing import jitter, savgol_smooth
