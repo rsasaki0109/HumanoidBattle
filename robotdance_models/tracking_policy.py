@@ -278,15 +278,27 @@ class TrackingPolicy:
 
         arr = np.stack(kps)  # [F, J, 3]
         n_frames = arr.shape[0]
+        # keypoint 空間（メートル）の追従誤差。qpos の mean_pose_rmse は keypoints が規定しない
+        # ball-joint twist（bone 軸まわりのひねり）誤差まで含むため tracking を実際より悪く見せる。
+        # 「身体が参照位置に来ているか」は pelvis 相対の Cartesian 距離で測る方が正直。
+        ref_motion = (env.references[env.cur_idx]
+                      if isinstance(env, MultiTrackingEnv) else env.reference)
+        ref_kp = ref_motion.keypoints_3d_array()  # [T, J, 3]
+        nf = min(arr.shape[0], ref_kp.shape[0])
+        sa = arr[:nf] - arr[:nf, :1]              # pelvis 相対（全体並進ドリフトを除外）
+        rb = ref_kp[:nf] - ref_kp[:nf, :1]
+        kp_rmse = float(np.sqrt(np.mean(np.sum((sa - rb) ** 2, axis=2)))) if nf else float("nan")
         metrics = {
             "method": "rl_tracking_policy_ppo",
             "survived_frames": survived,
             "reference_frames": env.T - 1,
             "survival_ratio": round(survived / max(env.T - 1, 1), 3),
             "mean_pose_rmse": round(float(np.mean(errs)) if errs else float("nan"), 4),
+            "keypoint_rmse_m": round(kp_rmse, 4),
             "note": (
                 "PPO tracking baseline（v0）。base 非駆動の物理ロールアウト。"
-                "近似質量・単一参照ゆえ完全追従ではない。retarget→sim_certificate とは別物。"
+                "mean_pose_rmse は qpos（ball-joint twist 誤差を含む）, keypoint_rmse_m は pelvis 相対の"
+                " Cartesian 追従誤差（身体位置の一致度・twist 非依存）。近似質量・単一参照ゆえ完全追従ではない。"
             ),
         }
         motion = RdMotion(

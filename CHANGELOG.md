@@ -5,6 +5,23 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.119.0] - 2026-06-07
+
+### Added
+
+- RL tracking の rollout に **`keypoint_rmse_m`**（pelvis 相対の Cartesian 追従誤差, メートル）を追加。
+  既存の `mean_pose_rmse` は qpos 空間で、keypoints が規定しない **ball-joint twist（bone 軸まわりの
+  ひねり）誤差まで含む**ため tracking を実際より悪く見せていた（例: G1 で qpos rmse≈0.37 rad でも
+  keypoint 誤差は≈0.10 m）。身体が参照位置に来ているかを twist 非依存で正直に測る指標。
+
+### Notes
+
+- 学習方策が PD ベースラインを上回るかを検証した結果、**velocity feedforward / 重力補償 / PPO 残差の
+  いずれも qpos rmse を 4 桁まで変えず**、残差は実質ゼロに収束（rollout=PD と一致）。tracking 誤差は
+  (1) keypoints が規定しない twist と (2) アクチュエータのトルク飽和に支配され、制御則だけでは縮まない
+  ことを確認（既存の feasibility certificate の物語と整合）。よって RL を「PD 超え」に調整するのではなく、
+  まず**何が起きているかを正直に測る** keypoint 指標の追加に留めた。
+
 ## [0.118.0] - 2026-06-07
 
 ### Added

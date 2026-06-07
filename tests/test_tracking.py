@@ -147,6 +147,10 @@ def test_ppo_trains_and_rolls_out_valid_motion() -> None:
     # 学習後の方策は gentle 参照で相当数のフレームを生存する。
     assert metrics["survival_ratio"] > 0.3
     assert np.isfinite(metrics["mean_pose_rmse"])
+    # keypoint 空間（メートル）の追従誤差: 有限・非負で gentle 参照では妥当な範囲。
+    # qpos の mean_pose_rmse は ball-joint twist 誤差を含むため、身体位置の一致度はこちらで正直に測る。
+    assert np.isfinite(metrics["keypoint_rmse_m"])
+    assert 0.0 <= metrics["keypoint_rmse_m"] < 0.5
 
     # RD-Motion schema に適合する。
     schema = json.loads(
