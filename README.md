@@ -176,7 +176,7 @@ Inputs (synthetic / real video / mocap) → RD-MIR → the pipeline below. See `
 | dataset | `build-dataset` (RD-Manifest + license firewall / Data BOM) `dedupe-dir` |
 | retarget | `retarget` `retarget-ik` (real G1 23 joint angles) `list-retargeters` (builtin / GMR) `demo-multi` (G1/H1/T1/Apollo) |
 | physics check | `validate-sim` (sim_certificate, MuJoCo) `--ground-clean` `--balance-plot` `sim-backends` |
-| embedding & search | `demo-motion-map` `train-encoder` `train-text-motion` `search-text` `search-motion` (`--healthy-only`, quality-aware) |
+| embedding & search | `demo-motion-map` `train-encoder` `train-text-motion` `search-text` `search-motion` (`--text` zero-dep concept search, `--healthy-only` quality-aware) |
 | generation | `train-tokenizer` (VQ-VAE) `train-prior` `demo-generate` `train-text2motion` `generate-text` `train-denoiser` |
 | learned policy | `train-tracking` (PPO) `demo-track` `demo-track-multi` `export-policy` (RD-Policy + ONNX) |
 | benchmark | `benchmark` (motion×robot leaderboard) `benchmark-extraction` |
@@ -196,6 +196,9 @@ Inputs (synthetic / real video / mocap) → RD-MIR → the pipeline below. See `
 ```bash
 robotdance demo-motion-map -o motion_map.png
 robotdance train-text-motion -o tm.pt && robotdance search-text "a backflip" --checkpoint tm.pt
+# zero-dependency text search — no checkpoint, matches each motion's action_label by concept
+# (synonyms/morphology folded: "doing a somersault" → backflip, "upbeat dance" → energetic dance):
+robotdance search-motion ./corpus --text "doing a somersault" -k 3
 robotdance generate-text "a person doing a backflip" -o bf.rdmir.json --gif bf.gif
 ```
 

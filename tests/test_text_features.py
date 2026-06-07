@@ -24,6 +24,11 @@ def test_normalize_token_folds_synonyms() -> None:
     assert normalize_token("motionless") == normalize_token("idle") == "concept:still"
     assert normalize_token("energetically") == normalize_token("upbeat") == "concept:energetic"
     assert normalize_token("gently") == normalize_token("slowly") == "concept:slow"
+    # 拡充した動作語彙。
+    assert normalize_token("pivoting") == normalize_token("turn") == "concept:turn"
+    assert normalize_token("tossing") == normalize_token("throw") == "concept:throw"
+    assert normalize_token("lifting") == normalize_token("raise") == "concept:raise"
+    assert normalize_token("applauding") == normalize_token("clap") == "concept:clap"
 
 
 def test_normalize_token_morphology_for_unknown_words() -> None:

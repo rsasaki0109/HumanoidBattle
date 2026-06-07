@@ -5,6 +5,16 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.121.0] - 2026-06-07
+
+### Added
+
+- README（en/ja）の「Embedding, search, generation」に **`search-motion --text`**（v0.120 の
+  ゼロ依存 text→motion 検索）の使用例を追記。CLI 一覧表にも `--text` を明記。
+- text 概念辞書 `_CONCEPTS` に動作語彙を拡充（**bow / clap / turn / lunge / balance / stretch /
+  throw / reach / crawl / roll / raise / bend / twist**）。text→motion 検索と contrastive text 特徴の
+  両方の語彙カバレッジが向上（"pivoting"→turn, "tossing"→throw, "lifting"→raise 等）。既存マッピングは不変。
+
 ## [0.120.0] - 2026-06-07
 
 ### Added
