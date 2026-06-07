@@ -5,6 +5,10 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.127.0] - 2026-06-07
+### Added
+- `export-joints --with-velocity`: 関節角の有限差分による**角速度列**（`d_<joint>`, rad/s）を CSV/JSON に追加。実機の position+velocity control の velocity feedforward に使える。中心差分（端点は片側）で自己完結（外部依存なし・テスト可能）。`robotdance_retarget/sdk_export.py` の `joint_velocities()`。
+
 ## [0.126.0] - 2026-06-07
 ### Added
 - README（en/ja）の "Supported robots" に **6機種横並び skeleton 図**（`assets/readme/six_embodiments.gif`）を追加。同一の canonical 動作を human + Unitree G1/H1/H2 · Booster T1 · Apptronik Apollo · Fourier N1 に retarget し、体格差（H1/H2/Apollo は full-size、G1/T1/N1 は compact）を可視化——reach error 表を絵で裏付ける。`demo-multi` 生成・license-safe（合成動作由来、ソース動画ピクセルなし）。

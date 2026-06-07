@@ -692,17 +692,18 @@ def _retarget_ik(path: Path, urdf: Path, out: Path, steps: int,
     return 0
 
 
-def _export_joints(path: Path, out: Path, fmt: str) -> int:
+def _export_joints(path: Path, out: Path, fmt: str, include_velocity: bool = False) -> int:
     from robotdance_retarget.sdk_export import export_joint_trajectory
 
     from .rd_motion import RdMotion
 
     motion = RdMotion.load(path)
-    export_joint_trajectory(motion, out, fmt=fmt)
+    export_joint_trajectory(motion, out, fmt=fmt, include_velocity=include_velocity)
     jr = motion.joint_rotations or {}
     names = jr.get("actuated_joint_names") or []
     n_frames = len(jr.get("angles_rad") or [])
-    print(f"✓ 関節角軌道を {fmt.upper()} で export → {out}")
+    vel_note = "＋角速度（rad/s）" if include_velocity else ""
+    print(f"✓ 関節角軌道{vel_note}を {fmt.upper()} で export → {out}")
     print(f"  robot={motion.robot_name} control={motion.control_mode} "
           f"joints={len(names)} frames={n_frames} fps={motion.fps}")
     print("  motor index = 列 index（実 URDF 定義順 = Unitree LowCmd 慣例）。"
@@ -1544,6 +1545,8 @@ def main(argv: list[str] | None = None) -> int:
     p_xj.add_argument("-o", "--out", type=Path, default=Path("g1_joints.csv"))
     p_xj.add_argument("--format", choices=["csv", "json"], default="csv", dest="fmt",
                       help="出力フォーマット（csv: time_s+関節角列 / json: fps・joint_names 付きメタ）")
+    p_xj.add_argument("--with-velocity", action="store_true",
+                      help="角速度列（d_<joint>, rad/s, 有限差分）を追加（実機の velocity feedforward 用）")
 
     p_urdf = sub.add_parser("import-urdf", help="実 URDF から実寸 RobotMorphology を構築する")
     p_urdf.add_argument("urdf", type=Path, help="URDF ファイル（例: g1_23dof.urdf）")
@@ -1868,7 +1871,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "retarget-ik":
         return _retarget_ik(args.path, args.urdf, args.out, args.steps, args.conf_gate)
     if args.command == "export-joints":
-        return _export_joints(args.path, args.out, args.fmt)
+        return _export_joints(args.path, args.out, args.fmt, args.with_velocity)
     if args.command == "import-urdf":
         return _import_urdf(args.urdf, args.name, args.save)
     if args.command == "train-encoder":

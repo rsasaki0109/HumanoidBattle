@@ -18,6 +18,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 from robotdance_core.rd_motion import RdMotion
 
 EXPORT_FORMATS = ("csv", "json")
@@ -42,31 +44,52 @@ def joint_trajectory(motion: RdMotion) -> tuple[list[str], list[list[float]]]:
     return list(names), [[float(x) for x in row] for row in angles]
 
 
-def export_joint_trajectory(motion: RdMotion, out: str | Path, *, fmt: str = "csv") -> Path:
-    """actuator 関節角を実機/シム SDK 向けに書き出す。
+def joint_velocities(frames: list[list[float]], fps: float) -> list[list[float]]:
+    """関節角時系列を有限差分して角速度（rad/s）を返す（端点は片側差分, 中央は中心差分）。
+
+    実機の position+velocity control で velocity feedforward に使える。1 フレームのみなら 0。
+    """
+    arr = np.asarray(frames, dtype=np.float64)
+    if arr.shape[0] < 2:
+        return [[0.0] * (arr.shape[1] if arr.ndim == 2 else 0) for _ in range(arr.shape[0])]
+    return (np.gradient(arr, axis=0) * fps).tolist()
+
+
+def export_joint_trajectory(motion: RdMotion, out: str | Path, *, fmt: str = "csv",
+                            include_velocity: bool = False) -> Path:
+    """actuator 関節角（と任意で角速度）を実機/シム SDK 向けに書き出す。
 
     fmt="csv": 1 行目 ``time_s,<joint...>``、以降 1 フレーム 1 行（時刻 = frame/fps、角度 rad）。
+        include_velocity=True で各関節の角速度列 ``d_<joint>``（rad/s, 有限差分）を後ろに付ける。
         コメント行を付けず最大互換（pandas / numpy / 各 SDK が素直に読める）。
     fmt="json": fps・units・joint_names を含むメタ付き（motor index = joint_names の index）。
+        include_velocity=True で ``velocities``（rad/s）を追加。
     """
     out = Path(out)
     if fmt not in EXPORT_FORMATS:
         raise ValueError(f"未知の format: {fmt}（{' | '.join(EXPORT_FORMATS)}）")
     names, frames = joint_trajectory(motion)
     fps = float(motion.fps)
+    vels = joint_velocities(frames, fps) if include_velocity else None
 
     if fmt == "csv":
         with out.open("w", newline="", encoding="utf-8") as f:
             w = csv.writer(f)
-            w.writerow(["time_s", *names])
+            header = ["time_s", *names]
+            if vels is not None:
+                header += [f"d_{n}" for n in names]
+            w.writerow(header)
             for i, row in enumerate(frames):
-                w.writerow([round(i / fps, 6), *row])
+                out_row = [round(i / fps, 6), *row]
+                if vels is not None:
+                    out_row += vels[i]
+                w.writerow(out_row)
     else:  # json
         doc: dict[str, Any] = {
             "format": "robotdance.joint_trajectory.v0",
             "robot": motion.robot_name,
             "control_mode": motion.control_mode,
-            "units": "rad",
+            "units": "rad, rad/s" if vels is not None else "rad",
             "fps": fps,
             "n_joints": len(names),
             "n_frames": len(frames),
@@ -78,5 +101,7 @@ def export_joint_trajectory(motion: RdMotion, out: str | Path, *, fmt: str = "cs
                 " 実機投入前に sim_certificate 等で検証すること。"
             ),
         }
+        if vels is not None:
+            doc["velocities"] = vels
         out.write_text(json.dumps(doc, indent=2), encoding="utf-8")
     return out

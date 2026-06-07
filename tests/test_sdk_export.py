@@ -115,3 +115,53 @@ def test_cli_export_joints_json(tmp_path):
     doc = json.loads(out.read_text(encoding="utf-8"))
     assert doc["joint_names"] == ["hip", "knee"]
     assert doc["frames"] == angles
+
+
+def test_joint_velocities_finite_difference():
+    from robotdance_retarget.sdk_export import joint_velocities
+
+    # 等速の角度列 → 全フレーム同じ角速度（col0=1.0, col1=2.0 rad/s）
+    v = joint_velocities([[0.0, 0.0], [0.1, 0.2], [0.2, 0.4]], fps=10.0)
+    flat = [x for row in v for x in row]
+    assert flat == pytest.approx([1.0, 2.0, 1.0, 2.0, 1.0, 2.0])
+
+
+def test_csv_export_with_velocity_columns(tmp_path):
+    angles = [[0.0, 0.0], [0.1, 0.2], [0.2, 0.4]]
+    m = _motion(["j0", "j1"], angles, fps=10.0)
+    out = export_joint_trajectory(m, tmp_path / "v.csv", fmt="csv", include_velocity=True)
+    with out.open(encoding="utf-8") as f:
+        rows = list(csv.reader(f))
+    assert rows[0] == ["time_s", "j0", "j1", "d_j0", "d_j1"]
+    assert all(len(r) == 1 + 2 + 2 for r in rows[1:])
+    assert [float(x) for x in rows[1][3:]] == pytest.approx([1.0, 2.0])
+
+
+def test_json_export_with_velocity(tmp_path):
+    m = _motion(["a", "b"], [[0.0, 0.0], [0.1, 0.2]], fps=10.0)
+    out = export_joint_trajectory(m, tmp_path / "v.json", fmt="json", include_velocity=True)
+    doc = json.loads(out.read_text(encoding="utf-8"))
+    assert doc["units"] == "rad, rad/s"
+    assert len(doc["velocities"]) == 2
+
+
+def test_export_without_velocity_omits_it(tmp_path):
+    m = _motion(["a"], [[0.1], [0.2]], fps=10.0)
+    doc = json.loads(
+        export_joint_trajectory(m, tmp_path / "n.json", fmt="json").read_text(encoding="utf-8"))
+    assert "velocities" not in doc
+    assert doc["units"] == "rad"
+
+
+def test_cli_export_joints_with_velocity(tmp_path):
+    from robotdance_core.cli import main
+
+    m = _motion(["hip", "knee"], [[0.0, 0.0], [0.1, 0.2], [0.2, 0.4]], fps=10.0)
+    src = tmp_path / "g.rdmotion.json"
+    m.save(src)
+    out = tmp_path / "g.csv"
+    rc = main(["export-joints", str(src), "-o", str(out), "--with-velocity"])
+    assert rc == 0
+    with out.open(encoding="utf-8") as f:
+        header = next(csv.reader(f))
+    assert "d_hip" in header and "d_knee" in header
