@@ -5,6 +5,17 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.109.0] - 2026-06-07
+
+### Added
+
+- ROS2 ノードの pause/seek/estop 配線を **CI テスト化**: `tests/test_ros2_node.py` が rclpy / msg
+  モジュールを sys.modules に偽注入してノードを import し、`/robotdance/pause`・`/seek`・`/estop`
+  コールバックがコアの `MotionServer.pause/resume/seek_phase` / `guard.estop` を駆動することを検証。
+- benchmark に **motion 別集計**（`aggregate_by_motion`）を追加。robot 別集計の双対で、機種を跨いだ
+  PASS 率・平均 torque×・平均 balance違反・最頻律速軸を motion ごとに集計し、Markdown leaderboard に
+  「motion 別集計」表として出力。**どの動作が全機種で難しいか（本質的難度）**を見分けられる。tests +3。計 339。
+
 ## [0.108.0] - 2026-06-07
 
 ### Added

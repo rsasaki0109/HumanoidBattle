@@ -52,6 +52,29 @@ def aggregate_by_robot(report: dict) -> list[dict]:
     return out
 
 
+def aggregate_by_motion(report: dict) -> list[dict]:
+    """motion ごとの集計（何機種が実行可能か / 平均 torque・balance / 最頻 律速軸）。
+
+    robot 別集計（aggregate_by_robot）の双対。**全機種で REJECT な動作（本質的に難しい）**と
+    **機種依存で可否が割れる動作**を見分けるための行。pass_rate は機種を跨いだ PASS 率。
+    """
+    out = []
+    for motion in report["motions"]:
+        rows = [r for r in report["rows"] if r["motion_id"] == motion]
+        verdicts = [r["verdict"] for r in rows if r["verdict"]]
+        passed = sum(1 for v in verdicts if v == "PASS")
+        out.append({
+            "motion_id": motion,
+            "motion_class": rows[0]["motion_class"] if rows else None,
+            "n_robots": len(rows),
+            "pass_rate": round(passed / len(verdicts), 3) if verdicts else None,
+            "mean_torque_ratio": _mean([r.get("torque_ratio") for r in rows]),
+            "mean_balance_violation": _mean([r.get("balance_violation_ratio") for r in rows]),
+            "top_binding_axis": _mode([r.get("binding_axis") for r in rows]),
+        })
+    return out
+
+
 def _mode(values: list[Any]) -> Optional[str]:
     """最頻値（機種の系統的な弱点軸）。None は除外。同数は最初に出た軸。"""
     counts: dict[str, int] = {}
@@ -92,6 +115,22 @@ def write_markdown(report: dict, path: str | Path, *, title: str = "RobotDance B
             f"{_fmt(a['mean_foot_sliding'])} | {_fmt(a['mean_height_scale'])} | "
             f"{_fmt(a.get('mean_flexion_violation'))} | {_fmt(a.get('mean_dynamic_torque_nm'))} | "
             f"{_fmt(a.get('top_binding_axis'))} |"
+        )
+
+    lines += [
+        "",
+        "## Leaderboard（motion 別集計）",
+        "",
+        "> pass率=機種を跨いだ PASS 率。低い動作ほど**どの機種でも難しい**（本質的難度）。",
+        "",
+        "| motion | class | robots | PASS率 | 平均 torque× | 平均 balance違反 | 最頻 律速軸 |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    for a in aggregate_by_motion(report):
+        lines.append(
+            f"| {a['motion_id']} | {_fmt(a['motion_class'])} | {a['n_robots']} | "
+            f"{_fmt(a['pass_rate'])} | {_fmt(a['mean_torque_ratio'])} | "
+            f"{_fmt(a['mean_balance_violation'])} | {_fmt(a['top_binding_axis'])} |"
         )
 
     lines += [

@@ -9,8 +9,24 @@ import csv
 
 import pytest
 
-from robotdance_benchmarks.report import aggregate_by_robot, write_csv, write_markdown
+from robotdance_benchmarks.report import (
+    aggregate_by_motion,
+    aggregate_by_robot,
+    write_csv,
+    write_markdown,
+)
 from robotdance_benchmarks.suite import default_motion_suite, run_benchmark
+
+
+def test_aggregate_by_motion_covers_all_motions() -> None:
+    """motion 別集計が各 motion を 1 行で返し、機種を跨いだ pass_rate を持つ。"""
+    suite = default_motion_suite()
+    report = run_benchmark(suite, ["unitree_g1", "unitree_h1"], with_sim=False)
+    agg = aggregate_by_motion(report)
+    assert {a["motion_id"] for a in agg} == set(suite)
+    for a in agg:
+        assert a["n_robots"] == 2  # G1 + H1
+        assert "mean_torque_ratio" in a and "top_binding_axis" in a
 
 
 def test_default_suite_has_variety() -> None:
@@ -48,6 +64,7 @@ def test_write_csv_and_markdown(tmp_path) -> None:
     assert "Leaderboard" in md and "unitree_g1" in md
     assert "屈曲違反" in md  # leaderboard / 全 run 表に屈曲列が出る
     assert "重力tq" in md and "動的tq" in md  # トルク分離列が leaderboard に出る
+    assert "motion 別集計" in md  # motion 別 leaderboard が出る
 
 
 def test_dynamic_torque_propagates_to_benchmark() -> None:
