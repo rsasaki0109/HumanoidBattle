@@ -156,6 +156,37 @@ class MotionIndex:
                 break
         return out
 
+    def query_text(self, text: str, k: int = 5,
+                   where: "callable | None" = None) -> list[tuple[str, float]]:
+        """自然言語 query に近い motion を、各 entry の `action_label` との **概念正規化テキスト
+        類似度**で返す（学習チェックポイント不要のゼロ依存 text→motion 検索）。
+
+        query と label を `robotdance_models.text.text_features`（同義語・語形を概念トークンへ
+        畳む, v0.116）で L2 正規化ベクトル化し cosine で順位付けする。"jog" の query が
+        "running in place" ラベルに当たるなど、未学習の言い換えにも頑健。label を持たない entry は
+        対象外。contrastive の学習 text→motion（`search-text`）とは別系統の軽量・決定的な検索。
+
+        where: メタデータ dict を受け取り bool を返す述語（True の候補のみ対象）。
+        """
+        from robotdance_models.text import text_features
+
+        q = text_features(text)
+        if not np.any(q):
+            return []
+        scored: list[tuple[str, float]] = []
+        for i, meta in enumerate(self._meta):
+            if where is not None and not where(meta):
+                continue
+            label = meta.get("action_label")
+            if not label:
+                continue
+            lv = text_features(str(label))
+            if not np.any(lv):
+                continue
+            scored.append((self.ids[i], float(q @ lv)))  # 両者 L2 正規化済み → dot=cosine
+        scored.sort(key=lambda t: t[1], reverse=True)
+        return [s for s in scored if s[1] > 0.0][:k]
+
     def duplicates(self, threshold: float = 0.98) -> list[tuple[str, str, float]]:
         """cosine 類似度が threshold 以上のペア（near-duplicate）を返す。"""
         if len(self._raw) < 2:

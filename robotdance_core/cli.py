@@ -395,11 +395,19 @@ def _pose_compare(video: Path, out: Path | None, stride: int, width: int) -> int
     return 0
 
 
-def _search_motion(query_path: Path, corpus: Path, k: int, healthy_only: bool,
-                   encoder: Path | None = None) -> int:
-    """query RD-MIR に似た motion を corpus ディレクトリから検索する（quality-aware / 学習encoder可）。"""
+def _search_motion(query_path: Path | None, corpus: Path, k: int, healthy_only: bool,
+                   encoder: Path | None = None, text: str | None = None) -> int:
+    """query に似た motion を corpus ディレクトリから検索する（quality-aware / 学習encoder可）。
+
+    query_path 指定で motion→motion（embedding 類似）、--text 指定で自然言語→motion
+    （action_label との概念正規化テキスト類似, 学習不要）。
+    """
     from .rd_mir import RdMir
     from robotdance_motion.embeddings import MotionIndex, embed
+
+    if text is None and query_path is None:
+        print("🔎 search-motion: クエリ RD-MIR か --text のどちらかが必要です")
+        return 2
 
     embed_fn = embed
     enc_tag = "handcrafted"
@@ -424,11 +432,15 @@ def _search_motion(query_path: Path, corpus: Path, k: int, healthy_only: bool,
         print(f"🔎 search-motion: {corpus} に索引可能な RD-MIR がありません")
         return 0
 
-    qmir = RdMir.load(query_path)
     where = (lambda m: m.get("health") == "ok") if healthy_only else None
-    hits = idx.query(embed_fn(qmir), k=k, where=where)
+    if text is not None:
+        hits = idx.query_text(text, k=k, where=where)
+        qdesc, enc_tag = f'"{text}"', "concept-text"
+    else:
+        hits = idx.query(embed_fn(RdMir.load(query_path)), k=k, where=where)
+        qdesc = f"'{query_path.name}'"
     tag = "（healthy のみ）" if healthy_only else ""
-    print(f"🔎 search-motion: '{query_path.name}' に近い {len(hits)} 件{tag}"
+    print(f"🔎 search-motion: {qdesc} に近い {len(hits)} 件{tag}"
           f"（索引 {loaded} 本・encoder={enc_tag}）")
     for mid, sim in hits:
         label = idx.meta_of(mid).get("action_label") or "-"
@@ -1644,9 +1656,13 @@ def main(argv: list[str] | None = None) -> int:
 
     p_sm = sub.add_parser("search-motion",
                           help="query RD-MIR に似た motion を corpus から検索（--healthy-only で品質絞り込み）")
-    p_sm.add_argument("query", type=Path, help="クエリ RD-MIR (.json)")
+    p_sm.add_argument("query", type=Path, nargs="?", default=None,
+                      help="クエリ RD-MIR (.json)。--text 使用時は不要")
     p_sm.add_argument("corpus", type=Path, help="検索対象の RD-MIR を含むディレクトリ")
     p_sm.add_argument("-k", type=int, default=5, help="返す件数")
+    p_sm.add_argument("--text", default=None,
+                      help='自然言語で検索（例 "doing a backflip"）。各 motion の action_label と概念正規化'
+                           'テキスト類似で照合（学習チェックポイント不要・決定的）')
     p_sm.add_argument("--healthy-only", action="store_true",
                       help="motion-doctor で健全（warn 無し）な motion のみ返す")
     p_sm.add_argument("--encoder", type=Path, default=None,
@@ -1874,7 +1890,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "specs":
         return _list_specs()
     if args.command == "search-motion":
-        return _search_motion(args.query, args.corpus, args.k, args.healthy_only, args.encoder)
+        return _search_motion(args.query, args.corpus, args.k, args.healthy_only, args.encoder,
+                              args.text)
     if args.command == "pose-compare":
         return _pose_compare(args.video, args.out, args.stride, args.width)
     if args.command == "import-humanml3d":

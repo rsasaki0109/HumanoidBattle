@@ -5,6 +5,18 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.120.0] - 2026-06-07
+
+### Added
+
+- **ゼロ依存の text→motion 検索**: `MotionIndex.query_text(text, k, where)` と CLI
+  `search-motion --text "<query>"`。各 motion の `action_label` と query を v0.116 の**概念正規化
+  テキスト特徴**でベクトル化し cosine で順位付けする。学習チェックポイント不要・決定的・torch 非依存で、
+  "doing a somersault"→backflip、"upbeat dance"→energetic dance、"crouch low"→squat のように
+  **未学習の言い換え**にも当たる。contrastive の学習 text→motion（`search-text`）とは別系統の軽量版。
+  `search-motion` の query 位置引数は `--text` 使用時は省略可。
+- `tests/test_embeddings.py` に `query_text` ユニット + CLI `--text` の縦スライステスト（CI 実行）。
+
 ## [0.119.0] - 2026-06-07
 
 ### Added

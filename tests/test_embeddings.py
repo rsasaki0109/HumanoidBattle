@@ -108,6 +108,32 @@ def test_query_where_filters_by_metadata() -> None:
     assert "bad" in [r[0] for r in idx.query(q, k=5)]
 
 
+def test_query_text_matches_labels_with_concept_normalization() -> None:
+    """query_text: 概念正規化テキスト類似で action_label を引く。未学習の言い換えにも頑健。"""
+    idx = MotionIndex()
+    labels = {
+        "flip1": "an acrobatic backflip",
+        "dance1": "a person dancing energetically",
+        "idle1": "standing still",
+    }
+    for mid, lab in labels.items():
+        mir = generate_dance(beats_per_second=1.0)
+        mir.motion_id = mid
+        idx.add(mid, embed(mir), meta={"action_label": lab})
+
+    # 言い換え query が正しい label を top-1 で引く（jog/somersault/upbeat 等は学習不要で概念一致）。
+    assert idx.query_text("doing a somersault", k=1)[0][0] == "flip1"
+    assert idx.query_text("an upbeat groovy dance", k=1)[0][0] == "dance1"
+    assert idx.query_text("a person standing motionless", k=1)[0][0] == "idle1"
+    # label を持たない entry は対象外、空 query は空結果。
+    idx.add("nolabel", embed(generate_dance()), meta={})
+    assert "nolabel" not in [r[0] for r in idx.query_text("dance", k=5)]
+    assert idx.query_text("", k=5) == []
+    # where 述語で絞り込める。
+    hits = idx.query_text("dance", k=5, where=lambda m: m.get("action_label") != labels["dance1"])
+    assert "dance1" not in [r[0] for r in hits]
+
+
 def test_add_mir_diagnose_stores_health() -> None:
     from robotdance_core.synthetic import generate_squat
 
@@ -136,6 +162,29 @@ def test_cli_search_motion_healthy_only(tmp_path) -> None:
     assert main(["search-motion", str(tmp_path / "q.json"), str(corpus), "-k", "2"]) == 0
     assert main(["search-motion", str(tmp_path / "q.json"), str(corpus),
                  "--healthy-only"]) == 0
+
+
+def test_cli_search_motion_by_text(tmp_path, capsys) -> None:
+    """CLI search-motion --text: 自然言語で action_label を概念照合して引く（学習不要）。"""
+    from robotdance_core.cli import main
+    from robotdance_core.synthetic import generate_backflip, generate_dance
+
+    corpus = tmp_path / "corpus"
+    corpus.mkdir()
+    specs = [("flip", generate_backflip(duration=1.4), "an acrobatic backflip"),
+             ("groove", generate_dance(beats_per_second=1.4), "energetic dancing")]
+    for mid, m, label in specs:
+        m.motion_id = mid
+        m.semantics = {**(m.semantics or {}), "action_label": label}
+        m.save(corpus / f"{mid}.json")
+
+    # query 位置引数なしで --text のみ。言い換え "somersault" が backflip を引く。
+    assert main(["search-motion", str(corpus), "--text", "doing a somersault", "-k", "2"]) == 0
+    out = capsys.readouterr().out
+    # 上位行に flip が含まれる（概念正規化で somersault→flip 一致）。
+    assert "flip" in out
+    # query も --text も無ければ rc=2。
+    assert main(["search-motion", str(corpus)]) == 2
 
 
 def test_cli_search_motion_with_learned_encoder(tmp_path) -> None:
