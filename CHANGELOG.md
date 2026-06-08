@@ -5,6 +5,10 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.130.1] - 2026-06-08
+### Fixed
+- `balance_depth_refine`: せん断 `x'=x+k·z` が**絶対 z** を使っていたため、接地正規化されていない入力（`--ground-clean` 未適用や床が z=0 でない生抽出）で接地足が x に引きずられ、支持多角形が動いて COM-gap 計算が汚染されていた（床+1.0m で足の x 移動が接地時の約9倍）。**床上高さ `z−floor`**（per-frame 最下足）でせん断するよう修正し、床オフセットに不変化。接地足の z 接触高さ算出は `grounding._foot_floor_z` に集約（重複解消）。contacts の per-frame array 変換を事前に一度だけに（O(T²)→O(T)）。回帰テスト追加（コードレビューで検出）。
+
 ## [0.130.0] - 2026-06-08
 ### Added
 - `validate-sim --balance-refine`: 単眼で ill-posed な**前後 x（深度）だけ**を quasi-static balance prior（接地動作なら COM_x は支持多角形の x 重心近傍にあるべき）で精緻化。観測できている横 y・高さ z の画像面は**厳密に凍結**し、x-z せん断（足首ピボットの前後リーン近似）で COM を支持上へ寄せる。`com_support_x_gap_before/after` と**誘発 bone 長歪み**を正直に報告。合成 squat で MIR 空間 gap 0.27→0.14 m・retarget 後のロボット空間 pelvis-支持 gap 0.055→0.020 m（誘発歪み 0.7–2.3%）。**violation を隠す過平滑 gimmick ではなく、本質的に未観測な深度自由度を物理事前分布で解く**——README の「深度律速 frontier」への第一歩。`robotdance_motion/depth_refine.py` の `balance_depth_refine()`。

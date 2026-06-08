@@ -73,6 +73,23 @@ def test_refine_does_not_mutate_input() -> None:
     assert np.array_equal(mir.keypoints_3d_array(), before)  # deep copy
 
 
+def test_refine_invariant_to_floor_offset() -> None:
+    # 床上高さ(z−floor)でせん断するので、全身を一定 z だけ持ち上げても補正後 x は不変（接地正規化
+    # されていない入力でも接地足がアンカーを保つ）。回帰: 以前は絶対 z を使い足が引きずられた。
+    base = _lean_forward(generate_squat(duration=2.0), dx=0.25)
+    kb = base.keypoints_3d_array()
+
+    lifted = base.model_copy(deep=True)
+    kl = kb.copy()
+    kl[:, :, 2] += 1.0  # 床を z=1.0 へオフセット（--ground-clean 未適用を模す）
+    lifted.keypoints_3d = kl.tolist()
+
+    rb = balance_depth_refine(base, strength=0.6, smooth=False).keypoints_3d_array()
+    rl = balance_depth_refine(lifted, strength=0.6, smooth=False).keypoints_3d_array()
+    # x 補正量は床オフセットに依らず一致する。
+    assert np.allclose(rb[:, :, 0], rl[:, :, 0], atol=1e-9)
+
+
 def test_mass_weights_normalized() -> None:
     w = _mass_weights()
     assert abs(float(w.sum()) - 1.0) < 1e-9

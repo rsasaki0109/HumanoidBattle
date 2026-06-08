@@ -30,6 +30,7 @@ import numpy as np
 
 from robotdance_core.rd_mir import RdMir
 from robotdance_core.skeleton import BONES, FOOT_JOINTS, JOINT_NAMES, index_of
+from robotdance_motion.grounding import _foot_floor_z
 from robotdance_motion.smoothing import savgol_smooth
 
 # anthropometric segment 質量比（Winter, Biomechanics 近似）を canonical 19 joint に集中質点として
@@ -90,34 +91,39 @@ def balance_depth_refine(
     before = kps.copy()
     w = _mass_weights()                    # [J]
 
-    # 接地判定: 既存 contacts があればそれを、無ければ最下足 + band で再生成。
-    contacts = out.contacts or {}
-    if not contacts:
-        fl = np.minimum(
-            np.minimum(kps[:, index_of("left_ankle"), 2], kps[:, index_of("left_foot"), 2]),
-            np.minimum(kps[:, index_of("right_ankle"), 2], kps[:, index_of("right_foot"), 2]),
-        )
-        contacts = {
-            f"{s}_foot": (np.minimum(kps[:, index_of(f"{s}_ankle"), 2],
-                                     kps[:, index_of(f"{s}_foot"), 2]) - fl < contact_band).tolist()
-            for s in ("left", "right")
-        }
+    # 床高さ（per-frame の最下足 z）。接地足の z 接触高さは grounding._foot_floor_z に集約。
+    foot_z = _foot_floor_z(kps)                               # {side: [T]}
+    floor = np.minimum(foot_z["left"], foot_z["right"])       # [T]
 
-    z = np.clip(kps[:, :, 2], 0.0, None)   # 床下は 0 にクランプ（接地足は動かさない）
-    com_x = (kps[:, :, 0] * w[None, :]).sum(axis=1)            # [T]
+    # 接地判定: 既存 contacts があればそれを、無ければ最下足 + band で再生成。[T] bool 配列に正規化。
+    src = out.contacts or {}
+    if src:
+        contact_arr = {key: np.asarray(v, dtype=bool) for key, v in src.items()}
+    else:
+        contact_arr = {f"{s}_foot": (foot_z[s] - floor < contact_band) for s in ("left", "right")}
+
+    # 入力が接地正規化されていなくても床上高さ（z − floor）でせん断する。これにより床が z=0 で
+    # ない（--ground-clean 未適用や生抽出）入力でも接地足(z≈floor)は不動を保つ＝足首ピボットの
+    # 前後リーン近似が成立する。床下は 0 にクランプ。
+    z = np.clip(kps[:, :, 2] - floor[:, None], 0.0, None)     # [T, J] 床上高さ
+    com_x = (kps[:, :, 0] * w[None, :]).sum(axis=1)           # [T]
+
+    def _support_x(f: int) -> float | None:
+        cf = {key: bool(arr[f]) for key, arr in contact_arr.items()}
+        return _support_center_x(kps[f], cf)
+
     gap_before: list[float] = []
     gap_after: list[float] = []
     k = np.zeros(n)
     grounded = 0
     for f in range(n):
-        cf = {key: bool(np.asarray(v)[f]) for key, v in contacts.items()}
-        sx = _support_center_x(kps[f], cf)
+        sx = _support_x(f)
         if sx is None:        # airborne: 補正対象外
             continue
         grounded += 1
         gap_before.append(abs(com_x[f] - sx))
         target_shift = strength * (sx - com_x[f])             # COM_x をこれだけ動かしたい
-        denom = float((w * z[f]).sum())                       # Σ w_j z_j（せん断の COM 感度）
+        denom = float((w * z[f]).sum())                       # Σ w_j (z_j−floor)（せん断の COM 感度）
         if denom > 1e-6:
             k[f] = float(np.clip(target_shift / denom, -max_shear, max_shear))
 
@@ -126,14 +132,13 @@ def balance_depth_refine(
         ks = savgol_smooth(k.reshape(-1, 1, 1)).reshape(-1)
         k = ks
 
-    # x' = x + k·z（y,z は不変）。床の接地足(z≈0)はほぼ不動。
+    # x' = x + k·(z−floor)（y,z は不変）。床の接地足(z≈floor)はほぼ不動。
     kps[:, :, 0] = kps[:, :, 0] + k[:, None] * z
 
-    # 補正後の COM_x で残差 gap を測る。
+    # 補正後の COM_x で残差 gap を測る（support_x は接地足 x — せん断後の値で再評価）。
     com_x2 = (kps[:, :, 0] * w[None, :]).sum(axis=1)
     for f in range(n):
-        cf = {key: bool(np.asarray(v)[f]) for key, v in contacts.items()}
-        sx = _support_center_x(kps[f], cf)
+        sx = _support_x(f)
         if sx is not None:
             gap_after.append(abs(com_x2[f] - sx))
 
