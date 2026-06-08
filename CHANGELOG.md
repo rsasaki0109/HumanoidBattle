@@ -5,6 +5,10 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.138.0] - 2026-06-08
+### Added
+- **🥊 `demo-fight` — シミュレータで実際に殴り合う**: 2 体を同じ MuJoCo シーンに対面配置（MjSpec.attach・赤/青コーナー・ライト/影）し、合成ボクシングコンビ（ガード→ジャブ→クロス→フック）を再生、拳が相手の頭/胸/みぞおちに届いたらヒット判定してライブスコア HUD 付き GIF を出力。**正直な範囲**: kinematic playback（毎フレーム qpos→`mj_forward`、倒れない）＋幾何ヒット判定（接触力ではない）——完全 forward dynamics は未解決バランスで両者倒れるため。G1 vs H1 は背の高い H1 がリーチで 10–6、低い G1 はボディ打ちで応戦（背の低い側も当てられるよう低い的＋z 弱め重み）。`robotdance_sim/arena.py`（`generate_boxing`/`run_fight`/`FightResult`）、`demo-fight` CLI、README に 🥊 サブセクション + fight GIF。描画は EGL（`MUJOCO_GL=egl`, sim extra）、テストは render=False でスコアリングを検証。
+
 ## [0.137.0] - 2026-06-08
 ### Added
 - **HumanoidBattle をゲーム化（`demo-tournament` ＋ best-of-N マッチ ＋ 技難度）**: 1 ラウンド=1 技で、難しい技ほど高配点（backflip ×1.4・squat ×1.15）だが、自分の体で物理的に無理な技は feasibility 項が落ちて *whiff*＝リスク/リターン。1 マッチは best-of-3（毎ラウンド別技）で万能な体が勝つ。全機種を単欠トーナメントで対戦し**チャンピオン**を決定（既定 6 体, 評価キャッシュ共有）。**チャンピオン: Fourier N1**（人間に近い四肢比率→reach 最小→全技を最もきれいに実行、決勝で backflip 60 vs 51 で G1 を下す）。全ブラケットはコンソール出力、決勝ラウンドを GIF 描画。`robotdance_benchmarks/battle.py` に `Move`/`evaluate`/`play_match`/`run_tournament`/`DIFFICULTY`、`demo-tournament` CLI、README に 🏆 セクション + tournament GIF。

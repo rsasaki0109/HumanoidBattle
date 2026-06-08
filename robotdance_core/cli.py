@@ -1585,6 +1585,55 @@ def _demo_tournament(robots: list[str], moves: list[str], out: Path, stride: int
     return 0
 
 
+def _demo_fight(robot_a: str, robot_b: str, out: Path, duration: float, sep: float) -> int:
+    """🥊 2 体を MuJoCo シーンで実際にボクシングさせ、ヒットを採点した GIF を書き出す。"""
+    import imageio.v2 as imageio
+
+    from robotdance_sim.arena import run_fight
+    from robotdance_unitree import get_morphology
+
+    res = run_fight(get_morphology(robot_a), get_morphology(robot_b),
+                    name_a=robot_a, name_b=robot_b, duration=duration, separation=sep)
+    frames = _fight_hud(res)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    imageio.mimsave(out, frames[::2], duration=2.0 / res.fps, loop=0)
+    print(f"🥊 HumanoidBattle FIGHT: {robot_a} (RED) vs {robot_b} (BLUE)")
+    print(f"   ヒット {robot_a}={res.p1_hits}  {robot_b}={res.p2_hits}  "
+          f"→ {'引き分け' if res.winner == 'DRAW' else 'WINNER: ' + res.winner}")
+    print(f"✓ fight GIF → {out} ({out.stat().st_size // 1024} KB)")
+    return 0
+
+
+def _fight_hud(res):
+    """各フレーム上部にコーナー名＋ライブ累積スコア、最終フレームに WINNER を焼き込む。"""
+    import cv2
+    import numpy as np
+
+    red, blue = (210, 60, 60), (60, 130, 210)  # RGB 画像に描く（赤コーナー / 青コーナー）
+    out = []
+    n = len(res.frames)
+    for i, fr in enumerate(res.frames):
+        img = np.ascontiguousarray(fr[:, :, :3])
+        h, w = img.shape[:2]
+        bar = np.full((34, w, 3), 22, np.uint8)
+        s1 = res.p1_cum[i] if i < len(res.p1_cum) else res.p1_hits
+        s2 = res.p2_cum[i] if i < len(res.p2_cum) else res.p2_hits
+        cv2.putText(bar, f"{res.p1}", (8, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.5, red, 1, cv2.LINE_AA)
+        cv2.putText(bar, f"{s1} - {s2}", (w // 2 - 26, 23), cv2.FONT_HERSHEY_SIMPLEX, 0.6,
+                    (240, 240, 240), 2, cv2.LINE_AA)
+        tw = cv2.getTextSize(res.p2, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)[0][0]
+        cv2.putText(bar, f"{res.p2}", (w - tw - 8, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.5, blue, 1,
+                    cv2.LINE_AA)
+        img = np.vstack([bar, img])
+        if i > n - max(8, n // 6) and res.winner != "DRAW":  # 終盤に WINNER を表示
+            txt = f"WINNER: {res.winner}"
+            tw = cv2.getTextSize(txt, cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2)[0][0]
+            cv2.putText(img, txt, ((w - tw) // 2, h // 2), cv2.FONT_HERSHEY_SIMPLEX, 0.8,
+                        (40, 220, 90), 2, cv2.LINE_AA)
+        out.append(img)
+    return out
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="robotdance", description="RobotDance core CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -1649,6 +1698,15 @@ def main(argv: list[str] | None = None) -> int:
     p_tour.add_argument("-o", "--out", type=Path, default=Path("tournament_final.gif"))
     p_tour.add_argument("--stride", type=int, default=2)
     p_tour.add_argument("--sim", action="store_true", help="物理 sim も採点に含める（重い）")
+
+    p_fight = sub.add_parser(
+        "demo-fight",
+        help="🥊 2 体を MuJoCo シーンで実際にボクシングさせヒット採点（要 sim extra, EGL 描画）")
+    p_fight.add_argument("--p1", default="unitree_g1", help="赤コーナー robot")
+    p_fight.add_argument("--p2", default="unitree_h1", help="青コーナー robot")
+    p_fight.add_argument("-o", "--out", type=Path, default=Path("fight.gif"))
+    p_fight.add_argument("--duration", type=float, default=4.0)
+    p_fight.add_argument("--separation", type=float, default=0.17, help="両者の間合い[m]（半距離）")
 
     p_serve = sub.add_parser("serve", help=".rdmotion を safety guard 越しに再生（--ros2 で ROS2 配信）")
     p_serve.add_argument("rdmotion", type=Path, help="certified .rdmotion JSON")
@@ -2003,6 +2061,8 @@ def main(argv: list[str] | None = None) -> int:
         return _demo_battle(args.p1, args.p2, args.out, args.stride, args.sim)
     if args.command == "demo-tournament":
         return _demo_tournament(args.robots, args.moves, args.out, args.stride, args.sim)
+    if args.command == "demo-fight":
+        return _demo_fight(args.p1, args.p2, args.out, args.duration, args.separation)
     if args.command == "validate-sim":
         return _validate_sim(args.path, args.robot, args.out, args.backend, args.clamp_flexion,
                              args.balance_plot, args.ground_clean, args.lock_foot_xy,

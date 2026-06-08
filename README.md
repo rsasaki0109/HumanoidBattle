@@ -38,6 +38,14 @@ Two humanoids, one kata, and a winner decided by **how well each body actually e
 
 <sub><code>robotdance demo-tournament</code> — all six humanoids enter, best-of-3 (kata / squat / backflip), single-elimination. **Champion: Fourier N1** — its near-human limb proportions give the lowest reach error, so it executes every move the cleanest and beats G1 in the final on the backflip (60 vs 51). The whole bracket is decided by real metrics; the GIF is the championship round. (Print the full bracket in the console; `--sim` adds physics scoring.)</sub>
 
+#### 🥊 …and an actual fight in the simulator
+
+The scored face-offs above are kinematic. This one puts **two humanoids in the same MuJoCo scene**, throws boxing combinations, and registers a hit when a fist reaches the opponent's head or body:
+
+<img src="assets/readme/fight.gif" width="480" alt="Two humanoids boxing in a MuJoCo scene: red Unitree G1 vs blue Unitree H1, with a live hit counter; H1 wins on reach">
+
+<sub><code>robotdance demo-fight --p1 unitree_g1 --p2 unitree_h1</code> — red corner vs blue corner, rendered in MuJoCo with a live hit counter. The taller **H1 wins 10–6 on reach**; the shorter G1 answers with body shots. <b>Honest scope:</b> motion is kinematic playback (each frame's pose is set, then `mj_forward`) so the fighters stay upright — full contact dynamics would just make them fall, which is the same unsolved balance frontier the physics gate flags. Hits are geometric (fist↔head/torso distance), not contact forces. It's a choreographed bout in the real 3D engine — the next step toward true contact sparring.</sub>
+
 ### 🎬 Many motions × three robots
 
 <table>
@@ -212,7 +220,7 @@ Inputs (synthetic / real video / mocap) → RD-MIR → the pipeline below. See `
 | extraction | `extract` (`--backend`, `--stabilize-depth`) `import-hmr` `import-humanml3d` `import-babel` `import-motionx` `download-hf` (HF Hub fetch → import-*, license-safe alt to YouTube/TikTok) `smooth` `overlay` |
 | pose backends & QC | `list-backends` (mediapipe / 2D+lift / gvhmr·wham) `pose-compare` `motion-doctor` (mirror/depth/grounding) |
 | dataset | `build-dataset` (RD-Manifest + license firewall / Data BOM) `dedupe-dir` |
-| retarget | `retarget` `retarget-ik` (real G1 23 joint angles, end-effector-weighted, `--conf-gate` occlusion guard) `export-joints` (joint-angle + optional `--with-velocity` CSV/JSON for real-robot/sim SDKs) `list-retargeters` (builtin / GMR) `demo-multi` (G1/H1/H2/T1/Apollo/N1) `demo-battle` (⚔️ 1v1 execution face-off, metric-scored) `demo-tournament` (🏆 single-elim bracket → champion) |
+| retarget | `retarget` `retarget-ik` (real G1 23 joint angles, end-effector-weighted, `--conf-gate` occlusion guard) `export-joints` (joint-angle + optional `--with-velocity` CSV/JSON for real-robot/sim SDKs) `list-retargeters` (builtin / GMR) `demo-multi` (G1/H1/H2/T1/Apollo/N1) `demo-battle` (⚔️ 1v1 execution face-off, metric-scored) `demo-tournament` (🏆 single-elim bracket → champion) `demo-fight` (🥊 two humanoids boxing in MuJoCo, hit-scored) |
 | physics check | `validate-sim` (sim_certificate, MuJoCo) `--ground-clean` `--balance-refine` `--balance-plot` `sim-backends` |
 | embedding & search | `demo-motion-map` `train-encoder` `train-text-motion` `search-text` `search-motion` (`--text` zero-dep concept search, `--healthy-only` quality-aware) |
 | generation | `train-tokenizer` (VQ-VAE) `train-prior` `demo-generate` `train-text2motion` `generate-text` `train-denoiser` |
