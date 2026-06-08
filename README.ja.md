@@ -16,13 +16,17 @@
 
 **[▶ Colab で今すぐ試す](https://colab.research.google.com/github/rsasaki0109/HumanoidBattle/blob/main/notebooks/quickstart.ipynb)** — インストール不要・約2分で「1つの動き → 6体のヒューマノイド」。
 
-<img src="assets/readme/battle.gif" width="640" alt="HumanoidBattle: Unitree G1 vs H1 が同じ型を演じ採点、reach 精度で G1 が勝利">
+<img src="assets/readme/battle.gif" width="640" alt="HumanoidBattle: MuJoCo アリーナ — Unitree G1 vs H1 が実動画空手 motion で対戦、ライブヒットカウンタ付き">
 
-<sub><b>⚔️ 2 体・1 つの型・実 metrics で勝敗が決まる。</b> <code>robotdance demo-battle --p1 unitree_g1:kata --p2 unitree_h1:kata</code> — G1 (1.29m) が H1 (1.66m) を 80–79 で下す: 同じ型でも、低い体の方が基準 end-effector 目標を精密に突く（reach 55 vs 52）。スコアは RobotDance の<b>実 metrics</b>（reach・bone 一致・foot sliding・ROM、任意で MuJoCo balance/torque）だけ——乱数なし。スケルトン描画＝URDF も GPU も不要でどこでも動く（[Colab](https://colab.research.google.com/github/rsasaki0109/HumanoidBattle/blob/main/notebooks/quickstart.ipynb) でも）。</sub>
+<sub><b>⚔️ 2 体・1 リング・MuJoCo で本格バトル。</b> <code>robotdance demo-fight --p1 unitree_g1 --p2 unitree_h1 --style karate</code> — 赤 G1 (1.29m) vs 青 H1 (1.66m) が同一 MuJoCo シーンで対面、スコアがリアルタイムで伸びる。実動画の空手型 motion で <b>G1 が 10–6 勝利</b>。<code>--assisted --rl</code> でチャンピオン側だけ物理追従、<code>--mesh</code> で Unitree URDF メッシュ描画も可。<b>正直な範囲:</b> kinematic + 幾何ヒット（接触力は未対応）—— motion compiler の上に載せた「面白いフック」。</sub>
 
 ### ⚔️ HumanoidBattle — 1v1 実行品質バトル
 
 2 体のヒューマノイドが同じ型を演じ、**どちらの体がきれいに動きを再現できたか**で勝敗を決める。殴り合いではなく**型（演武）バトル**: スコアは RobotDance が算出する**実 metrics**（end-effector reach 誤差・bone 方向の一致・foot sliding・関節可動域、任意で MuJoCo の balance/torque）だけで合成され、**乱数は一切なし**。同じ技でも体格で点が変わるので、対戦は本物。
+
+<img src="assets/readme/battle_forms.gif" width="560" alt="HumanoidBattle: Unitree G1 vs H1 が同じ型を演じ採点、reach 精度で G1 が勝利">
+
+<sub><code>robotdance demo-battle --p1 unitree_g1:kata --p2 unitree_h1:kata</code> — G1 (1.29m) が H1 (1.66m) を 80–79 で下す（reach 55 vs 52）。スケルトン描画＝URDF も GPU も不要（[Colab](https://colab.research.google.com/github/rsasaki0109/HumanoidBattle/blob/main/notebooks/quickstart.ipynb) でも）。</sub>
 
 <img src="assets/readme/fight.gif" width="560" alt="HumanoidBattle: MuJoCo で 2 体がボクシング — 赤 Unitree G1 vs 青 Unitree H1、ライブヒットカウンタ付き">
 

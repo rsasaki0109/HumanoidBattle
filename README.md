@@ -16,13 +16,17 @@ English · [**日本語**](README.ja.md)
 
 **[▶ Try it now in Colab](https://colab.research.google.com/github/rsasaki0109/HumanoidBattle/blob/main/notebooks/quickstart.ipynb)** — zero install: one motion → six humanoids, in ~2 minutes.
 
-<img src="assets/readme/battle.gif" width="640" alt="HumanoidBattle: Unitree G1 vs H1 performing the same kata, scored, G1 wins on reach precision">
+<img src="assets/readme/battle.gif" width="640" alt="HumanoidBattle: MuJoCo arena — Unitree G1 vs H1 sparring with real karate video motion, live hit counter">
 
-<sub><b>⚔️ Two humanoids, one kata, real metrics decide the winner.</b> <code>robotdance demo-battle --p1 unitree_g1:kata --p2 unitree_h1:kata</code> — G1 (1.29m) edges H1 (1.66m) 80–79: same kata, but the shorter body hits the reference end-effector targets more precisely (reach 55 vs 52). Scores come from RobotDance's <b>real metrics</b> (reach, bone fidelity, foot sliding, ROM; optionally MuJoCo balance/torque) — no random numbers. Skeleton render — no URDF or GPU needed, so it runs anywhere (even in the [Colab](https://colab.research.google.com/github/rsasaki0109/HumanoidBattle/blob/main/notebooks/quickstart.ipynb)).</sub>
+<sub><b>⚔️ Two humanoids, one MuJoCo arena, live battle.</b> <code>robotdance demo-fight --p1 unitree_g1 --p2 unitree_h1 --style karate</code> — red G1 (1.29m) vs blue H1 (1.66m) in a shared MuJoCo scene with a running hit score. <b>G1 wins 10–6</b> on the real-video karate kata motion. Add <code>--assisted --rl</code> for champion-side physics tracking, or <code>--mesh</code> for Unitree URDF meshes. <b>Honest scope:</b> kinematic playback + geometric hits (not contact forces yet) — the fun hook on top of the motion compiler.</sub>
 
 ### ⚔️ HumanoidBattle — 1v1 execution face-off
 
 Two humanoids, one kata, and a winner decided by **how well each body actually executes the motion**. It's a forms battle, not a brawl: each fighter's score is composed entirely from RobotDance's **real metrics** (end-effector reach error, bone-direction fidelity, foot-sliding, joint-ROM feasibility, optionally MuJoCo balance/torque) — no random numbers. Different bodies score differently on the same move, so the matchup is genuine.
+
+<img src="assets/readme/battle_forms.gif" width="560" alt="HumanoidBattle: Unitree G1 vs H1 performing the same kata, scored, G1 wins on reach precision">
+
+<sub><code>robotdance demo-battle --p1 unitree_g1:kata --p2 unitree_h1:kata</code> — G1 (1.29m) edges H1 (1.66m) 80–79: same kata, but the shorter body hits the reference end-effector targets more precisely (reach 55 vs 52). Skeleton render — no URDF or GPU needed (runs in [Colab](https://colab.research.google.com/github/rsasaki0109/HumanoidBattle/blob/main/notebooks/quickstart.ipynb)).</sub>
 
 <img src="assets/readme/fight.gif" width="560" alt="HumanoidBattle: two humanoids boxing in MuJoCo — red Unitree G1 vs blue Unitree H1 with live hit counter">
 
