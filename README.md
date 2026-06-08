@@ -12,6 +12,9 @@ English · [**日本語**](README.ja.md)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 ![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
 ![ROS2](https://img.shields.io/badge/ROS2-Jazzy-22314E.svg)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/rsasaki0109/RobotDance/blob/main/notebooks/quickstart.ipynb)
+
+**[▶ Try it now in Colab](https://colab.research.google.com/github/rsasaki0109/RobotDance/blob/main/notebooks/quickstart.ipynb)** — zero install: one motion → six humanoids, in ~2 minutes.
 
 <img src="assets/readme/karate_hero.gif" width="840" alt="Real karate video with skeleton overlay, then Unitree G1, H1 and H2 reproducing the same kata in sync">
 

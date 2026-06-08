@@ -12,6 +12,9 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 ![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
 ![ROS2](https://img.shields.io/badge/ROS2-Jazzy-22314E.svg)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/rsasaki0109/RobotDance/blob/main/notebooks/quickstart.ipynb)
+
+**[▶ Colab で今すぐ試す](https://colab.research.google.com/github/rsasaki0109/RobotDance/blob/main/notebooks/quickstart.ipynb)** — インストール不要・約2分で「1つの動き → 6体のヒューマノイド」。
 
 <img src="assets/readme/karate_hero.gif" width="840" alt="実空手動画の骨格 overlay → Unitree G1・H1・H2 が同じ型を同期再現">
 

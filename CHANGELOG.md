@@ -5,6 +5,10 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.132.0] - 2026-06-08
+### Added
+- **Colab quickstart ノートブック**（`notebooks/quickstart.ipynb`）＋ README に「Open in Colab」badge と「▶ Try it now」リンク。インストール不要で `pip install "robotdance[demo] @ git+…"` → synth → canonical skeleton 描画 → **demo-multi（1つの動き → 6 体のヒューマノイド）** → retarget 指標を約2分でブラウザ実行。生動画/重依存（MediaPipe/MuJoCo）なしで核心の multi-embodiment retarget を体験させる zero-install な star 導線。ノートブックが CLI からドリフトしないよう軽量ガードテスト（参照サブコマンド・robot 名の実在チェック、`tests/test_quickstart_notebook.py`）を追加。
+
 ## [0.131.0] - 2026-06-08
 ### Changed
 - **README ヒーローを multi-embodiment 化**: 「1つの空手動画 → Unitree G1 (1.29m) / H1 (1.66m) / H2 (1.76m) が同じ型を**同期再現**」の 4 パネル GIF に刷新（実動画 overlay + 3 ロボット mesh、全て同一クリップ・同一 extract・同一 stride）。同じ動き・別体格の 3 体で multi-embodiment retarget を一目で伝える。
