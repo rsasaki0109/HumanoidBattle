@@ -8,6 +8,23 @@ from robotdance_retarget.backends import get_retarget_backend
 from robotdance_retarget.embodiment import RobotMorphology
 
 
+def check_retarget_backend_for_robots(robots: list[str], backend: str) -> None:
+    """Raise if *backend* cannot retarget all *robots* (GMR availability / robot map)."""
+    if backend == "kinematic":
+        return
+    from robotdance_retarget.gmr_backend import ROBOT_TO_GMR, gmr_available, gmr_install_hint
+
+    if not gmr_available():
+        raise RuntimeError(
+            "retarget backend 'gmr' が未導入です。\n" + gmr_install_hint()
+        )
+    bad = [r for r in robots if r not in ROBOT_TO_GMR]
+    if bad:
+        raise ValueError(
+            f"GMR retarget 未対応ロボット: {', '.join(sorted(set(bad)))}"
+        )
+
+
 def retarget_with_backend(
     mir: RdMir,
     morphology: RobotMorphology,
@@ -34,4 +51,4 @@ def retarget_with_backend(
     raise ValueError(f"retarget backend '{backend}' は実行未配線です")
 
 
-__all__ = ["retarget_with_backend"]
+__all__ = ["check_retarget_backend_for_robots", "retarget_with_backend"]

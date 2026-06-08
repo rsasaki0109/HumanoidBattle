@@ -1650,13 +1650,26 @@ def _demo_battle(p1: str, p2: str, out: Path, stride: int, sim: bool) -> int:
     return 0
 
 
+def _check_fight_retarget_backend(robots: list[str], backend: str) -> int | None:
+    """GMR 等の事前検証。失敗時はメッセージを表示して 1 を返す。"""
+    from robotdance_retarget.dispatch import check_retarget_backend_for_robots
+
+    try:
+        check_retarget_backend_for_robots(robots, backend)
+    except (RuntimeError, ValueError) as exc:
+        print(f"✗ {exc}")
+        return 1
+    return None
+
+
 def _demo_tournament(robots: list[str], moves: list[str], out: Path, stride: int,
                      sim: bool, *, physical: bool = False, duration: float = 4.0,
                      separation: float = 0.17, mesh: bool = False,
                      urdf_a: Path | None = None, urdf_b: Path | None = None,
                      record: bool = False, leaderboard: Path | None = None,
                      assisted: str | None = None, assisted_rl: bool = False,
-                     rl_iterations: int = 20, depth_refine: bool = False) -> int:
+                     rl_iterations: int = 20, depth_refine: bool = False,
+                     retarget_backend: str = "kinematic") -> int:
     """🏆 HumanoidBattle トーナメント: 単欠ブラケット→チャンピオン（型採点 or 物理 fight）。"""
     labels = ["準々決勝", "準決勝", "決勝"]
 
@@ -1711,13 +1724,15 @@ def _demo_tournament(robots: list[str], moves: list[str], out: Path, stride: int
         assisted_corner = resolve_assisted_corner(
             assisted, champion=t.champion, p1=f.p1, p2=f.p2,
         )
+        if err := _check_fight_retarget_backend([f.p1, f.p2], retarget_backend):
+            return err
         fin = run_fight(
             get_morphology(f.p1), get_morphology(f.p2),
             name_a=f.p1, name_b=f.p2, duration=duration, separation=separation,
             style=f.hi_style, mesh=mesh,
             urdf_a=str(urdf_a) if urdf_a else None,
             urdf_b=str(urdf_b) if urdf_b else None,
-            depth_refine=depth_refine,
+            depth_refine=depth_refine, retarget_backend=retarget_backend,
             assisted=assisted_corner,
             assisted_mode="rl" if assisted_rl else "pd",
             rl_iterations=rl_iterations,
@@ -1735,6 +1750,8 @@ def _demo_tournament(robots: list[str], moves: list[str], out: Path, stride: int
             notes.append(f"final={corner}({mode} {surv})")
         if depth_refine:
             notes.append("depth-refine")
+        if retarget_backend != "kinematic":
+            notes.append(f"retarget={retarget_backend}")
         note = f" ({', '.join(notes)})" if notes else ""
         print(f"✓ fight tournament FINAL GIF{note} → {out} ({out.stat().st_size // 1024} KB)")
         if assisted:
@@ -1796,7 +1813,8 @@ def _demo_tournament(robots: list[str], moves: list[str], out: Path, stride: int
 
 def _demo_fight(robot_a: str, robot_b: str, out: Path, duration: float, sep: float,
                 style: str, mesh: bool, urdf_a: Path | None, urdf_b: Path | None,
-                depth_refine: bool = False, assisted: str | None = None,
+                depth_refine: bool = False, retarget_backend: str = "kinematic",
+                assisted: str | None = None,
                 assisted_rl: bool = False, rl_iterations: int = 20) -> int:
     """🥊 2 体を MuJoCo シーンで対面させ、ヒットを採点した GIF を書き出す。"""
     import imageio.v2 as imageio
@@ -1807,13 +1825,16 @@ def _demo_fight(robot_a: str, robot_b: str, out: Path, duration: float, sep: flo
     if assisted_rl and not assisted:
         print("✗ --rl は --assisted と併用してください")
         return 1
+    if err := _check_fight_retarget_backend([robot_a, robot_b], retarget_backend):
+        return err
 
     res = run_fight(get_morphology(robot_a), get_morphology(robot_b),
                     name_a=robot_a, name_b=robot_b, duration=duration, separation=sep,
                     style=style, mesh=mesh,
                     urdf_a=str(urdf_a) if urdf_a else None,
                     urdf_b=str(urdf_b) if urdf_b else None,
-                    depth_refine=depth_refine, assisted=assisted,
+                    depth_refine=depth_refine, retarget_backend=retarget_backend,
+                    assisted=assisted,
                     assisted_mode="rl" if assisted_rl else "pd",
                     rl_iterations=rl_iterations)
     frames = _fight_hud(res)
@@ -1826,6 +1847,8 @@ def _demo_fight(robot_a: str, robot_b: str, out: Path, duration: float, sep: flo
         notes.append("mesh=URDF")
     if depth_refine:
         notes.append("depth-refine")
+    if retarget_backend != "kinematic":
+        notes.append(f"retarget={retarget_backend}")
     if assisted:
         corner = robot_a if assisted == "p1" else robot_b
         surv = f"{res.assisted_survival:.0%}" if res.assisted_survival is not None else "?"
@@ -1843,18 +1866,23 @@ def _demo_fight(robot_a: str, robot_b: str, out: Path, duration: float, sep: flo
 
 
 def _demo_assisted(out: Path, robot: str, style: str, duration: float, stride: int,
-                   depth_refine: bool) -> int:
+                   depth_refine: bool, retarget_backend: str = "kinematic") -> int:
     """単体ロボットで参照 motion を PD-only 物理追従（assisted balance）し side-by-side 描画。"""
     from robotdance_sim.assisted_playback import rollout_pd_only
     from robotdance_sim.fight_tracking import fight_tracking_reference
     from robotdance_unitree import get_morphology
     from robotdance_viewer.skeleton_view import render_side_by_side
 
+    if err := _check_fight_retarget_backend([robot], retarget_backend):
+        return err
+
     morph = get_morphology(robot)
     ref = fight_tracking_reference(
         robot, style, depth_refine=depth_refine, duration=duration, morphology=morph,
+        retarget_backend=retarget_backend,
     )
-    print(f"🦾 assisted PD-only playback（{robot}, style={style}, 残差ゼロ）...")
+    rt_note = f", retarget={retarget_backend}" if retarget_backend != "kinematic" else ""
+    print(f"🦾 assisted PD-only playback（{robot}, style={style}{rt_note}, 残差ゼロ）...")
     result = rollout_pd_only(ref, morph)
     print(f"  物理ロールアウト: 生存 {result.survived_frames}/{result.total_frames} "
           f"(survival {result.survival_ratio:.0%}) / pose RMSE {result.mean_pose_rmse:.3f}")
@@ -2017,6 +2045,9 @@ def main(argv: list[str] | None = None) -> int:
                         help="leaderboard Markdown 出力先（既定: docs/benchmark/HUMANOID_BATTLE_LEADERBOARD.md）")
     p_tour.add_argument("--depth-refine", action="store_true",
                         help="--physical 決勝 GIF の retarget 前に depth refine")
+    p_tour.add_argument("--retarget-backend", default="kinematic",
+                        choices=["kinematic", "gmr"],
+                        help="--physical 決勝 GIF の retarget バックエンド（ブラケットは kinematic のまま）")
     p_tour.add_argument("--assisted", nargs="?", const="champion",
                         choices=["p1", "p2", "champion"],
                         help="--physical 決勝 GIF の物理追従（省略時 champion、ブラケットは kinematic）")
@@ -2043,6 +2074,9 @@ def main(argv: list[str] | None = None) -> int:
     p_fight.add_argument("--separation", type=float, default=0.17, help="両者の間合い[m]（半距離）")
     p_fight.add_argument("--depth-refine", action="store_true",
                          help="retarget 前に depth stabilize + balance refine（実動画技向け）")
+    p_fight.add_argument("--retarget-backend", default="kinematic",
+                         choices=["kinematic", "gmr"],
+                         help="fight motion の retarget バックエンド（list-retargeters 参照）")
     p_fight.add_argument("--assisted", nargs="?", const="p1", choices=["p1", "p2"],
                          help="指定コーナーを物理追従（省略時 p1=赤）。相手は kinematic")
     p_fight.add_argument("--rl", action="store_true",
@@ -2062,6 +2096,9 @@ def main(argv: list[str] | None = None) -> int:
     p_assist.add_argument("--stride", type=int, default=2)
     p_assist.add_argument("--depth-refine", action="store_true",
                           help="retarget 前に depth stabilize + balance refine")
+    p_assist.add_argument("--retarget-backend", default="kinematic",
+                          choices=["kinematic", "gmr"],
+                          help="参照 motion の retarget バックエンド")
 
     p_serve = sub.add_parser("serve", help=".rdmotion を safety guard 越しに再生（--ros2 で ROS2 配信）")
     p_serve.add_argument("rdmotion", type=Path, help="certified .rdmotion JSON")
@@ -2467,16 +2504,17 @@ def main(argv: list[str] | None = None) -> int:
             record=args.record, leaderboard=args.leaderboard,
             assisted=args.assisted, assisted_rl=args.rl,
             rl_iterations=args.rl_iterations, depth_refine=args.depth_refine,
+            retarget_backend=args.retarget_backend,
         )
     if args.command == "demo-fight":
         return _demo_fight(
             args.p1, args.p2, args.out, args.duration, args.separation, args.style,
-            args.mesh, args.urdf_a, args.urdf_b, args.depth_refine, args.assisted,
-            args.rl, args.rl_iterations,
+            args.mesh, args.urdf_a, args.urdf_b, args.depth_refine, args.retarget_backend,
+            args.assisted, args.rl, args.rl_iterations,
         )
     if args.command == "demo-assisted":
         return _demo_assisted(args.out, args.robot, args.style, args.duration, args.stride,
-                              args.depth_refine)
+                              args.depth_refine, args.retarget_backend)
     if args.command == "validate-sim":
         return _validate_sim(args.path, args.robot, args.out, args.backend, args.clamp_flexion,
                              args.balance_plot, args.ground_clean, args.lock_foot_xy,

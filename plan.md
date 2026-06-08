@@ -85,7 +85,8 @@ The honest unsolved core; better here → a *real* fight instead of choreography
 - [x] **GMR retarget backend** — **v0.153**: `retarget --backend gmr` が GMR mink IK を実行
       （`robotdance_retarget/gmr_backend.py`、clone + `pip install -e GMR/` 要）。対応 robot:
       G1/H1/H2/T1/N1。**v0.154**: `benchmark-assisted --retarget-backend kinematic gmr` で
-      survival を backend 別比較（`rescued_by_gmr` サマリ）。
+      survival を backend 別比較（`rescued_by_gmr` サマリ）。**v0.156**: `demo-fight` /
+      `demo-assisted` / トーナメント決勝に `--retarget-backend gmr`。
 
 ## Non-goals / decisions
 

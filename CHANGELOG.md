@@ -5,6 +5,10 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.156.0] - 2026-06-08
+### Added
+- **`demo-fight` / `demo-assisted` / `demo-tournament` `--retarget-backend gmr`**: fight motion の retarget に GMR を選択可能。`run_fight` / `fight_tracking_reference` が `retarget_with_backend` 経由。トーナメントは決勝 GIF のみ（ブラケットは kinematic のまま）。`tests/test_fight_retarget_backend.py`。
+
 ## [0.155.0] - 2026-06-08
 ### Added
 - **Fight HUD assisted survival 焼き込み**: `demo-fight` / `demo-tournament` 決勝 GIF の HUD バーに `PD`/`RL` と survival % を表示（assisted コーナー側）。`tests/test_fight_hud.py`。

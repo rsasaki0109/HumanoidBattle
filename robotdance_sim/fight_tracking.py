@@ -5,8 +5,8 @@ from __future__ import annotations
 from robotdance_core.rd_mir import RdMir
 from robotdance_core.rd_motion import RdMotion
 from robotdance_motion.fight_refinement import refine_for_fight
+from robotdance_retarget.dispatch import retarget_with_backend
 from robotdance_retarget.embodiment import RobotMorphology
-from robotdance_retarget.kinematic import retarget
 from robotdance_sim.arena import motion_for_style
 from robotdance_unitree import get_morphology
 
@@ -34,10 +34,17 @@ def fight_tracking_reference(
     depth_refine: bool = False,
     duration: float = 3.0,
     morphology: RobotMorphology | None = None,
+    retarget_backend: str = "kinematic",
 ) -> RdMotion:
     """fight motion を指定ロボットへ retarget し tracking 参照を返す。"""
+    from robotdance_retarget.dispatch import check_retarget_backend_for_robots
+
     morph = morphology or get_morphology(robot)
-    return retarget(fight_motion_mir(style, depth_refine=depth_refine, duration=duration), morph)
+    check_retarget_backend_for_robots([robot], retarget_backend)
+    return retarget_with_backend(
+        fight_motion_mir(style, depth_refine=depth_refine, duration=duration),
+        morph, retarget_backend,
+    )
 
 
 def fight_tracking_suite(
@@ -45,10 +52,17 @@ def fight_tracking_suite(
     *,
     depth_refine: bool = False,
     duration: float = 3.0,
+    retarget_backend: str = "kinematic",
 ) -> list[tuple[str, RdMotion]]:
     """合成 fight 4 技の tracking 参照スイート。"""
     return [
-        (style, retarget(fight_motion_mir(style, depth_refine=depth_refine, duration=duration), morphology))
+        (
+            style,
+            retarget_with_backend(
+                fight_motion_mir(style, depth_refine=depth_refine, duration=duration),
+                morphology, retarget_backend,
+            ),
+        )
         for style in FIGHT_TRACKING_SUITE
     ]
 

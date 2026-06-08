@@ -117,6 +117,7 @@ def run_fight(morph_a, morph_b, *, name_a: str, name_b: str, separation: float =
               render: bool = True, mesh: bool = False,
               urdf_a: str | None = None, urdf_b: str | None = None,
               depth_refine: bool = False,
+              retarget_backend: str = "kinematic",
               assisted: str | None = None,
               assisted_mode: str = "pd",
               rl_iterations: int = 20) -> FightResult:
@@ -124,13 +125,15 @@ def run_fight(morph_a, morph_b, *, name_a: str, name_b: str, separation: float =
 
     style: `boxing`/`hook`/`kick`/`dodge` または `karate`/`kathak`（実動画）。
     mesh: True で pybullet 実 URDF メッシュ描画（ヒット判定は MuJoCo 幾何のまま）。
+    retarget_backend: "kinematic" または "gmr"（`retarget --backend gmr` と同系）。
     assisted: "p1" または "p2" — 指定コーナーだけ物理追従、相手は kinematic のまま。
     assisted_mode: "pd"（残差ゼロ）または "rl"（PPO tracking）。
     """
     import mujoco
 
-    from robotdance_retarget.kinematic import retarget
+    from robotdance_retarget.dispatch import check_retarget_backend_for_robots, retarget_with_backend
 
+    check_retarget_backend_for_robots([name_a, name_b], retarget_backend)
     cfg = STYLE_CONFIG.get(style, STYLE_CONFIG["boxing"])
 
     # 1. 各ファイターの motion → robot kps → 単体 qpos。
@@ -141,8 +144,8 @@ def run_fight(morph_a, morph_b, *, name_a: str, name_b: str, separation: float =
         box_a = refine_for_fight(box_a)
         box_b = refine_for_fight(box_b)
     fps = float(box_a.fps)
-    motion_a = retarget(box_a, morph_a)
-    motion_b = retarget(box_b, morph_b)
+    motion_a = retarget_with_backend(box_a, morph_a, retarget_backend)
+    motion_b = retarget_with_backend(box_b, morph_b, retarget_backend)
     rk_a = motion_a.keypoints_3d_array()
     rk_b = motion_b.keypoints_3d_array()
     n = min(rk_a.shape[0], rk_b.shape[0])
