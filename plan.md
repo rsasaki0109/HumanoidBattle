@@ -78,6 +78,8 @@ The honest unsolved core; better here → a *real* fight instead of choreography
       **v0.151**: `--assisted champion`（省略時も champion）— 決勝 GIF でチャンピオン側を自動物理追従。
       **v0.155**: 決勝 GIF HUD に `assisted_survival`（PD/RL %）を焼き込み（`_fight_hud`）。
       **v0.158**: `demo-fight --sparring` — 2 体同時 PD 物理（limb 接触、幾何採点は維持）。
+      **v0.159**: `demo-tournament --physical --sparring` — 決勝 GIF のみ 2 体 PD sparring
+      （ブラケットは kinematic のまま）。
       Full contact-dynamics scoring still open.
 - [~] **Depth frontier** (continues `--stabilize-depth` / `--balance-refine`): **v0.144**:
       `refine_for_fight()` + `demo-fight --depth-refine` / `demo-assisted --depth-refine` wire

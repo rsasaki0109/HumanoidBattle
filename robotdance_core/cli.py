@@ -1684,7 +1684,8 @@ def _demo_tournament(robots: list[str], moves: list[str], out: Path, stride: int
                      record: bool = False, leaderboard: Path | None = None,
                      assisted: str | None = None, assisted_rl: bool = False,
                      rl_iterations: int = 20, depth_refine: bool = False,
-                     retarget_backend: str = "kinematic") -> int:
+                     retarget_backend: str = "kinematic",
+                     sparring: bool = False) -> int:
     """🏆 HumanoidBattle トーナメント: 単欠ブラケット→チャンピオン（型採点 or 物理 fight）。"""
     labels = ["準々決勝", "準決勝", "決勝"]
 
@@ -1733,6 +1734,9 @@ def _demo_tournament(robots: list[str], moves: list[str], out: Path, stride: int
         if assisted_rl and not assisted:
             print("✗ --rl は --assisted と併用してください")
             return 1
+        if sparring and assisted:
+            print("✗ --sparring と --assisted は併用できません")
+            return 1
 
         from robotdance_benchmarks.fight_tournament import resolve_assisted_corner
 
@@ -1751,11 +1755,19 @@ def _demo_tournament(robots: list[str], moves: list[str], out: Path, stride: int
             assisted=assisted_corner,
             assisted_mode="rl" if assisted_rl else "pd",
             rl_iterations=rl_iterations,
+            sparring=sparring,
         )
         frames = _fight_hud(fin)
         out.parent.mkdir(parents=True, exist_ok=True)
         imageio.mimsave(out, frames[::2], duration=2.0 / fin.fps, loop=0)
         notes = []
+        if sparring:
+            surv = (
+                f"PD {fin.p1_survival:.0%}/{fin.p2_survival:.0%}"
+                if fin.p1_survival is not None and fin.p2_survival is not None
+                else "PD"
+            )
+            notes.append(f"sparring({surv})")
         if assisted:
             corner = f.p1 if assisted_corner == "p1" else f.p2
             if assisted == "champion":
@@ -1769,7 +1781,9 @@ def _demo_tournament(robots: list[str], moves: list[str], out: Path, stride: int
             notes.append(f"retarget={retarget_backend}")
         note = f" ({', '.join(notes)})" if notes else ""
         print(f"✓ fight tournament FINAL GIF{note} → {out} ({out.stat().st_size // 1024} KB)")
-        if assisted:
+        if sparring:
+            print("  ⚠️ ブラケット試合は kinematic。決勝 GIF のみ 2 体 PD sparring（幾何採点）。")
+        elif assisted:
             print("  ⚠️ ブラケット試合は kinematic。決勝 GIF のみ assisted 物理追従。")
         return 0
 
@@ -2092,6 +2106,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="--physical --assisted 決勝を PPO tracking で描画")
     p_tour.add_argument("--rl-iterations", type=int, default=20,
                         help="--physical --assisted --rl 時の PPO 学習量")
+    p_tour.add_argument("--sparring", action="store_true",
+                        help="--physical 決勝 GIF を 2 体 PD sparring で描画（ブラケットは kinematic）")
 
     p_fight = sub.add_parser(
         "demo-fight",
@@ -2549,7 +2565,7 @@ def main(argv: list[str] | None = None) -> int:
             record=args.record, leaderboard=args.leaderboard,
             assisted=args.assisted, assisted_rl=args.rl,
             rl_iterations=args.rl_iterations, depth_refine=args.depth_refine,
-            retarget_backend=args.retarget_backend,
+            retarget_backend=args.retarget_backend, sparring=args.sparring,
         )
     if args.command == "demo-fight":
         return _demo_fight(

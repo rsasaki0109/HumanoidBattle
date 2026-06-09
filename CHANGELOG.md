@@ -5,6 +5,10 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.159.0] - 2026-06-08
+### Added
+- **Physical tournament 決勝 sparring（`demo-tournament --physical --sparring`）**: ブラケット試合は kinematic のまま、決勝 GIF のみ 2 体 PD sparring（`--assisted` と排他）。HUD に survival % を焼き込み。`tests/test_tournament_sparring.py`。
+
 ## [0.158.0] - 2026-06-08
 ### Added
 - **2-body contact sparring（`demo-fight --sparring`）**: 共有 MuJoCo arena で両者を PD-only 物理追従（limb 接触あり）。`p1_survival` / `p2_survival` を HUD に焼き込み。ヒット採点は幾何のまま（honest scope）。`robotdance_sim/sparring.py`、`tests/test_sparring.py`。
