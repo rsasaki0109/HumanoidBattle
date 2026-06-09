@@ -53,6 +53,9 @@ class FightResult:
     sparring: bool = False  # 2 体同時 PD 物理（接触あり）
     p1_survival: float | None = None
     p2_survival: float | None = None
+    scoring_mode: str = "geometric"  # "geometric" | "contact"
+    p1_geom_hits: int | None = None  # contact 採点時の幾何ヒット（比較用）
+    p2_geom_hits: int | None = None
 
 
 def _single_model(morph):
@@ -124,7 +127,8 @@ def run_fight(morph_a, morph_b, *, name_a: str, name_b: str, separation: float =
               assisted: str | None = None,
               assisted_mode: str = "pd",
               rl_iterations: int = 20,
-              sparring: bool = False) -> FightResult:
+              sparring: bool = False,
+              contact_scoring: bool = False) -> FightResult:
     """2 体を対面させ motion を再生し、拳→相手頭/胸の幾何ヒットを採点して GIF フレームを返す。
 
     style: `boxing`/`hook`/`kick`/`dodge` または `karate`/`kathak`（実動画）。
@@ -133,9 +137,12 @@ def run_fight(morph_a, morph_b, *, name_a: str, name_b: str, separation: float =
     assisted: "p1" または "p2" — 指定コーナーだけ物理追従、相手は kinematic のまま。
     assisted_mode: "pd"（残差ゼロ）または "rl"（PPO tracking）。
     sparring: True で両者を共有 arena 上で PD 物理追従（limb 接触あり）。assisted と併用不可。
+    contact_scoring: True で sparring 時に MuJoCo 接触力でヒット採点（幾何は比較用に保持）。
     """
     if sparring and assisted:
         raise ValueError("sparring と assisted は併用できません（v0.158）")
+    if contact_scoring and not sparring:
+        raise ValueError("contact_scoring は sparring 時のみ有効です（v0.161）")
     import mujoco
 
     from robotdance_retarget.dispatch import check_retarget_backend_for_robots, retarget_with_backend
@@ -183,16 +190,28 @@ def run_fight(morph_a, morph_b, *, name_a: str, name_b: str, separation: float =
     data = mujoco.MjData(model)
 
     p1_survival = p2_survival = None
+    scoring_mode = "geometric"
+    p1_geom_hits = p2_geom_hits = None
     if sparring:
         from .sparring import play_sparring
 
-        (
-            p1_hits, p2_hits, p1_body, p2_body, frames, p1_cum, p2_cum,
-            p1_survival, p2_survival,
-        ) = play_sparring(
+        outcome = play_sparring(
             model, data, ma, mb, qa, qb, info, separation,
             morph_a, morph_b, cfg, fps, width, height, render and not mesh,
+            contact_scoring=contact_scoring,
         )
+        p1_hits = outcome.p1_hits
+        p2_hits = outcome.p2_hits
+        p1_body = outcome.p1_body
+        p2_body = outcome.p2_body
+        frames = outcome.frames
+        p1_cum = outcome.p1_cum
+        p2_cum = outcome.p2_cum
+        p1_survival = outcome.p1_survival
+        p2_survival = outcome.p2_survival
+        scoring_mode = outcome.scoring_mode
+        p1_geom_hits = outcome.p1_geom_hits
+        p2_geom_hits = outcome.p2_geom_hits
     else:
         # 3. ヒット判定（striker→的の幾何距離, 体格差で reach/precision 補正）。
         p1_hits, p2_hits, p1_body, p2_body, frames, p1_cum, p2_cum = _play_and_score(
@@ -233,6 +252,7 @@ def run_fight(morph_a, morph_b, *, name_a: str, name_b: str, separation: float =
         assisted_corner=assisted, assisted_mode=track_mode,
         assisted_survival=assisted_survival,
         sparring=sparring, p1_survival=p1_survival, p2_survival=p2_survival,
+        scoring_mode=scoring_mode, p1_geom_hits=p1_geom_hits, p2_geom_hits=p2_geom_hits,
     )
 
 

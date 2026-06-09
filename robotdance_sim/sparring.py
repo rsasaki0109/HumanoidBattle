@@ -1,19 +1,36 @@
 """2-body contact sparring — 共有 MuJoCo arena で両者を PD 物理追従。
 
 v0.158: ルートは underactuated（TrackingEnv と同様、free joint へトルクなし）だが
-関節 PD + ``mj_step`` で limb 接触・反動が生じる。ヒット採点は kinematic 版と同じ幾何判定
-（honest scope: 接触力は sim だがスコアは geometric のまま）。
+関節 PD + ``mj_step`` で limb 接触・反動が生じる。既定ヒットは幾何判定。
+v0.161: ``contact_scoring=True`` で MuJoCo 接触力ベース採点（sparring 専用）。
 """
 
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 
 import numpy as np
 
 from robotdance_core.skeleton import index_of
 from robotdance_retarget.embodiment import RobotMorphology
 from robotdance_sim.fight_moves import effective_hit_radius
+
+
+@dataclass
+class SparringOutcome:
+    p1_hits: int
+    p2_hits: int
+    p1_body: int
+    p2_body: int
+    frames: list
+    p1_cum: list[int]
+    p2_cum: list[int]
+    p1_survival: float
+    p2_survival: float
+    scoring_mode: str = "geometric"
+    p1_geom_hits: int | None = None
+    p2_geom_hits: int | None = None
 
 
 def _arena_ref_qpos(
@@ -86,14 +103,17 @@ def play_sparring(
     width: int,
     height: int,
     render: bool,
-) -> tuple[int, int, int, int, list, list[int], list[int], float, float]:
-    """共有 arena で PD-only 2 体 sparring を再生し採点する。
-
-    返り値: p1_hits, p2_hits, p1_body, p2_body, frames, p1_cum, p2_cum, p1_survival, p2_survival
-    """
+    contact_scoring: bool = False,
+) -> SparringOutcome:
+    """共有 arena で PD-only 2 体 sparring を再生し採点する。"""
     import mujoco
 
     from robotdance_core.skeleton import JOINT_NAMES, PARENTS
+    from robotdance_sim.contact_scoring import (
+        ContactHitDetector,
+        body_target_joint_names,
+        target_joint_names,
+    )
 
     n = min(qa.shape[0], qb.shape[0])
     strikers = tuple(index_of(j) for j in style_cfg["strikers"])
@@ -164,12 +184,25 @@ def play_sparring(
 
     p1_hits = p2_hits = 0
     p1_body = p2_body = 0
+    p1_geom_hits = p2_geom_hits = 0
     a_cd = b_cd = 0
+    g_a_cd = g_b_cd = 0
     frames: list = []
     p1_cum: list[int] = []
     p2_cum: list[int] = []
     p1_alive = p2_alive = True
     p1_surv_frames = p2_surv_frames = 0
+
+    contact_detector = None
+    if contact_scoring:
+        contact_detector = ContactHitDetector(
+            model,
+            prefix_a="a_",
+            prefix_b="b_",
+            striker_joints=style_cfg["strikers"],
+            target_joints=target_joint_names(),
+            body_target_joints=body_target_joint_names(),
+        )
 
     ak_a = np.zeros((n, len(JOINT_NAMES), 3), dtype=np.float64)
     ak_b = np.zeros_like(ak_a)
@@ -187,18 +220,28 @@ def play_sparring(
         b_dist, b_body = _strike(ak_b, ak_a, f, hb, ha)
         a_lim = effective_hit_radius(base_r, ha, hb, body_target=a_body)
         b_lim = effective_hit_radius(base_r, hb, ha, body_target=b_body)
-        a_cd = max(0, a_cd - 1)
-        b_cd = max(0, b_cd - 1)
-        if a_dist < a_lim and a_cd == 0 and p1_alive:
-            p1_hits += 1
-            if a_body:
-                p1_body += 1
-            a_cd = int(0.4 * fps)
-        if b_dist < b_lim and b_cd == 0 and p2_alive:
-            p2_hits += 1
-            if b_body:
-                p2_body += 1
-            b_cd = int(0.4 * fps)
+        g_a_cd = max(0, g_a_cd - 1)
+        g_b_cd = max(0, g_b_cd - 1)
+        if a_dist < a_lim and g_a_cd == 0 and p1_alive:
+            p1_geom_hits += 1
+            g_a_cd = int(0.4 * fps)
+        if b_dist < b_lim and g_b_cd == 0 and p2_alive:
+            p2_geom_hits += 1
+            g_b_cd = int(0.4 * fps)
+
+        if not contact_scoring:
+            a_cd = max(0, a_cd - 1)
+            b_cd = max(0, b_cd - 1)
+            if a_dist < a_lim and a_cd == 0 and p1_alive:
+                p1_hits += 1
+                if a_body:
+                    p1_body += 1
+                a_cd = int(0.4 * fps)
+            if b_dist < b_lim and b_cd == 0 and p2_alive:
+                p2_hits += 1
+                if b_body:
+                    p2_body += 1
+                b_cd = int(0.4 * fps)
         p1_cum.append(p1_hits)
         p2_cum.append(p2_hits)
 
@@ -219,8 +262,31 @@ def play_sparring(
         tau = np.clip(tau, -torque_cap, torque_cap)
         tau[~torque_mask] = 0.0
         data.qfrc_applied[:] = tau
+        frame_c1 = frame_c2 = frame_c1b = frame_c2b = False
         for _ in range(n_sub):
             mujoco.mj_step(model, data)
+            if contact_detector is not None:
+                c1, c2, c1b, c2b = contact_detector.substep_hits(data)
+                frame_c1 |= c1
+                frame_c2 |= c2
+                frame_c1b |= c1b
+                frame_c2b |= c2b
+
+        if contact_detector is not None:
+            a_cd = max(0, a_cd - 1)
+            b_cd = max(0, b_cd - 1)
+            if frame_c1 and a_cd == 0 and p1_alive:
+                p1_hits += 1
+                if frame_c1b:
+                    p1_body += 1
+                a_cd = int(0.4 * fps)
+            if frame_c2 and b_cd == 0 and p2_alive:
+                p2_hits += 1
+                if frame_c2b:
+                    p2_body += 1
+                b_cd = int(0.4 * fps)
+            p1_cum[-1] = p1_hits
+            p2_cum[-1] = p2_hits
 
         # 転倒判定（各 root）
         a_z = float(data.qpos[info["q_a_adr"] + 2])
@@ -235,10 +301,18 @@ def play_sparring(
 
     p1_survival = round(p1_surv_frames / max(n, 1), 3)
     p2_survival = round(p2_surv_frames / max(n, 1), 3)
-    return (
+    if contact_scoring:
+        return SparringOutcome(
+            p1_hits, p2_hits, p1_body, p2_body, frames, p1_cum, p2_cum,
+            p1_survival, p2_survival,
+            scoring_mode="contact",
+            p1_geom_hits=p1_geom_hits,
+            p2_geom_hits=p2_geom_hits,
+        )
+    return SparringOutcome(
         p1_hits, p2_hits, p1_body, p2_body, frames, p1_cum, p2_cum,
         p1_survival, p2_survival,
     )
 
 
-__all__ = ["play_sparring"]
+__all__ = ["SparringOutcome", "play_sparring"]

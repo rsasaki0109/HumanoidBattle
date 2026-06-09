@@ -797,6 +797,53 @@ def _benchmark_assisted(
     return 0
 
 
+def _benchmark_sparring(
+    robots: list[str],
+    opponent: str,
+    styles: list[str],
+    duration: float,
+    separation: float,
+    compare_refine: bool,
+    out_dir: Path,
+    retarget_backends: list[str] | None = None,
+) -> int:
+    from robotdance_benchmarks.sparring_survival import (
+        render_sparring_survival_markdown,
+        run_sparring_survival_benchmark,
+        write_sparring_survival_csv,
+    )
+
+    try:
+        report = run_sparring_survival_benchmark(
+            robots, opponent=opponent, styles=styles,
+            duration=duration, separation=separation,
+            compare_refine=compare_refine,
+            retarget_backends=retarget_backends,
+        )
+    except (RuntimeError, ValueError) as exc:
+        print(f"✗ {exc}")
+        return 1
+    out_dir.mkdir(parents=True, exist_ok=True)
+    csv_path = write_sparring_survival_csv(report, out_dir / "sparring_survival.csv")
+    md_path = out_dir / "SPARRING_SURVIVAL.md"
+    md_path.write_text(render_sparring_survival_markdown(report), encoding="utf-8")
+    print(f"✓ sparring survival benchmark: {len(report['rows'])} bouts vs {opponent}")
+    print(f"  {csv_path}\n  {md_path}")
+    for r in report.get("rescued_by_gmr", []):
+        tag = "refine" if r["depth_refine"] else "raw"
+        print(f"  rescued (GMR/{tag}): {r['p1']:12s} {r['style']:8s} "
+              f"kin {r['kin_min_survival']:.3f} → gmr {r['gmr_min_survival']:.3f}")
+    if compare_refine:
+        for r in report["rescued"]:
+            print(f"  rescued (refine): {r['p1']:12s} {r['style']:8s} "
+                  f"min {r['raw_min_survival']:.3f} → {r['ref_min_survival']:.3f}")
+        for r in report["regressed"]:
+            print(f"  regressed (refine): {r['p1']:12s} {r['style']:8s} "
+                  f"min {r['raw_min_survival']:.3f} → {r['ref_min_survival']:.3f}")
+    print("  ⚠️ v0: 2 体 PD sparring。ヒット採点は幾何のまま。")
+    return 0
+
+
 def _retarget_ik(path: Path, urdf: Path, out: Path, steps: int,
                  conf_gate: float | None = None) -> int:
     from .rd_mir import RdMir
@@ -1845,7 +1892,7 @@ def _demo_fight(robot_a: str, robot_b: str, out: Path, duration: float, sep: flo
                 depth_refine: bool = False, retarget_backend: str = "kinematic",
                 assisted: str | None = None,
                 assisted_rl: bool = False, rl_iterations: int = 20,
-                sparring: bool = False) -> int:
+                sparring: bool = False, contact_scoring: bool = False) -> int:
     """🥊 2 体を MuJoCo シーンで対面させ、ヒットを採点した GIF を書き出す。"""
     import imageio.v2 as imageio
 
@@ -1858,6 +1905,9 @@ def _demo_fight(robot_a: str, robot_b: str, out: Path, duration: float, sep: flo
     if sparring and assisted:
         print("✗ --sparring と --assisted は併用できません")
         return 1
+    if contact_scoring and not sparring:
+        print("✗ --contact-scoring は --sparring と併用してください")
+        return 1
     if err := _check_fight_retarget_backend([robot_a, robot_b], retarget_backend):
         return err
 
@@ -1869,7 +1919,8 @@ def _demo_fight(robot_a: str, robot_b: str, out: Path, duration: float, sep: flo
                     depth_refine=depth_refine, retarget_backend=retarget_backend,
                     assisted=assisted,
                     assisted_mode="rl" if assisted_rl else "pd",
-                    rl_iterations=rl_iterations, sparring=sparring)
+                    rl_iterations=rl_iterations, sparring=sparring,
+                    contact_scoring=contact_scoring)
     frames = _fight_hud(res)
     out.parent.mkdir(parents=True, exist_ok=True)
     imageio.mimsave(out, frames[::2], duration=2.0 / res.fps, loop=0)
@@ -1883,10 +1934,17 @@ def _demo_fight(robot_a: str, robot_b: str, out: Path, duration: float, sep: flo
     if retarget_backend != "kinematic":
         notes.append(f"retarget={retarget_backend}")
     if sparring:
-        notes.append(
-            f"sparring(PD {res.p1_survival:.0%}/{res.p2_survival:.0%})"
-            if res.p1_survival is not None and res.p2_survival is not None else "sparring"
+        surv = (
+            f"PD {res.p1_survival:.0%}/{res.p2_survival:.0%}"
+            if res.p1_survival is not None and res.p2_survival is not None
+            else "PD"
         )
+        tag = f"sparring({surv})"
+        if res.scoring_mode == "contact":
+            tag = f"contact({surv})"
+            if res.p1_geom_hits is not None and res.p2_geom_hits is not None:
+                tag += f" geom={res.p1_geom_hits}-{res.p2_geom_hits}"
+        notes.append(tag)
     if assisted:
         corner = robot_a if assisted == "p1" else robot_b
         surv = f"{res.assisted_survival:.0%}" if res.assisted_survival is not None else "?"
@@ -1897,7 +1955,11 @@ def _demo_fight(robot_a: str, robot_b: str, out: Path, duration: float, sep: flo
     print(f"   ヒット {robot_a}={res.p1_hits}  {robot_b}={res.p2_hits}  "
           f"→ {'引き分け' if res.winner == 'DRAW' else 'WINNER: ' + res.winner}")
     if sparring:
-        print("  ⚠️ sparring: 2 体同時 PD 物理（limb 接触あり）。ヒット採点は幾何のまま。")
+        if res.scoring_mode == "contact":
+            print("  ⚠️ sparring + contact scoring: MuJoCo 接触力でヒット採点。"
+                  " 幾何ヒットは比較用に併記。")
+        else:
+            print("  ⚠️ sparring: 2 体同時 PD 物理（limb 接触あり）。ヒット採点は幾何。")
     elif assisted:
         mode = res.assisted_mode or "pd"
         print(f"  ⚠️ assisted: 1 体のみ {mode.upper()} 物理追従。相手は kinematic。接触反動なし。")
@@ -1974,7 +2036,10 @@ def _fight_hud(res):
         s1 = res.p1_cum[i] if i < len(res.p1_cum) else res.p1_hits
         s2 = res.p2_cum[i] if i < len(res.p2_cum) else res.p2_hits
         cv2.putText(bar, f"{res.p1}", (8, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.5, red, 1, cv2.LINE_AA)
-        cv2.putText(bar, f"{s1} - {s2}", (w // 2 - 26, 23), cv2.FONT_HERSHEY_SIMPLEX, 0.6,
+        score_txt = f"{s1} - {s2}"
+        if res.scoring_mode == "contact":
+            score_txt = f"C {score_txt}"
+        cv2.putText(bar, score_txt, (w // 2 - 30, 23), cv2.FONT_HERSHEY_SIMPLEX, 0.6,
                     (240, 240, 240), 2, cv2.LINE_AA)
         tw = cv2.getTextSize(res.p2, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)[0][0]
         cv2.putText(bar, f"{res.p2}", (w - tw - 8, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.5, blue, 1,
@@ -2138,6 +2203,8 @@ def main(argv: list[str] | None = None) -> int:
                          help="--assisted --rl 時の PPO 学習イテレーション数")
     p_fight.add_argument("--sparring", action="store_true",
                          help="2 体同時 PD 物理追従（limb 接触あり）。--assisted と併用不可")
+    p_fight.add_argument("--contact-scoring", action="store_true",
+                         help="--sparring 時に MuJoCo 接触力でヒット採点（幾何は比較用）")
 
     p_assist = sub.add_parser(
         "demo-assisted",
@@ -2198,6 +2265,28 @@ def main(argv: list[str] | None = None) -> int:
     p_abench.add_argument("--rl-iterations", type=int, default=20,
                           help="--rl 時の PPO 学習イテレーション数")
     p_abench.add_argument("-o", "--out", type=Path, default=Path("docs/benchmark"))
+
+    p_sbench = sub.add_parser(
+        "benchmark-sparring",
+        help="robot × opponent × style の 2 体 PD sparring survival を raw/refine 比較（要 sim）",
+    )
+    p_sbench.add_argument("--robots", nargs="+",
+                          default=["unitree_g1", "unitree_h1", "unitree_h2", "booster_t1",
+                                   "apptronik_apollo", "fourier_n1"],
+                          help="p1 ロボット一覧（opponent と同じ名前はスキップ）")
+    p_sbench.add_argument("--opponent", default="unitree_h1",
+                          help="固定 p2 コーナー（既定: unitree_h1）")
+    p_sbench.add_argument("--styles", nargs="+", default=sorted(FIGHT_STYLE_NAMES))
+    p_sbench.add_argument("--duration", type=float, default=3.0,
+                          help="合成 fight 技の長さ[s]（karate/kathak はフィクスチャ長）")
+    p_sbench.add_argument("--separation", type=float, default=0.17,
+                          help="間合い[m]（半距離）")
+    p_sbench.add_argument("--no-compare", action="store_true",
+                          help="depth-refine なしの 1 パスだけ実行")
+    p_sbench.add_argument("--retarget-backend", nargs="+", default=["kinematic"],
+                          choices=["kinematic", "gmr"],
+                          help="retarget バックエンド比較（例: kinematic gmr）")
+    p_sbench.add_argument("-o", "--out", type=Path, default=Path("docs/benchmark"))
 
     p_mmap = sub.add_parser("demo-motion-map", help="合成モーションを埋め込み Motion Map を描く")
     p_mmap.add_argument("-o", "--out", type=Path, default=Path("motion_map.png"))
@@ -2572,6 +2661,7 @@ def main(argv: list[str] | None = None) -> int:
             args.p1, args.p2, args.out, args.duration, args.separation, args.style,
             args.mesh, args.urdf_a, args.urdf_b, args.depth_refine, args.retarget_backend,
             args.assisted, args.rl, args.rl_iterations, args.sparring,
+            args.contact_scoring,
         )
     if args.command == "demo-assisted":
         return _demo_assisted(args.out, args.robot, args.style, args.duration, args.stride,
@@ -2614,6 +2704,11 @@ def main(argv: list[str] | None = None) -> int:
         return _benchmark_assisted(
             args.robots, args.styles, args.duration, not args.no_compare, args.out,
             args.retarget_backend, args.rl, args.rl_iterations, args.rl_all,
+        )
+    if args.command == "benchmark-sparring":
+        return _benchmark_sparring(
+            args.robots, args.opponent, args.styles, args.duration, args.separation,
+            not args.no_compare, args.out, args.retarget_backend,
         )
     if args.command == "demo-motion-map":
         return _demo_motion_map(args.out, args.checkpoint)

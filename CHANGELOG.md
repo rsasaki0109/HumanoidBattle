@@ -5,6 +5,14 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.161.0] - 2026-06-08
+### Added
+- **Contact-dynamics 採点（`demo-fight --sparring --contact-scoring`）**: MuJoCo `mj_contactForce` の法線力で striker→head/chest/spine 接触をヒット判定。幾何ヒットは `p1_geom_hits` / `p2_geom_hits` として比較用に保持。`robotdance_sim/contact_scoring.py`、`tests/test_contact_scoring.py`。
+
+## [0.160.0] - 2026-06-08
+### Added
+- **Sparring survival benchmark（`benchmark-sparring`）**: robot × opponent × style の 2 体 PD sparring survival を raw/refine 比較。`robotdance_benchmarks/sparring_survival.py` が CSV + `SPARRING_SURVIVAL.md` を出力。`--opponent` / `--retarget-backend` 対応。`tests/test_sparring_survival.py`。
+
 ## [0.159.0] - 2026-06-08
 ### Added
 - **Physical tournament 決勝 sparring（`demo-tournament --physical --sparring`）**: ブラケット試合は kinematic のまま、決勝 GIF のみ 2 体 PD sparring（`--assisted` と排他）。HUD に survival % を焼き込み。`tests/test_tournament_sparring.py`。
