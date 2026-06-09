@@ -46,6 +46,8 @@ models_smpl/
 body_models/
 # ローカルにビルドした動画クリップ・データセット
 data/
+!robotdance_benchmarks/data/
+!robotdance_benchmarks/data/*.rdmir.json
 datasets/
 cache/
 outputs/

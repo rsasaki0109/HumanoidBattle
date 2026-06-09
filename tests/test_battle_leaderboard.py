@@ -9,7 +9,6 @@ import pytest
 from robotdance_benchmarks.battle_leaderboard import (
     INITIAL_ELO,
     BattleLeaderboardState,
-    expected_score,
     load_state,
     record_fight_tournament,
     render_markdown,

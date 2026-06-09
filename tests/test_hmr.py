@@ -10,6 +10,7 @@ from pathlib import Path
 
 import jsonschema
 import numpy as np
+import pytest
 from scipy.spatial.transform import Rotation as Rot
 
 from robotdance_core.rd_mir import RdMir

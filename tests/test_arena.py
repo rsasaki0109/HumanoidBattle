@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 
 from robotdance_core.skeleton import index_of
-from robotdance_sim.fight_moves import generate_boxing, generate_hook, generate_kick
+from robotdance_sim.fight_moves import generate_boxing
 
 
 def test_generate_boxing_is_valid_and_punches_forward() -> None:
